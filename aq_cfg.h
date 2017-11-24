@@ -22,8 +22,12 @@
 
 #define AQ_CFG_FORCE_LEGACY_INT 0U
 
-#define AQ_CFG_IS_INTERRUPT_MODERATION_DEF   1U
-#define AQ_CFG_INTERRUPT_MODERATION_RATE_DEF 0xFFFFU
+#define AQ_CFG_INTERRUPT_MODERATION_OFF		0
+#define AQ_CFG_INTERRUPT_MODERATION_ON		1
+#define AQ_CFG_INTERRUPT_MODERATION_AUTO	0xFFFFU
+
+#define AQ_CFG_INTERRUPT_MODERATION_USEC_MAX (0x1FF * 2)
+
 #define AQ_CFG_IRQ_MASK                      0x1FFU
 
 #define AQ_CFG_VECS_MAX   8U
@@ -51,6 +55,10 @@
 
 #define AQ_CFG_SKB_FRAGS_MAX   32U
 
+/* Number of descriptors available in one ring to resume this ring queue
+ */
+#define AQ_CFG_RESTART_DESC_THRES   (AQ_CFG_SKB_FRAGS_MAX * 2)
+
 #define AQ_CFG_NAPI_WEIGHT     64U
 
 #define AQ_CFG_MULTICAST_ADDRESS_MAX     32U
@@ -68,7 +76,7 @@
 
 #define AQ_CFG_DRV_AUTHOR      "aQuantia"
 #define AQ_CFG_DRV_DESC        "aQuantia Corporation(R) Network Driver"
-#define AQ_CFG_DRV_NAME        "aquantia"
+#define AQ_CFG_DRV_NAME        "atlantic"
 #define AQ_CFG_DRV_VERSION	__stringify(NIC_MAJOR_DRIVER_VERSION)"."\
 				__stringify(NIC_MINOR_DRIVER_VERSION)"."\
 				__stringify(NIC_BUILD_DRIVER_VERSION)"."\

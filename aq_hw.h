@@ -21,6 +21,7 @@ struct aq_hw_caps_s {
 	u64 hw_features;
 	u64 link_speed_msk;
 	unsigned int hw_priv_flags;
+	u32 media_type;
 	u32 rxds;
 	u32 txds;
 	u32 txhwb_alignment;
@@ -64,12 +65,16 @@ struct aq_hw_link_status_s {
 
 #define AQ_HW_FLAG_ERRORS      (AQ_HW_FLAG_ERR_HW | AQ_HW_FLAG_ERR_UNPLUG)
 
+#define AQ_HW_MEDIA_TYPE_TP    1U
+#define AQ_HW_MEDIA_TYPE_FIBRE 2U
+
 struct aq_hw_s {
 	struct aq_obj_s header;
 	struct aq_nic_cfg_s *aq_nic_cfg;
 	struct aq_pci_func_s *aq_pci_func;
 	void __iomem *mmio;
 	unsigned int not_ff_addr;
+	unsigned short pci_device;
 	struct aq_hw_link_status_s aq_link_status;
 };
 
@@ -85,7 +90,9 @@ struct aq_hw_ops {
 	void (*destroy)(struct aq_hw_s *self);
 
 	int (*get_hw_caps)(struct aq_hw_s *self,
-			   struct aq_hw_caps_s *aq_hw_caps);
+			   struct aq_hw_caps_s *aq_hw_caps,
+			   unsigned short device,
+			   unsigned short subsystem_device);
 
 	int (*hw_ring_tx_xmit)(struct aq_hw_s *self, struct aq_ring_s *aq_ring,
 			       unsigned int frags);
@@ -105,8 +112,7 @@ struct aq_hw_ops {
 
 	int (*hw_set_mac_address)(struct aq_hw_s *self, u8 *mac_addr);
 
-	int (*hw_get_link_status)(struct aq_hw_s *self,
-				  struct aq_hw_link_status_s *link_status);
+	int (*hw_get_link_status)(struct aq_hw_s *self);
 
 	int (*hw_set_link_speed)(struct aq_hw_s *self, u32 speed);
 
@@ -152,8 +158,7 @@ struct aq_hw_ops {
 				     [ETH_ALEN],
 				     u32 count);
 
-	int (*hw_interrupt_moderation_set)(struct aq_hw_s *self,
-					   bool itr_enabled);
+	int (*hw_interrupt_moderation_set)(struct aq_hw_s *self);
 
 	int (*hw_rss_set)(struct aq_hw_s *self,
 			  struct aq_rss_parameters *rss_params);
@@ -163,6 +168,8 @@ struct aq_hw_ops {
 
 	int (*hw_get_regs)(struct aq_hw_s *self,
 			   struct aq_hw_caps_s *aq_hw_caps, u32 *regs_buff);
+
+	int (*hw_update_stats)(struct aq_hw_s *self);
 
 	int (*hw_get_hw_stats)(struct aq_hw_s *self, u64 *data,
 			       unsigned int *p_count);

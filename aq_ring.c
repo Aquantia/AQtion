@@ -104,26 +104,39 @@ int aq_ring_init(struct aq_ring_s *self)
 	return 0;
 }
 
-void aq_ring_tx_append_buffs(struct aq_ring_s *self,
-			     struct aq_ring_buff_s *buffer,
-			     unsigned int buffers)
+static inline bool aq_ring_dx_in_range(unsigned int h, unsigned int i,
+				       unsigned int t)
 {
-	if (likely(self->sw_tail + buffers < self->size)) {
-		memcpy(&self->buff_ring[self->sw_tail], buffer,
-		       sizeof(buffer[0]) * buffers);
-	} else {
-		unsigned int first_part = self->size - self->sw_tail;
-		unsigned int second_part = buffers - first_part;
+	return (h < t) ? ((h < i) && (i < t)) : ((h < i) || (i < t));
+}
 
-		memcpy(&self->buff_ring[self->sw_tail], buffer,
-		       sizeof(buffer[0]) * first_part);
+void aq_ring_update_queue_state(struct aq_ring_s *ring)
+{
+	if (aq_ring_avail_dx(ring) <= AQ_CFG_SKB_FRAGS_MAX)
+		aq_ring_queue_stop(ring);
+	else if (aq_ring_avail_dx(ring) > AQ_CFG_RESTART_DESC_THRES)
+		aq_ring_queue_wake(ring);
+}
 
-		memcpy(&self->buff_ring[0], &buffer[first_part],
-		       sizeof(buffer[0]) * second_part);
+void aq_ring_queue_wake(struct aq_ring_s *ring)
+{
+	struct net_device *ndev = aq_nic_get_ndev(ring->aq_nic);
+
+	if (__netif_subqueue_stopped(ndev, ring->idx)) {
+		netif_wake_subqueue(ndev, ring->idx);
+		ring->stats.tx.queue_restarts++;
 	}
 }
 
-int aq_ring_tx_clean(struct aq_ring_s *self)
+void aq_ring_queue_stop(struct aq_ring_s *ring)
+{
+	struct net_device *ndev = aq_nic_get_ndev(ring->aq_nic);
+
+	if (!__netif_subqueue_stopped(ndev, ring->idx))
+		netif_stop_subqueue(ndev, ring->idx);
+}
+
+void aq_ring_tx_clean(struct aq_ring_s *self)
 {
 	struct device *dev = aq_nic_get_dev(self->aq_nic);
 
@@ -132,32 +145,35 @@ int aq_ring_tx_clean(struct aq_ring_s *self)
 		struct aq_ring_buff_s *buff = &self->buff_ring[self->sw_head];
 
 		if (likely(buff->is_mapped)) {
-			if (unlikely(buff->is_sop))
+			if (unlikely(buff->is_sop)) {
+				if (!buff->is_eop &&
+				    buff->eop_index != 0xffffU &&
+				    (!aq_ring_dx_in_range(self->sw_head,
+						buff->eop_index,
+						self->hw_head)))
+					break;
+
 				dma_unmap_single(dev, buff->pa, buff->len,
 						 DMA_TO_DEVICE);
-			else
+			} else {
 				dma_unmap_page(dev, buff->pa, buff->len,
 					       DMA_TO_DEVICE);
+			}
 		}
 
 		if (unlikely(buff->is_eop))
 			dev_kfree_skb_any(buff->skb);
+
+		buff->pa = 0U;
+		buff->eop_index = 0xffffU;
 	}
-
-	if (aq_ring_avail_dx(self) > AQ_CFG_SKB_FRAGS_MAX)
-		aq_nic_ndev_queue_start(self->aq_nic, self->idx);
-
-	return 0;
-}
-
-static inline unsigned int aq_ring_dx_in_range(unsigned int h, unsigned int i,
-					       unsigned int t)
-{
-	return (h < t) ? ((h < i) && (i < t)) : ((h < i) || (i < t));
 }
 
 #define AQ_SKB_ALIGN SKB_DATA_ALIGN(sizeof(struct skb_shared_info))
-int aq_ring_rx_clean(struct aq_ring_s *self, int *work_done, int budget)
+int aq_ring_rx_clean(struct aq_ring_s *self,
+		     struct napi_struct *napi,
+		     int *work_done,
+		     int budget)
 {
 	struct net_device *ndev = aq_nic_get_ndev(self->aq_nic);
 	int err = 0;
@@ -179,6 +195,8 @@ int aq_ring_rx_clean(struct aq_ring_s *self, int *work_done, int budget)
 
 		if (buff->is_cleaned)
 			continue;
+
+		rmb();
 
 		if (!buff->is_eop) {
 			for (next_ = buff->next,
@@ -205,38 +223,26 @@ int aq_ring_rx_clean(struct aq_ring_s *self, int *work_done, int budget)
 			}
 		}
 
-		/* for single fragment packets use build_skb() */
-		if (buff->is_eop) {
-			skb = build_skb(page_address(buff->page),
-					buff->len + AQ_SKB_ALIGN);
-			if (unlikely(!skb)) {
-				err = -ENOMEM;
-				goto err_exit;
-			}
+		skb = netdev_alloc_skb(ndev, ETH_HLEN);
+		if (unlikely(!skb)) {
+			err = -ENOMEM;
+			goto err_exit;
+		}
+		skb_put(skb, ETH_HLEN);
+		memcpy(skb->data, page_address(buff->page), ETH_HLEN);
 
-			skb->dev = ndev;
-			skb_put(skb, buff->len);
-		} else {
-			skb = netdev_alloc_skb(ndev, ETH_HLEN);
-			if (unlikely(!skb)) {
-				err = -ENOMEM;
-				goto err_exit;
-			}
-			skb_put(skb, ETH_HLEN);
-			memcpy(skb->data, page_address(buff->page), ETH_HLEN);
+		skb_add_rx_frag(skb, 0, buff->page, ETH_HLEN,
+				buff->len - ETH_HLEN,
+				AQ_CFG_RX_FRAME_MAX);
 
-			skb_add_rx_frag(skb, 0, buff->page, ETH_HLEN,
-					buff->len - ETH_HLEN,
-					SKB_TRUESIZE(buff->len - ETH_HLEN));
-
+		if (!buff->is_eop) {
 			for (i = 1U, next_ = buff->next,
 			     buff_ = &self->buff_ring[next_]; true;
 			     next_ = buff_->next,
 			     buff_ = &self->buff_ring[next_], ++i) {
 				skb_add_rx_frag(skb, i, buff_->page, 0,
 						buff_->len,
-						SKB_TRUESIZE(buff->len -
-						ETH_HLEN));
+						AQ_CFG_RX_FRAME_MAX);
 				buff_->is_cleaned = 1;
 
 				if (buff_->is_eop)
@@ -245,26 +251,35 @@ int aq_ring_rx_clean(struct aq_ring_s *self, int *work_done, int budget)
 		}
 
 		skb->protocol = eth_type_trans(skb, ndev);
+
 		if (unlikely(buff->is_cso_err)) {
 			++self->stats.rx.errors;
-			__skb_mark_checksum_bad(skb);
+			skb->ip_summed = CHECKSUM_NONE;
 		} else {
 			if (buff->is_ip_cso) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 				__skb_incr_checksum_unnecessary(skb);
 				if (buff->is_udp_cso || buff->is_tcp_cso)
 					__skb_incr_checksum_unnecessary(skb);
+#else
+				skb->ip_summed = CHECKSUM_UNNECESSARY;
+#endif
 			} else {
 				skb->ip_summed = CHECKSUM_NONE;
 			}
 		}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) || defined RHEL_RELEASE_CODE
 		skb_set_hash(skb, buff->rss_hash,
 			     buff->is_hash_l4 ? PKT_HASH_TYPE_L4 :
 			     PKT_HASH_TYPE_NONE);
+#else
+		skb->rxhash = buff->rss_hash;
+#endif
 
 		skb_record_rx_queue(skb, self->idx);
 
-		netif_receive_skb(skb);
+		napi_gro_receive(napi, skb);
 
 		++self->stats.rx.packets;
 		self->stats.rx.bytes += skb->len;
@@ -276,6 +291,8 @@ err_exit:
 
 int aq_ring_rx_fill(struct aq_ring_s *self)
 {
+	unsigned int pages_order = fls(AQ_CFG_RX_FRAME_MAX / PAGE_SIZE +
+		(AQ_CFG_RX_FRAME_MAX % PAGE_SIZE ? 1 : 0)) - 1;
 	struct aq_ring_buff_s *buff = NULL;
 	int err = 0;
 	int i = 0;
@@ -288,7 +305,7 @@ int aq_ring_rx_fill(struct aq_ring_s *self)
 		buff->len = AQ_CFG_RX_FRAME_MAX;
 
 		buff->page = alloc_pages(GFP_ATOMIC | __GFP_COLD |
-					 __GFP_COMP, 0);
+					 __GFP_COMP, pages_order);
 		if (!buff->page) {
 			err = -ENOMEM;
 			goto err_exit;
@@ -330,32 +347,6 @@ void aq_ring_rx_deinit(struct aq_ring_s *self)
 		__free_pages(buff->page, 0);
 	}
 
-err_exit:;
-}
-
-void aq_ring_tx_deinit(struct aq_ring_s *self)
-{
-	if (!self)
-		goto err_exit;
-
-	for (; self->sw_head != self->sw_tail;
-		self->sw_head = aq_ring_next_dx(self, self->sw_head)) {
-		struct aq_ring_buff_s *buff = &self->buff_ring[self->sw_head];
-		struct device *ndev = aq_nic_get_dev(self->aq_nic);
-
-		if (likely(buff->is_mapped)) {
-			if (unlikely(buff->is_sop)) {
-				dma_unmap_single(ndev, buff->pa, buff->len,
-						 DMA_TO_DEVICE);
-			} else {
-				dma_unmap_page(ndev, buff->pa, buff->len,
-					       DMA_TO_DEVICE);
-			}
-		}
-
-		if (unlikely(buff->is_eop))
-			dev_kfree_skb_any(buff->skb);
-	}
 err_exit:;
 }
 

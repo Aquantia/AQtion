@@ -16,7 +16,7 @@
 
 #include "../aq_common.h"
 
-#define HW_ATL_B0_MTU_JUMBO (16000U)
+#define HW_ATL_B0_MTU_JUMBO  16352U
 #define HW_ATL_B0_MTU        1514U
 
 #define HW_ATL_B0_TX_RINGS 4U
@@ -139,6 +139,9 @@
 
 #define HW_ATL_B0_FW_VER_EXPECTED 0x01050006U
 
+#define HW_ATL_INTR_MODER_MAX  0x1FF
+#define HW_ATL_INTR_MODER_MIN  0xFF
+
 /* Hardware tx descriptor */
 struct __packed hw_atl_txd_s {
 	u64 buf_addr;
@@ -188,11 +191,13 @@ static struct aq_hw_caps_s hw_atl_b0_hw_caps_ = {
 	.tx_rings = HW_ATL_B0_TX_RINGS,
 	.rx_rings = HW_ATL_B0_RX_RINGS,
 	.hw_features = NETIF_F_HW_CSUM |
+			NETIF_F_RXCSUM |
 			NETIF_F_RXHASH |
 			NETIF_F_SG |
 			NETIF_F_TSO |
 			NETIF_F_LRO,
 	.hw_priv_flags = IFF_UNICAST_FLT,
+	.media_type = AQ_HW_MEDIA_TYPE_TP,
 	.link_speed_msk = (HW_ATL_B0_RATE_10G |
 			HW_ATL_B0_RATE_5G |
 			HW_ATL_B0_RATE_2G5 |

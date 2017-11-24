@@ -526,6 +526,8 @@ void reg_tx_dma_desc_base_addressmswset(struct aq_hw_s *aq_hw,
 void reg_tx_dma_desc_tail_ptr_set(struct aq_hw_s *aq_hw,
 				  u32 tx_dma_desc_tail_ptr, u32 descriptor)
 {
+	wmb();
+
 	aq_hw_write_reg(aq_hw, tx_dma_desc_tail_ptr_adr(descriptor),
 			tx_dma_desc_tail_ptr);
 }

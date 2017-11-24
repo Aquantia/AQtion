@@ -1,0 +1,9 @@
+#
+# aQuantia device configuration
+#
+
+config AQTION
+	tristate "aQuantia AQtion(tm) Support"
+	depends on PCI
+	---help---
+	  This enables the support for the aQuantia AQtion(tm) Ethernet card.

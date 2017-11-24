@@ -87,43 +87,24 @@ err_exit:
 static int aq_ndev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
-	int err = 0;
 
-	err = aq_nic_xmit(aq_nic, skb);
-	if (err < 0)
-		goto err_exit;
-
-err_exit:
-	return err;
+	return aq_nic_xmit(aq_nic, skb);
 }
 
 static int aq_ndev_change_mtu(struct net_device *ndev, int new_mtu)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
-	int err = 0;
+	int err = aq_nic_set_mtu(aq_nic, new_mtu + ETH_HLEN);
 
-	if (new_mtu == ndev->mtu) {
-		err = 0;
-		goto err_exit;
-	}
-	if (new_mtu < 68) {
-		err = -EINVAL;
-		goto err_exit;
-	}
-	err = aq_nic_set_mtu(aq_nic, new_mtu + ETH_HLEN);
 	if (err < 0)
 		goto err_exit;
 	ndev->mtu = new_mtu;
-
-	if (netif_running(ndev)) {
-		aq_ndev_close(ndev);
-		aq_ndev_open(ndev);
-	}
 
 err_exit:
 	return err;
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 static int aq_ndev_set_features(struct net_device *ndev,
 				netdev_features_t features)
 {
@@ -146,6 +127,7 @@ static int aq_ndev_set_features(struct net_device *ndev,
 
 	return 0;
 }
+#endif
 
 static int aq_ndev_set_mac_address(struct net_device *ndev, void *addr)
 {
@@ -185,10 +167,16 @@ static const struct net_device_ops aq_ndev_ops = {
 	.ndo_open = aq_ndev_open,
 	.ndo_stop = aq_ndev_close,
 	.ndo_start_xmit = aq_ndev_start_xmit,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 2, 0)
+	.ndo_set_multicast_list = aq_ndev_set_multicast_settings,
+#else
 	.ndo_set_rx_mode = aq_ndev_set_multicast_settings,
+#endif
 	.ndo_change_mtu = aq_ndev_change_mtu,
 	.ndo_set_mac_address = aq_ndev_set_mac_address,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 	.ndo_set_features = aq_ndev_set_features
+#endif
 };
 
 static int aq_pci_probe(struct pci_dev *pdev,
@@ -252,22 +240,4 @@ static struct pci_driver aq_pci_ops = {
 	.resume = aq_pci_resume,
 };
 
-static int __init aq_module_init(void)
-{
-	int err = 0;
-
-	err = pci_register_driver(&aq_pci_ops);
-	if (err < 0)
-		goto err_exit;
-
-err_exit:
-	return err;
-}
-
-static void __exit aq_module_exit(void)
-{
-	pci_unregister_driver(&aq_pci_ops);
-}
-
-module_init(aq_module_init);
-module_exit(aq_module_exit);
+module_pci_driver(aq_pci_ops);

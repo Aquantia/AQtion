@@ -1,7 +1,7 @@
 ################################################################################
 #
 # aQuantia Ethernet Controller AQtion Linux Driver
-# Copyright(c) 2014-2016 aQuantia Corporation.
+# Copyright(c) 2014-2017 aQuantia Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -26,6 +26,7 @@
 #
 # Makefile for the AQtion(tm) Ethernet driver
 #
+
 
 TARGET := atlantic
 
@@ -72,6 +73,13 @@ load:
 unload:
 	rmmod ./$(TARGET).ko
 
-endif
+install:
+	@install -D -m 644 ${TARGET}.ko /lib/modules/$(shell uname -r)/aquantia/${TARGET}.ko
+	@depmod -a $(shell uname -r)
 
+uninstall:
+	@rm -f /lib/modules/$(shell uname -r)/aquantia/${TARGET}.ko
+	@depmod -a $(shell uname -r)
+
+endif
 

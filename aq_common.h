@@ -14,6 +14,7 @@
 
 #include <linux/etherdevice.h>
 #include <linux/pci.h>
+#include <linux/version.h>
 
 #include "ver.h"
 #include "aq_nic.h"
