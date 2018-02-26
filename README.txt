@@ -2,8 +2,6 @@ Linux* aQuantia AQtion Driver for the aQuantia Multi-Gigabit PCI Express Family 
 Ethernet Adapters
 =============================================================================
 
-July 05, 2017
-
 Contents
 ========
 
@@ -56,49 +54,48 @@ To manually build this driver:
 
 2. Untar/unzip archive:
 
-     tar zxf Aquantia-AQtion-1.6.9.tar.gz
+	tar zxf Aquantia-AQtion-x.y.z.tar.gz
 
 3. Change to the driver src directory:
 
-     cd Aquantia-AQtion-1.6.9/
+	cd Aquantia-AQtion-x.y.z/
 
 4. Compile the driver module:
 	make
 
 5. Load the module:
-    sudo insmod atlantic.ko
+	sudo insmod atlantic.ko
+
 6. Unload the driver
 	sudo rmmod atlantic
 
 7. Install the driver in the system
-    make && make install
+	make && make install
 
-    /lib/modules/[KERNEL_VERSION]/aquantia/atlantic.ko
+	/lib/modules/[KERNEL_VERSION]/aquantia/atlantic.ko
 
 8. Uninstall the driver:
 	make uninstall
-	or
-	Run the following commands:
+or run the following commands:
 	sudo rm -f /lib/modules/`uname -r`/aquantia/atlantic.ko
 	depmod -a `uname -r`
 
 
-Or alternatively you can use RPM Aquantia-AQtion-1.x.x-x.rpm
+Alternatively you can use Aquantia-AQtion-x.y.z.src.rpm
 ------------------------------------------------------------
-1. Move the Aquantia-AQtion-1.x.x-x.rpm file to the directory of your choice. For example,
+1. Move the Aquantia-AQtion-x.y.z.src.rpm file to the directory of your choice. For example,
    use /home/username/aquantia.
 
 2. Execute the commands:
-    rpmbuild --rebuild Aquantia-AQtion-1.6.9-1.src.rpm
-    sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/Aquantia-AQtion-1.6.9-1.x86_64.rpm
+    rpmbuild --rebuild Aquantia-AQtion-x.y.z.src.rpm
+    sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/Aquantia-AQtion-x.y.z.x86_64.rpm
 	
     After this driver will be installed.
     (You can check this via "rpm -qa | grep Aquantia")
-	 
 
 3. Uninstall the driver:
    Run the following commands:
-   sudo rpm -e Aquantia-AQtion-1.6.9-1.x86_64
+   sudo rpm -e Aquantia-AQtion-x.y.z.x86_64
 
 Check that the driver is working
 ------------------------------------------------------------
@@ -114,16 +111,17 @@ Check that the driver is working
 2. Assign an IP address to the interface by entering the following, where
    x is the interface number:
 
-    ifconfig ethX <IP_address> netmask <netmask>
+	ifconfig ethX <IP_address> netmask <netmask>
     or
 	ip addr add <IP_address> dev <DEV>
+
 3. Verify that the interface works. Enter the following, where <IP_address>
    is the IP address for another machine on the same subnet as the interface
    that is being tested:
 
-     ping  <IP_address>
-      or (for IPv6)
-     ping6 <IPv6_address>
+	ping  <IP_address>
+or (for IPv6)
+	ping6 <IPv6_address>
 
 Command Line Parameters
 =======================
@@ -348,33 +346,43 @@ Supported ethtool options
  
  ethtool -K <ethX> lro off
 
-Interrupt coalescing support
+ Interrupt coalescing support
  ---------------------------------
-ITR mode, TX/RX coalescing timings could be viewed with:
+ ITR mode, TX/RX coalescing timings could be viewed with:
  
  ethtool -c <ethX>
  
-and changed with:
+ and changed with:
  
  ethtool -C <ethX> tx-usecs <usecs> rx-usecs <usecs>
  
-To disable coalescing:
+ To disable coalescing:
 
  ethtool -C <ethX> tx-usecs 0 rx-usecs 0 tx-max-frames 1 tx-max-frames 1
  
+ Wake on LAN support
+ ---------------------------------
+
+ WOL support by magic packet:
+
+ ethtool -s <ethX> wol g
+ 
+ To disable WOL:
+
+ ethtool -s <ethX> wol d
 
 Support
 =======
 
 If an issue is identified with the released source code on the supported
 kernel with a supported adapter, email the specific information related
-to the issue to rdc-drv@aquantia.com
+to the issue to support@aquantia.com
 
 License
 =======
 
 aQuantia Corporation Network Driver
-Copyright(c) 2014 - 2017 aQuantia Corporation.
+Copyright(c) 2014 - 2018 aQuantia Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms and conditions of the GNU General Public License,

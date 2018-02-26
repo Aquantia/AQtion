@@ -7,14 +7,19 @@
  * version 2, as published by the Free Software Foundation.
  */
 
-#ifndef VER_H
-#define VER_H
+/* File aq_drvinfo.h: Declaration of common code for firmware info in sys.*/
 
-#define NIC_MAJOR_DRIVER_VERSION           2
-#define NIC_MINOR_DRIVER_VERSION           0
-#define NIC_BUILD_DRIVER_VERSION           4
-#define NIC_REVISION_DRIVER_VERSION        0
+#ifndef AQ_DRVINFO_H
+#define AQ_DRVINFO_H
 
-#define AQ_CFG_DRV_VERSION_SUFFIX ""
+#include "aq_nic.h"
+#include "aq_hw.h"
+#include "hw_atl/hw_atl_utils.h"
 
-#endif /* VER_H */
+
+int aq_sysfs_init(struct net_device *ndev);
+void aq_sysfs_exit(struct net_device *ndev);
+
+
+#endif /* AQ_DRVINFO_H */
+

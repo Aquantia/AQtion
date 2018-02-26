@@ -22,7 +22,7 @@ rm -rf Linux/.git
 rm -rf %{buildroot}
 
 %post
-cd /tmp/build_aq_drv/%{version}/Linux
+cd /var/build_aq_drv/%{version}/Linux
 make clean
 make
 make install
@@ -31,13 +31,10 @@ make install
 rm -f /lib/modules/$(shell uname -r)/aquantia/atlantic.ko
 depmod -a $(shell uname -r)
 
-%postun
-rm -rf /tmp/build_aq_drv/%{version}
-
 %install
-mkdir -p $RPM_BUILD_ROOT/tmp/build_aq_drv/%{version}
-cp -r Linux $RPM_BUILD_ROOT/tmp/build_aq_drv/%{version}
+mkdir -p $RPM_BUILD_ROOT/var/build_aq_drv/%{version}
+cp -r Linux $RPM_BUILD_ROOT/var/build_aq_drv/%{version}
 
 %files
 %defattr(-,root,root,-)
-/tmp/build_aq_drv/%{version}/Linux
+/var/build_aq_drv/%{version}/Linux

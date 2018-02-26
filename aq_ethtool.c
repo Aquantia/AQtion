@@ -92,14 +92,14 @@ static const char aq_ethtool_stat_names[][ETH_GSTRING_LEN] = {
 	"OutUCast",
 	"OutMCast",
 	"OutBCast",
-	"InUCastOctects",
-	"OutUCastOctects",
-	"InMCastOctects",
-	"OutMCastOctects",
-	"InBCastOctects",
-	"OutBCastOctects",
-	"InOctects",
-	"OutOctects",
+	"InUCastOctets",
+	"OutUCastOctets",
+	"InMCastOctets",
+	"OutMCastOctets",
+	"InBCastOctets",
+	"OutBCastOctets",
+	"InOctets",
+	"OutOctets",
 	"InPacketsDma",
 	"OutPacketsDma",
 	"InOctetsDma",
@@ -208,15 +208,21 @@ static u32 aq_ethtool_get_rss_key_size(struct net_device *ndev)
 	return sizeof(cfg->aq_rss.hash_secret_key);
 }
 
+#if defined(ETH_RSS_HASH_TOP)
 static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key,
 			      u8 *hfunc)
+#else
+static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key)
+#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
 	unsigned int i = 0U;
 
+#if defined(ETH_RSS_HASH_TOP)
 	if (hfunc)
 		*hfunc = ETH_RSS_HASH_TOP; /* Toeplitz */
+#endif
 	if (indir) {
 		for (i = 0; i < AQ_CFG_RSS_INDIRECTION_TABLE_MAX; i++)
 			indir[i] = cfg->aq_rss.indirection_table[i];
@@ -249,8 +255,8 @@ static int aq_ethtool_get_rxnfc(struct net_device *ndev,
 	return err;
 }
 
-int aq_ethtool_get_coalesce(struct net_device *ndev,
-			    struct ethtool_coalesce *coal)
+static int aq_ethtool_get_coalesce(struct net_device *ndev,
+				   struct ethtool_coalesce *coal)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
@@ -270,8 +276,8 @@ int aq_ethtool_get_coalesce(struct net_device *ndev,
 	return 0;
 }
 
-int aq_ethtool_set_coalesce(struct net_device *ndev,
-			    struct ethtool_coalesce *coal)
+static int aq_ethtool_set_coalesce(struct net_device *ndev,
+				   struct ethtool_coalesce *coal)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
@@ -312,6 +318,43 @@ int aq_ethtool_set_coalesce(struct net_device *ndev,
 	return aq_nic_update_interrupt_moderation_settings(aq_nic);
 }
 
+
+static void aq_ethtool_get_wol(struct net_device *ndev,
+			      struct ethtool_wolinfo *wol)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
+
+	wol->supported = WAKE_MAGIC;
+	wol->wolopts = 0;
+
+	if (cfg->wol)
+		wol->wolopts |= WAKE_MAGIC;
+}
+
+static int aq_ethtool_set_wol(struct net_device *ndev,
+			      struct ethtool_wolinfo *wol)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
+	struct pci_dev *pdev = to_pci_dev(ndev->dev.parent);
+	int err = 0;
+
+	if (wol->wolopts & WAKE_MAGIC) {
+		cfg->wol |= AQ_NIC_WOL_ENABLED;
+	} else {
+		cfg->wol &= ~AQ_NIC_WOL_ENABLED;
+	}
+
+	err = device_set_wakeup_enable(&pdev->dev, wol->wolopts);
+	if (err < 0)
+		goto err_exit;
+
+err_exit:
+	return err;
+}
+
+
 const struct ethtool_ops aq_ethtool_ops = {
 	.get_link            = aq_ethtool_get_link,
 	.get_regs_len        = aq_ethtool_get_regs_len,
@@ -319,6 +362,9 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.get_drvinfo         = aq_ethtool_get_drvinfo,
 	.get_strings         = aq_ethtool_get_strings,
 	.get_rxfh_indir_size = aq_ethtool_get_rss_indir_size,
+	.get_wol             = aq_ethtool_get_wol,
+	.set_wol             = aq_ethtool_set_wol,
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 	.get_rxfh_key_size   = aq_ethtool_get_rss_key_size,
 	.get_rxfh            = aq_ethtool_get_rss,

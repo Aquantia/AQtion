@@ -176,17 +176,18 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 		     int budget)
 {
 	struct net_device *ndev = aq_nic_get_ndev(self->aq_nic);
-	int err = 0;
 	bool is_rsc_completed = true;
+	int err = 0;
 
 	for (; (self->sw_head != self->hw_head) && budget;
 		self->sw_head = aq_ring_next_dx(self, self->sw_head),
 		--budget, ++(*work_done)) {
 		struct aq_ring_buff_s *buff = &self->buff_ring[self->sw_head];
+		struct aq_ring_buff_s *buff_ = NULL;
 		struct sk_buff *skb = NULL;
 		unsigned int next_ = 0U;
 		unsigned int i = 0U;
-		struct aq_ring_buff_s *buff_ = NULL;
+		u16 hdr_len;
 
 		if (buff->is_error) {
 			__free_pages(buff->page, 0);
@@ -223,17 +224,23 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 			}
 		}
 
-		skb = netdev_alloc_skb(ndev, ETH_HLEN);
+		skb = napi_alloc_skb(napi, AQ_CFG_RX_HDR_SIZE);
 		if (unlikely(!skb)) {
 			err = -ENOMEM;
 			goto err_exit;
 		}
-		skb_put(skb, ETH_HLEN);
-		memcpy(skb->data, page_address(buff->page), ETH_HLEN);
 
-		skb_add_rx_frag(skb, 0, buff->page, ETH_HLEN,
-				buff->len - ETH_HLEN,
-				AQ_CFG_RX_FRAME_MAX);
+		hdr_len = min_t(u16, buff->len, AQ_CFG_RX_HDR_SIZE);
+		skb_put(skb, hdr_len);
+		memcpy(skb->data, page_address(buff->page), hdr_len);
+
+		if (buff->len - hdr_len > 0) {
+			skb_add_rx_frag(skb, 0, buff->page, hdr_len,
+					buff->len - hdr_len,
+					AQ_CFG_RX_FRAME_MAX);
+		} else {
+			__free_pages(buff->page, 0);
+		}
 
 		if (!buff->is_eop) {
 			for (i = 1U, next_ = buff->next,
@@ -279,10 +286,10 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 
 		skb_record_rx_queue(skb, self->idx);
 
-		napi_gro_receive(napi, skb);
-
 		++self->stats.rx.packets;
 		self->stats.rx.bytes += skb->len;
+
+		napi_gro_receive(napi, skb);
 	}
 
 err_exit:
@@ -304,8 +311,7 @@ int aq_ring_rx_fill(struct aq_ring_s *self)
 		buff->flags = 0U;
 		buff->len = AQ_CFG_RX_FRAME_MAX;
 
-		buff->page = alloc_pages(GFP_ATOMIC | __GFP_COLD |
-					 __GFP_COMP, pages_order);
+		buff->page = alloc_pages(GFP_ATOMIC | __GFP_COMP, pages_order);
 		if (!buff->page) {
 			err = -ENOMEM;
 			goto err_exit;
