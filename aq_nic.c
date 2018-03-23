@@ -26,8 +26,6 @@
 #include <net/tcp.h>
 #include <net/ipv6.h>
 
-#include "aq_compat.h"
-
 static unsigned int aq_itr = AQ_CFG_INTERRUPT_MODERATION_AUTO;
 module_param_named(aq_itr, aq_itr, uint, 0644);
 MODULE_PARM_DESC(aq_itr, "Interrupt throttling mode");
@@ -39,6 +37,18 @@ MODULE_PARM_DESC(aq_itr_tx, "TX interrupt throttle rate");
 static unsigned int aq_itr_rx;
 module_param_named(aq_itr_rx, aq_itr_rx, uint, 0644);
 MODULE_PARM_DESC(aq_itr_rx, "RX interrupt throttle rate");
+
+static unsigned int aq_rxpageorder = 0;
+module_param_named(aq_rxpageorder, aq_rxpageorder, uint, 0644);
+MODULE_PARM_DESC(aq_rxpageorder, "RX page order override");
+
+unsigned aq_tx_clean_budget = 256;
+module_param_named(aq_tx_clean_budget, aq_tx_clean_budget, uint, 0644);
+MODULE_PARM_DESC(aq_tx_clean_budget, "Maximum descriptors to cleanup on TX at once");
+
+unsigned aq_rx_refill_thres = 32;
+module_param_named(aq_rx_refill_thres, aq_rx_refill_thres, uint, 0644);
+MODULE_PARM_DESC(aq_rx_refill_thres, "RX refill threshold");
 
 static void aq_nic_update_ndev_stats(struct aq_nic_s *self);
 
@@ -77,6 +87,7 @@ void aq_nic_cfg_start(struct aq_nic_s *self)
 	cfg->tx_itr = aq_itr_tx;
 	cfg->rx_itr = aq_itr_rx;
 
+	cfg->rxpageorder = aq_rxpageorder;
 	cfg->is_rss = AQ_CFG_IS_RSS_DEF;
 	cfg->num_rss_queues = AQ_CFG_NUM_RSS_QUEUES_DEF;
 	cfg->aq_rss.base_cpu_number = AQ_CFG_RSS_BASE_CPU_NUM_DEF;
@@ -572,11 +583,7 @@ int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev)
 
 	netdev_for_each_mc_addr(ha, ndev) {
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		ether_addr_copy(self->mc_list.ar[i++], ha->addr);
-#else
-		memcpy(self->mc_list.ar[i++], ha->addr,6);
-#endif
 		++self->mc_list.count;
 
 		if (i >= AQ_CFG_MULTICAST_ADDRESS_MAX)
@@ -1001,7 +1008,7 @@ void aq_nic_deinit(struct aq_nic_s *self)
 		aq_vec_deinit(aq_vec);
 
 	if (self->power_state == AQ_HW_POWER_STATE_D0) {
-		(void)self->aq_hw_ops->hw_deinit(self->aq_hw);
+		(void)self->aq_fw_ops->deinit(self->aq_hw);
 	} else {
 		(void)self->aq_fw_ops->set_power(self->aq_hw,
 			self->power_state, self->ndev->dev_addr);
@@ -1041,7 +1048,6 @@ int aq_nic_change_pm_state(struct aq_nic_s *self, pm_message_t *pm_msg)
 		netif_device_detach(self->ndev);
 		netif_tx_stop_all_queues(self->ndev);
 
-
 		err = aq_nic_stop(self);
 		if (err < 0)
 			goto err_exit;
@@ -1066,3 +1072,22 @@ out:
 	return err;
 }
 
+void aq_nic_shutdown(struct aq_nic_s *self)
+{
+	int err = 0;
+
+	if (!self->ndev)
+		return;
+
+	rtnl_lock();
+
+	netif_device_detach(self->ndev);
+
+	err = aq_nic_stop(self);
+	if (err < 0)
+		goto err_exit;
+	aq_nic_deinit(self);
+
+err_exit:
+	rtnl_unlock();
+}

@@ -18,6 +18,7 @@
 #include "ver.h"
 #include "aq_cfg.h"
 #include "aq_utils.h"
+#include "aq_compat.h"
 
 #define PCI_VENDOR_ID_AQUANTIA  0x1D6A
 

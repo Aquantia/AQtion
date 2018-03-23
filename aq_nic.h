@@ -31,6 +31,7 @@ struct aq_nic_cfg_s {
 	u32 itr;
 	u16 rx_itr;
 	u16 tx_itr;
+	u32 rxpageorder;
 	u32 num_rss_queues;
 	u32 mtu;
 	u32 flow_control;
@@ -97,6 +98,9 @@ static inline struct device *aq_nic_get_dev(struct aq_nic_s *self)
 	return self->ndev->dev.parent;
 }
 
+extern unsigned aq_tx_clean_budget;
+extern unsigned aq_rx_refill_thres;
+
 void aq_nic_ndev_init(struct aq_nic_s *self);
 struct aq_nic_s *aq_nic_alloc_hot(struct net_device *ndev);
 void aq_nic_set_tx_ring(struct aq_nic_s *self, unsigned int idx,
@@ -134,6 +138,7 @@ struct aq_nic_cfg_s *aq_nic_get_cfg(struct aq_nic_s *self);
 u32 aq_nic_get_fw_version(struct aq_nic_s *self);
 int aq_nic_change_pm_state(struct aq_nic_s *self, pm_message_t *pm_msg);
 int aq_nic_update_interrupt_moderation_settings(struct aq_nic_s *self);
+void aq_nic_shutdown(struct aq_nic_s *self);
 
 
 #endif /* AQ_NIC_H */

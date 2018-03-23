@@ -152,6 +152,25 @@ to this value. Minimum interrupt delay will be a half of this value
 
 Note: ITR settings could be changed in runtime by ethtool -c means (see below)
 
+aq_rxpageorder
+----------------------------------------
+Default value: 0
+RX page order override. Thats a power of 2 number of RX pages allocated for
+each descriptor. Received descriptor size is still limited by AQ_CFG_RX_FRAME_MAX.
+Increasing pageorder makes page reuse better (actual on iommu enabled systems).
+
+aq_tx_clean_budget
+----------------------------------------
+Default value: 256
+Maximum descriptors to cleanup on TX at once.
+
+aq_rx_refill_thres
+----------------------------------------
+Default value: 32
+RX refill threshold. RX path will not refill freed descriptors until the
+specified number of free descriptors is observed. Larger values may help
+better page reuse but may lead to packet drops as well.
+
 
 Config file parametes
 =======================

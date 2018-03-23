@@ -40,7 +40,7 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 	int err = 0;
 	unsigned int i = 0U;
 	unsigned int sw_tail_old = 0U;
-	bool was_tx_cleaned = false;
+	bool was_tx_cleaned = true;
 
 	if (!self) {
 		err = -EINVAL;
@@ -57,9 +57,8 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 
 			if (ring[AQ_VEC_TX_ID].sw_head !=
 			    ring[AQ_VEC_TX_ID].hw_head) {
-				aq_ring_tx_clean(&ring[AQ_VEC_TX_ID]);
+				was_tx_cleaned = aq_ring_tx_clean(&ring[AQ_VEC_TX_ID]);
 				aq_ring_update_queue_state(&ring[AQ_VEC_TX_ID]);
-				was_tx_cleaned = true;
 			}
 
 			err = self->aq_hw_ops->hw_ring_rx_receive(self->aq_hw,
@@ -90,7 +89,7 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 			}
 		}
 
-		if (was_tx_cleaned)
+		if (!was_tx_cleaned)
 			work_done = budget;
 
 		if (work_done < budget) {
@@ -358,6 +357,9 @@ void aq_vec_add_stats(struct aq_vec_s *self,
 		stats_rx->errors += rx->errors;
 		stats_rx->jumbo_packets += rx->jumbo_packets;
 		stats_rx->lro_packets += rx->lro_packets;
+		stats_rx->pg_losts += rx->pg_losts;
+		stats_rx->pg_flips += rx->pg_flips;
+		stats_rx->pg_reuses += rx->pg_reuses;
 
 		stats_tx->packets += tx->packets;
 		stats_tx->bytes += tx->bytes;

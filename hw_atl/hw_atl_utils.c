@@ -21,6 +21,10 @@
 
 #define HW_ATL_UCP_0X370_REG    0x0370U
 
+#define HW_ATL_MIF_CMD          0x0200U
+#define HW_ATL_MIF_ADDR         0x0208U
+#define HW_ATL_MIF_VAL          0x020CU
+
 #define HW_ATL_FW_SM_RAM        0x2U
 #define HW_ATL_MPI_FW_VERSION	0x18
 #define HW_ATL_MPI_CONTROL_ADR  0x0368U
@@ -270,18 +274,22 @@ int hw_atl_utils_fw_downld_dwords(struct aq_hw_s *self, u32 a,
 		}
 	}
 
-	aq_hw_write_reg(self, 0x00000208U, a);
+	aq_hw_write_reg(self, HW_ATL_MIF_ADDR, a);
 
-	for (++cnt; --cnt;) {
-		u32 i = 0U;
+	for (++cnt; --cnt && !err;) {
+		aq_hw_write_reg(self, HW_ATL_MIF_CMD, 0x00008000U);
 
-		aq_hw_write_reg(self, 0x00000200U, 0x00008000U);
+		if (IS_CHIP_FEATURE(REVISION_B1))
+			AQ_HW_WAIT_FOR(a != aq_hw_read_reg(self,
+							   HW_ATL_MIF_ADDR),
+				       1, 1000U);
+		else
+			AQ_HW_WAIT_FOR(!(0x100 & aq_hw_read_reg(self,
+							   HW_ATL_MIF_CMD)),
+				       1, 1000U);
 
-		for (i = 1024U;
-			(0x100U & aq_hw_read_reg(self, 0x00000200U)) && --i;) {
-		}
-
-		*(p++) = aq_hw_read_reg(self, 0x0000020CU);
+		*(p++) = aq_hw_read_reg(self, HW_ATL_MIF_VAL);
+		a += 4;
 	}
 
 	hw_atl_reg_glb_cpu_sem_set(self, 1U, HW_ATL_FW_SM_RAM);
@@ -558,10 +566,6 @@ static int hw_atl_utils_mpi_set_state(struct aq_hw_s *self,
 	val = state | (val & HW_ATL_MPI_SPEED_MSK);
 	aq_hw_write_reg(self, HW_ATL_MPI_CONTROL_ADR, val);
 
-
-
-
-
 	return 0;
 }
 
@@ -636,11 +640,7 @@ int hw_atl_utils_get_mac_permanent(struct aq_hw_s *self,
 		mac_addr[1] = __swab32(mac_addr[1]);
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	ether_addr_copy(mac, (u8 *)mac_addr);
-#else
-	memcpy(mac, (u8 *)mac_addr,6);
-#endif
 
 	if ((mac[0] & 0x01U) || ((mac[0] | mac[1] | mac[2]) == 0x00U)) {
 		/* chip revision */
@@ -722,7 +722,7 @@ void hw_atl_utils_hw_chip_features_init(struct aq_hw_s *self, u32 *p)
 	*p = chip_features;
 }
 
-int hw_atl_utils_hw_deinit(struct aq_hw_s *self)
+static int hw_atl_fw1x_deinit(struct aq_hw_s *self)
 {
 	hw_atl_utils_mpi_set(self, MPI_DEINIT, 0x0U);
 	return 0;
@@ -889,6 +889,7 @@ err_exit:
 
 const struct aq_fw_ops aq_fw_1x_ops = {
 	.init = hw_atl_utils_mpi_create,
+	.deinit = hw_atl_fw1x_deinit,
 	.reset = NULL,
 	.get_mac_permanent = hw_atl_utils_get_mac_permanent,
 	.set_link_speed = hw_atl_utils_mpi_set_speed,

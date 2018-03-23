@@ -54,6 +54,10 @@ struct __packed fw2x_msg_wol {
 	u32 link_down_timeout;
 };
 
+static int aq_fw2x_set_link_speed(struct aq_hw_s *self, u32 speed);
+static int aq_fw2x_set_state(struct aq_hw_s *self,
+			     enum hal_atl_utils_fw_state_e state);
+
 static int aq_fw2x_init(struct aq_hw_s *self)
 {
 	int err = 0;
@@ -65,6 +69,16 @@ static int aq_fw2x_init(struct aq_hw_s *self)
 	AQ_HW_WAIT_FOR(0U != (self->rpc_addr =
 		       aq_hw_read_reg(self, HW_ATL_FW2X_MPI_RPC_ADDR)),
 		       1000U, 100U);
+	return err;
+}
+
+static int aq_fw2x_deinit(struct aq_hw_s *self)
+{
+	int err = aq_fw2x_set_link_speed(self, 0);
+
+	if (!err)
+		err = aq_fw2x_set_state(self, MPI_DEINIT);
+
 	return err;
 }
 
@@ -105,7 +119,25 @@ static int aq_fw2x_set_link_speed(struct aq_hw_s *self, u32 speed)
 static int aq_fw2x_set_state(struct aq_hw_s *self,
 			     enum hal_atl_utils_fw_state_e state)
 {
-	/* No explicit state in 2x fw */
+	u32 mpi_state = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
+
+	switch(state) {
+	case MPI_INIT:
+		mpi_state &= ~BIT(CAPS_HI_LINK_DROP);
+		if (self->aq_nic_cfg->flow_control & AQ_NIC_FC_RX)
+			mpi_state |= BIT(CAPS_HI_PAUSE);
+		if (self->aq_nic_cfg->flow_control & AQ_NIC_FC_TX)
+			mpi_state |= BIT(CAPS_HI_ASYMMETRIC_PAUSE);
+		break;
+	case MPI_DEINIT:
+		mpi_state |= BIT(CAPS_HI_LINK_DROP);
+		break;
+	case MPI_RESET:
+	case MPI_POWER:
+		/* No actions */
+		break;
+	}
+	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_state);
 	return 0;
 }
 
@@ -155,11 +187,7 @@ int aq_fw2x_get_mac_permanent(struct aq_hw_s *self, u8 *mac)
 		mac_addr[1] = __swab32(mac_addr[1]);
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	ether_addr_copy(mac, (u8 *)mac_addr);
-#else
-	memcpy(mac, (u8 *)mac_addr,6);
-#endif
 
 	if ((mac[0] & 0x01U) || ((mac[0] | mac[1] | mac[2]) == 0x00U)) {
 		unsigned int rnd = 0;
@@ -349,6 +377,7 @@ err_exit:
 
 const struct aq_fw_ops aq_fw_2x_ops = {
 	.init = aq_fw2x_init,
+	.deinit = aq_fw2x_deinit,
 	.reset = NULL,
 	.get_mac_permanent = aq_fw2x_get_mac_permanent,
 	.set_link_speed = aq_fw2x_set_link_speed,

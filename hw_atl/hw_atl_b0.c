@@ -654,8 +654,6 @@ err_exit:
 static int hw_atl_b0_hw_ring_rx_receive(struct aq_hw_s *self,
 					struct aq_ring_s *ring)
 {
-	struct device *ndev = aq_nic_get_dev(ring->aq_nic);
-
 	for (; ring->hw_head != ring->sw_tail;
 		ring->hw_head = aq_ring_next_dx(ring, ring->hw_head)) {
 		struct aq_ring_buff_s *buff = NULL;
@@ -696,8 +694,6 @@ static int hw_atl_b0_hw_ring_rx_receive(struct aq_hw_s *self,
 		}
 
 		is_err &= ~0x18U;
-
-		dma_unmap_page(ndev, buff->pa, buff->len, DMA_FROM_DEVICE);
 
 		if (is_err || rxd_wb->type & 0x1000U) {
 			/* status error or DMA error */
@@ -945,7 +941,6 @@ static int hw_atl_b0_hw_ring_rx_stop(struct aq_hw_s *self,
 const struct aq_hw_ops hw_atl_ops_b0 = {
 	.hw_set_mac_address   = hw_atl_b0_hw_mac_addr_set,
 	.hw_init              = hw_atl_b0_hw_init,
-	.hw_deinit            = hw_atl_utils_hw_deinit,
 	.hw_reset             = hw_atl_b0_hw_reset,
 	.hw_start             = hw_atl_b0_hw_start,
 	.hw_ring_tx_start     = hw_atl_b0_hw_ring_tx_start,

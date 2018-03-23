@@ -198,12 +198,12 @@ struct aq_hw_ops {
 
 	int (*hw_get_fw_version)(struct aq_hw_s *self, u32 *fw_version);
 
-	int (*hw_deinit)(struct aq_hw_s *self);
-
 };
 
 struct aq_fw_ops {
 	int (*init)(struct aq_hw_s *self);
+
+	int (*deinit)(struct aq_hw_s *self);
 
 	int (*reset)(struct aq_hw_s *self);
 
