@@ -1,389 +1,65 @@
-Linux* aQuantia AQtion Driver for the aQuantia Multi-Gigabit PCI Express Family of
-Ethernet Adapters
-=============================================================================
+AQUANTIA AQtion (atlantic) linux driver
+===========
+This is a latest development preview of aquantia's atlantic linux kernel driver for AQtion family of multigigabit adapters.
+Please read technical details in [README.txt](https://github.com/Aquantia/AQtion/blob/master/README.txt)
 
-Contents
-========
+Notice this is an **experimental software**. For stable driver version please either visit http://www.aquantia.com or take the driver
+bundled with your linux kernel.
 
-- Important Note
-- In This Release
-- Identifying Your Adapter
-- Building and Installation
-- Command Line Parameters
-- Additional Configurations
-- Support
+Being experimental, has the following agreement and limitations:
 
-IMPORTANT NOTE
-==============
+AQUANTIA SOFTWARE LICENSE AGREEMENT – EXPERIMENTAL USE SOFTWARE
+===========
 
-WARNING:  The AQtion driver compiles by default with the LRO (Large Receive
-Offload) feature enabled.  This option offers the lowest CPU utilization for
-receives, but is completely incompatible with *routing/ip forwarding* and
-*bridging*.  If enabling ip forwarding or bridging is a requirement, it is
-necessary to disable LRO using compile time options as noted in the LRO
-section later in this document.  The result of not disabling LRO when combined
-with ip forwarding or bridging can be low throughput or even a kernel panic.
+The terms of this Aquantia Software License Agreement (“Agreement”) govern and control your use of the Aquantia software and associated materials (collectively, “Software”) available for download at this site. 
 
-In This Release
-===============
-
-This file describes the aQuantia AQtion Driver for the aQuantia Multi-Gigabit PCI Express Family of
-Ethernet Adapters.  This driver supports the linux kernels >= 3.10, 
-and includes support for x86_64 and ARM Linux system.
-
-This release contains source tarball and src.rpm package.
-
-Identifying Your Adapter
-========================
-
-The driver in this release is compatible with AQC-100, AQC-107, AQC-108 based ethernet adapters.
-
-
-SFP+ Devices (for AQC-100 based adapters)
+IMPORTANT - READ BEFORE COPYING, INSTALLING OR USING.
 ----------------------------------
 
-This release tested with passive Direct Attach Cables (DAC) and SFP+/LC Optical Transceiver.
-
-Building and Installation
-=========================
-
-To manually build this driver:
-------------------------------------------------------------
-1. Move the base driver tar file to the directory of your choice. For example,
-   use /home/username/aquantia.
-
-2. Untar/unzip archive:
+Do not copy, install, or use this Software until you, on behalf of the company, partnership or business entity that you represent (“You”) have carefully read the following terms and conditions. 
+By copying, installing, or otherwise using the Software, You agree to be bound by the terms of this Agreement. If You do not agree to the terms of this Agreement, do not copy, install, or use the Software. 
 
-	tar zxf Aquantia-AQtion-x.y.z.tar.gz
-
-3. Change to the driver src directory:
+EXPERIMENTAL NATURE OF THE SOFTWARE; DISCLAIMER OF WARRANTIES
+----------------------------------
 
-	cd Aquantia-AQtion-x.y.z/
-
-4. Compile the driver module:
-	make
-
-5. Load the module:
-	sudo insmod atlantic.ko
-
-6. Unload the driver
-	sudo rmmod atlantic
-
-7. Install the driver in the system
-	make && make install
-
-	/lib/modules/[KERNEL_VERSION]/aquantia/atlantic.ko
-
-8. Uninstall the driver:
-	make uninstall
-or run the following commands:
-	sudo rm -f /lib/modules/`uname -r`/aquantia/atlantic.ko
-	depmod -a `uname -r`
-
-
-Alternatively you can use Aquantia-AQtion-x.y.z.src.rpm
-------------------------------------------------------------
-1. Move the Aquantia-AQtion-x.y.z.src.rpm file to the directory of your choice. For example,
-   use /home/username/aquantia.
+YOU ACKNOWLEDGE AND UNDERSTAND THAT YOU ARE RECEIVING A VERSION OF THE SOFTWARE THAT IS IN AN UNTESTED, EXPERIMENTAL FORM AND MAY CONTAIN SIGNIFICANT ERRORS, OMISSIONS, AND PROBLEMS.  THE SOFTWARE IS PROVID¬ED "AS IS."  AQUANTIA DIS¬CLAIMS ALL WAR-RAN¬TIES OF ANY KIND, EXPRESS OR IMPLIED, IN¬CLUDING, BUT NOT LIMITED TO, WAR¬RAN¬TIES OF PERFOR¬MANCE OR MER¬CHANTABILI¬TY OR FITNESS FOR A PARTICU¬LAR PURPOSE OR WARRANTY AGAINST INFRINGEMENT. 
+YOU BEAR ALL RISK RELAT¬ING TO USE OF THE SOFTWARE AND THE QUALITY AND PERFORMANCE OF THE SOFTWARE.  Aquantia does not warrant that the Soft¬ware will meet your require¬ments, operate without interruption or be error free.  Aquantia further does not warrant or assume responsibility for the accuracy or completeness of any information, text, graphics, links, or other items contained within the Software.
 
-2. Execute the commands:
-    rpmbuild --rebuild Aquantia-AQtion-x.y.z.src.rpm
-    sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/Aquantia-AQtion-x.y.z.x86_64.rpm
-	
-    After this driver will be installed.
-    (You can check this via "rpm -qa | grep Aquantia")
+LICENSE
+----------------------------------
 
-3. Uninstall the driver:
-   Run the following commands:
-   sudo rpm -e Aquantia-AQtion-x.y.z.x86_64
+Subject to all of the terms and conditions of this Agreement, Aquantia grants to You a non-exclusive, non-assignable, copyrighted license to use the Software for evaluation purposes only.  As part of such use, You may copy the Software onto a single computer for your personal use, and You may make one back-up copy of the Software, provided that You retain all proprietary rights notices included in the original version.
 
-Check that the driver is working
-------------------------------------------------------------
-	
-1. Verify ethernet interface appears:
-	ifconfig
-	or
-	ip addr show
-	
-	If not new interface appears, check dmesg output.
-	If you see "Bad firmware detected" please update firmware on your ethernet card.
+LICENSE RESTRICTIONS
+----------------------------------
 
-2. Assign an IP address to the interface by entering the following, where
-   x is the interface number:
+You may NOT: (i) use or copy the Software except as provided in this Agreement; (ii) rent or lease the Software to any third party; (iii) assign this Agreement or transfer the Software without the express written consent of Aquantia; (iv) modify, adapt, or translate the Software in whole or in part except as provided in this Agreement; (v) reverse engineer, decompile, or disassemble the Software; (vi) attempt to modify or tamper with the normal function of a license manager that regulates usage of the Software; (vii) distribute, sublicense or transfer any components of the Software.  **PRODUCTION USE OF THE SOFTWARE IS NOT PERMITTED**.
 
-	ifconfig ethX <IP_address> netmask <netmask>
-    or
-	ip addr add <IP_address> dev <DEV>
+NO OTHER RIGHTS
+===========
 
-3. Verify that the interface works. Enter the following, where <IP_address>
-   is the IP address for another machine on the same subnet as the interface
-   that is being tested:
+No rights or licenses are granted by Aquantia to You, expressly or by implication, with respect to any proprietary information or patent, copyright, mask work, trademark, trade secret, or other intellectual property right owned or controlled by Aquantia, except for the limited, evaluation license to the Software as expressly provided in this Agreement.
 
-	ping  <IP_address>
-or (for IPv6)
-	ping6 <IPv6_address>
+OWNERSHIP OF SOFTWARE AND COPYRIGHTS
+----------------------------------
+The Software is licensed, not sold. Title to all copies of the Software remains with Aquantia. The Software is copyrighted and protected by the laws of the United States and other countries and international treaty provisions. You may not remove any copyright notices from the Software. You agree to prevent any unauthorized copying of the Software. Aquantia may make changes to the Software, or to items referenced therein, at any time without notice, but is not obligated to support or update the Software.
 
-Command Line Parameters
-=======================
-The following command line parameters are available on atlantic driver:
+FEEDBACK
+----------------------------------
 
-aq_itr -Interrupt throttling mode
-----------------------------------------
-Accepted values: 0, 1, 0xFFFF
-Default value: 0xFFFF
-0      - Disable interrupt throttling.
-1      - Enable interrupt throttling and use specified tx and rx rates.
-0xFFFF - Auto throttling mode. Driver will choose the best RX and TX
-         interrupt throtting settings based on link speed.
-
-aq_itr_tx - TX interrupt throttle rate
-----------------------------------------
-Accepted values: 0 - 0x1FF
-Default value: 0
-TX side throttling in microseconds. Adapter will setup maximum interrupt delay
-to this value. Minimum interrupt delay will be a half of this value
-
-aq_itr_rx - RX interrupt throttle rate
-----------------------------------------
-Accepted values: 0 - 0x1FF
-Default value: 0
-RX side throttling in microseconds. Adapter will setup maximum interrupt delay
-to this value. Minimum interrupt delay will be a half of this value
-
-Note: ITR settings could be changed in runtime by ethtool -c means (see below)
-
-
-Config file parametes
-=======================
-Some parameters can be changed in the {source_dir}/aq_cfg.h file:
-
-AQ_CFG_VECS_DEF
-------------------------------------------------------------
-Number of queues
-Valid Range: 0 - 8 (up to AQ_CFG_VECS_MAX)
-Default value: 4
-
-AQ_CFG_IS_RSS_DEF
-------------------------------------------------------------
-Enable/disable Receive Side Scaling
-
-This feature allows the adapter to distribute receive processing
-across multiple CPU-cores and to prevent from overloading a single CPU core.
-
-Valid values
-0 - disabled
-1 - enabled
-
-Default value: 1
-
-AQ_CFG_NUM_RSS_QUEUES_DEF
-------------------------------------------------------------
-Number of queues for Receive Side Scaling
-Valid Range: 0 - 4 (up to AQ_CFG_VECS_DEF)
-
-Default value: 4
-
-AQ_CFG_IS_LRO_DEF
-------------------------------------------------------------
-Enable/disable Large Receive Offload
-
-This offload enables the adapter to coalesce multiple TCP segments and indicate
-them as a single coalesced unit to the OS networking subsystem.
-The system consumes less energy but it also introduces more latency in packets processing.
-
-Valid values
-0 - disabled
-1 - enabled
-
-Default value: 1
-
-After the aq_cfg.h file changed the driver must be rebuilt to take effect.
-
-Additional Configurations
-=========================
-  Viewing Link Messages
-  ---------------------
-  Link messages will not be displayed to the console if the distribution is
-  restricting system messages. In order to see network driver link messages on
-  your console, set dmesg to eight by entering the following:
-
-       dmesg -n 8
-
-  NOTE: This setting is not saved across reboots.
-
-  Jumbo Frames
-  ------------
-  The driver supports Jumbo Frames for all adapters. Jumbo Frames support is
-  enabled by changing the MTU to a value larger than the default of 1500.
-  The maximum value for the MTU is 16000.  Use the ifconfig command to
-  increase the MTU size.  For example:
-
-        ifconfig <ethX> mtu 9000 up
-
-  ethtool
-  -------
-  The driver utilizes the ethtool interface for driver configuration and
-  diagnostics, as well as displaying statistical information. The latest 
-  ethtool version is required for this functionality.
- 
-  
-  NAPI
-  ----
-  NAPI (Rx polling mode) is supported in the atlantic driver. 
-
-  See ftp://robur.slu.se/pub/Linux/net-development/NAPI/usenix-paper.tgz for 
-  more information on NAPI.
-
-Supported ethtool options
-============================
- Viewing adapter settings
- ---------------------
- ethtool <ethX>
- 
- Output example:
- Settings for enp1s0:
-        Supported ports: [ ]
-        Supported link modes:   100baseT/Full
-                                1000baseT/Full
-                                10000baseT/Full
-        Supported pause frame use: Symmetric
-        Supports auto-negotiation: Yes
-        Advertised link modes:  100baseT/Full
-                                1000baseT/Full
-                                10000baseT/Full
-        Advertised pause frame use: Symmetric
-        Advertised auto-negotiation: Yes
-        Speed: 10000Mb/s
-        Duplex: Full
-        Port: FIBRE
-        PHYAD: 0
-        Transceiver: external
-        Auto-negotiation: on
-        Link detected: yes
-
- ---
- Note: AQrate speeds (2.5/5 Gb/s) will be displayed only with linux kernels > 4.10.
-    But you can still use these speeds:
-	ethtool -s eth0 autoneg off speed 2500
-		
- Viewing adapter  information
- ---------------------
- ethtool -i <ethX>
-
- Output example:
- driver: atlantic
- version: 1.6.9.0
- firmware-version: 1.5.49
- expansion-rom-version:
- bus-info: 0000:01:00.0
- supports-statistics: yes
- supports-test: no
- supports-eeprom-access: no
- supports-register-dump: yes
- supports-priv-flags: no
-
- Viewing Ethernet adapter statistics:
- ---------------------
- ethtool -S <ethX>
-
- Output example:
- NIC statistics:
-     InPackets: 13238607
-     InUCast: 13293852
-     InMCast: 52
-     InBCast: 3
-     InErrors: 0
-     OutPackets: 23703019
-     OutUCast: 23704941
-     OutMCast: 67
-     OutBCast: 11
-     InUCastOctects: 213182760
-     OutUCastOctects: 22698443
-     InMCastOctects: 6600
-     OutMCastOctects: 8776
-     InBCastOctects: 192
-     OutBCastOctects: 704
-     InOctects: 2131839552
-     OutOctects: 226938073
-     InPacketsDma: 95532300
-     OutPacketsDma: 59503397
-     InOctetsDma: 1137102462
-     OutOctetsDma: 2394339518
-     InDroppedDma: 0
-     Queue[0] InPackets: 23567131
-     Queue[0] OutPackets: 20070028
-     Queue[0] InJumboPackets: 0
-     Queue[0] InLroPackets: 0
-     Queue[0] InErrors: 0
-     Queue[1] InPackets: 45428967
-     Queue[1] OutPackets: 11306178
-     Queue[1] InJumboPackets: 0
-     Queue[1] InLroPackets: 0
-     Queue[1] InErrors: 0
-     Queue[2] InPackets: 3187011
-     Queue[2] OutPackets: 13080381
-     Queue[2] InJumboPackets: 0
-     Queue[2] InLroPackets: 0
-     Queue[2] InErrors: 0
-     Queue[3] InPackets: 23349136
-     Queue[3] OutPackets: 15046810
-     Queue[3] InJumboPackets: 0
-     Queue[3] InLroPackets: 0
-     Queue[3] InErrors: 0
-
- Disable GRO when routing/bridging
- ---------------------------------
- Due to a known kernel issue, GRO must be turned off when routing/bridging. 
- Its can be done with command:
- 
- ethtool -K <ethX> gro off
-
- 
- Disable LRO when routing/bridging
- ---------------------------------
- Due to a known kernel issue, LRO must be turned off when routing/bridging. 
- Its can be done with command:
- 
- ethtool -K <ethX> lro off
-
- Interrupt coalescing support
- ---------------------------------
- ITR mode, TX/RX coalescing timings could be viewed with:
- 
- ethtool -c <ethX>
- 
- and changed with:
- 
- ethtool -C <ethX> tx-usecs <usecs> rx-usecs <usecs>
- 
- To disable coalescing:
-
- ethtool -C <ethX> tx-usecs 0 rx-usecs 0 tx-max-frames 1 tx-max-frames 1
- 
- Wake on LAN support
- ---------------------------------
-
- WOL support by magic packet:
-
- ethtool -s <ethX> wol g
- 
- To disable WOL:
-
- ethtool -s <ethX> wol d
-
-Support
-=======
-
-If an issue is identified with the released source code on the supported
-kernel with a supported adapter, email the specific information related
-to the issue to support@aquantia.com
-
-License
-=======
-
-aQuantia Corporation Network Driver
-Copyright(c) 2014 - 2018 aQuantia Corporation.
-
-This program is free software; you can redistribute it and/or modify it
-under the terms and conditions of the GNU General Public License,
-version 2, as published by the Free Software Foundation.
+You agree that Aquantia may, at its sole discretion, use any and all feedback you provide, including without limitation, any flaws, errors, bugs, anomalies, problems, suggestions for improvement or other modifications and any other feedback with respect to the Software (collectively, “Feedback”) without any payment of royalties or other liabilities or obligations.  You represent, warrant and covenant that you have the right to provide Feedback to Aquantia.
+
+LIMITATION OF LIABILITY
+----------------------------------
+
+IN NO EVENT SHALL AQUANTIA OR ITS SUPPLIERS BE LIABLE FOR ANY DAMAGES OF ANY KIND WHATSOEVER, WHETHER DIRECT, INCIDENTIAL, CONSEQUENTIAL, PUNITIVE OR OTHERWISE (INCLUDING, WITHOUT LIMITATION, LOST PROFITS, BUSINESS INTERRUPTION, OR LOST INFORMATION) ARISING OUT OF THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF AQUANTIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. SOME JURISDICTIONS PROHIBIT EXCLUSION OR LIMITATION OF LIABILITY FOR IMPLIED WARRANTIES OR CONSEQUENTIAL OR INCIDENTAL DAMAGES, SO THE ABOVE LIMITATION MAY NOT APPLY TO YOU. YOU MAY ALSO HAVE OTHER LEGAL RIGHTS THAT VARY FROM JURISDICTION TO JURISDICTION.  In the event that the above exclusion does not apply, You agree that Aquantia’s entire liability for any and all claims of any kind whatsoever in connection with the Software or this Agreement shall be limited to $100.
+
+TERMINATION OF THIS AGREEMENT
+----------------------------------
+
+Aquantia may terminate this Agreement at any time if You violate its terms. Upon termination, You will immediately destroy the Software or return all copies of the Software to Aquantia.
+
+APPLICABLE LAWS
+----------------------------------
+
+Claims arising under this Agreement shall be governed by the laws of the State of California, without regard to principles of conflict of laws. You agree that the terms of the United Nations Convention on Contracts for the International Sale of Goods does not apply to this Agreement. You may not export the Software in violation of applicable export laws and regulations. Aquantia is not obligated under any other agreements unless they are in writing and signed by an authorized representative of Aquantia.
