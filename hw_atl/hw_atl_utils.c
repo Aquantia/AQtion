@@ -30,10 +30,11 @@
 #define HW_ATL_MPI_CONTROL_ADR  0x0368U
 #define HW_ATL_MPI_STATE_ADR    0x036CU
 
-#define HW_ATL_MPI_STATE_MSK    0x00FFU
-#define HW_ATL_MPI_STATE_SHIFT  0U
-#define HW_ATL_MPI_SPEED_MSK    0xFFFF0000U
-#define HW_ATL_MPI_SPEED_SHIFT  16U
+#define HW_ATL_MPI_STATE_MSK      0x00FFU
+#define HW_ATL_MPI_STATE_SHIFT    0U
+#define HW_ATL_MPI_SPEED_MSK      0x00FF0000U
+#define HW_ATL_MPI_SPEED_SHIFT    16U
+#define HW_ATL_MPI_DIRTY_WAKE_MSK 0x02000000U
 
 #define HW_ATL_MPI_DAISY_CHAIN_STATUS	0x704
 #define HW_ATL_MPI_BOOT_EXIT_CODE	0x388
@@ -48,6 +49,8 @@
 #define FORCE_FLASHLESS 0
 
 static int hw_atl_utils_ver_match(u32 ver_expected, u32 ver_actual);
+static int hw_atl_utils_mpi_set_state(struct aq_hw_s *self,
+				      enum hal_atl_utils_fw_state_e state);
 
 int hw_atl_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 {
@@ -76,7 +79,6 @@ int hw_atl_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 			  self->fw_ver_actual);
 		return -EOPNOTSUPP;
 	}
-
 	self->aq_fw_ops = *fw_ops;
 	err = self->aq_fw_ops->init(self);
 	return err;
@@ -84,8 +86,8 @@ int hw_atl_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 
 static int hw_atl_utils_soft_reset_flb(struct aq_hw_s *self)
 {
-	int k = 0;
 	u32 gsr, val;
+	int k = 0;
 
 	aq_hw_write_reg(self, 0x404, 0x40e1);
 	AQ_HW_SLEEP(50);
@@ -247,6 +249,20 @@ int hw_atl_utils_soft_reset(struct aq_hw_s *self)
 	}
 
 	self->rbl_enabled = (boot_exit_code != 0);
+
+	/* FW 1.x may bootup in an invalid POWER state (WOL feature).
+	 * We should work around this by forcing its state back to DEINIT
+	 */
+	if (!hw_atl_utils_ver_match(HW_ATL_FW_VER_1X,
+				    aq_hw_read_reg(self,
+						   HW_ATL_MPI_FW_VERSION))) {
+		int err = 0;
+
+		hw_atl_utils_mpi_set_state(self, MPI_DEINIT);
+		AQ_HW_WAIT_FOR((aq_hw_read_reg(self, HW_ATL_MPI_STATE_ADR) &
+			       HW_ATL_MPI_STATE_MSK) == MPI_DEINIT,
+			       10, 1000U);
+	}
 
 	if (self->rbl_enabled)
 		return hw_atl_utils_soft_reset_rbl(self);
@@ -525,19 +541,20 @@ int hw_atl_utils_mpi_set_speed(struct aq_hw_s *self, u32 speed)
 {
 	u32 val = aq_hw_read_reg(self, HW_ATL_MPI_CONTROL_ADR);
 
-	val = (val & HW_ATL_MPI_STATE_MSK) | (speed << HW_ATL_MPI_SPEED_SHIFT);
+	val = val & ~HW_ATL_MPI_SPEED_MSK;
+	val |= speed << HW_ATL_MPI_SPEED_SHIFT;
 	aq_hw_write_reg(self, HW_ATL_MPI_CONTROL_ADR, val);
 
 	return 0;
 }
 
-void hw_atl_utils_mpi_set(struct aq_hw_s *self,
-			  enum hal_atl_utils_fw_state_e state,
-			  u32 speed)
+int hw_atl_utils_mpi_set_state(struct aq_hw_s *self,
+				enum hal_atl_utils_fw_state_e state)
 {
 	int err = 0;
 	u32 transaction_id = 0;
 	struct hw_aq_atl_utils_mbox_header mbox;
+	u32 val = aq_hw_read_reg(self, HW_ATL_MPI_CONTROL_ADR);
 
 	if (state == MPI_RESET) {
 		hw_atl_utils_mpi_read_mbox(self, &mbox);
@@ -551,22 +568,21 @@ void hw_atl_utils_mpi_set(struct aq_hw_s *self,
 		if (err < 0)
 			goto err_exit;
 	}
+	/* On interface DEINIT we disable DW (raise bit)
+	 * Otherwise enable DW (clear bit)
+	 */
+	if (state == MPI_DEINIT || state == MPI_POWER)
+		val |= HW_ATL_MPI_DIRTY_WAKE_MSK;
+	else
+		val &= ~HW_ATL_MPI_DIRTY_WAKE_MSK;
 
-	aq_hw_write_reg(self, HW_ATL_MPI_CONTROL_ADR,
-			(speed << HW_ATL_MPI_SPEED_SHIFT) | state);
+	/* Set new state bits */
+	val = val & ~HW_ATL_MPI_STATE_MSK;
+	val |= state & HW_ATL_MPI_STATE_MSK;
 
-err_exit:;
-}
-
-static int hw_atl_utils_mpi_set_state(struct aq_hw_s *self,
-				      enum hal_atl_utils_fw_state_e state)
-{
-	u32 val = aq_hw_read_reg(self, HW_ATL_MPI_CONTROL_ADR);
-
-	val = state | (val & HW_ATL_MPI_SPEED_MSK);
 	aq_hw_write_reg(self, HW_ATL_MPI_CONTROL_ADR, val);
-
-	return 0;
+err_exit:
+	return err;
 }
 
 int hw_atl_utils_mpi_get_link_status(struct aq_hw_s *self)
@@ -724,7 +740,8 @@ void hw_atl_utils_hw_chip_features_init(struct aq_hw_s *self, u32 *p)
 
 static int hw_atl_fw1x_deinit(struct aq_hw_s *self)
 {
-	hw_atl_utils_mpi_set(self, MPI_DEINIT, 0x0U);
+	hw_atl_utils_mpi_set_speed(self, 0);
+	hw_atl_utils_mpi_set_state(self, MPI_DEINIT);
 	return 0;
 }
 
@@ -876,11 +893,11 @@ int aq_fw1x_set_power(struct aq_hw_s *self,unsigned int power_state,
 		prpc->msg_enable_wakeup.pattern_mask = 0x00000002;
 
 		err = hw_atl_utils_fw_rpc_call(self, rpc_size);
-		hw_atl_utils_mpi_set(self, MPI_POWER, 0x0U);
-
 		if (err < 0)
 			goto err_exit;
 	}
+	hw_atl_utils_mpi_set_speed(self, 0);
+	hw_atl_utils_mpi_set_state(self, MPI_POWER);
 err_exit:
 	return err;
 }
@@ -899,4 +916,6 @@ const struct aq_fw_ops aq_fw_1x_ops = {
 	.set_power = aq_fw1x_set_power,
 	.get_temp = NULL,
 	.get_cable_len = NULL,
+	.set_eee_rate = NULL,
+	.get_eee_rate = NULL,
 };

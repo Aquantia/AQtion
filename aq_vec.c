@@ -35,12 +35,12 @@ struct aq_vec_s {
 static int aq_vec_poll(struct napi_struct *napi, int budget)
 {
 	struct aq_vec_s *self = container_of(napi, struct aq_vec_s, napi);
+	unsigned int sw_tail_old = 0U;
 	struct aq_ring_s *ring = NULL;
+	bool was_tx_cleaned = true;
+	unsigned int i = 0U;
 	int work_done = 0;
 	int err = 0;
-	unsigned int i = 0U;
-	unsigned int sw_tail_old = 0U;
-	bool was_tx_cleaned = true;
 
 	if (!self) {
 		err = -EINVAL;

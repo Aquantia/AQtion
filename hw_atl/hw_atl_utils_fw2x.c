@@ -30,8 +30,13 @@
 #define HW_ATL_FW2X_MPI_STATE_ADDR	0x370
 #define HW_ATL_FW2X_MPI_STATE2_ADDR	0x374
 
-#define FW2X_FW_CAP_SLEEP_PROXY (1ULL << CAPS_HI_SLEEP_PROXY)
-#define FW2X_FW_CAP_WOL (1ULL << CAPS_HI_WOL)
+#define HW_ATL_FW2X_CAP_SLEEP_PROXY BIT(CAPS_HI_SLEEP_PROXY)
+#define HW_ATL_FW2X_CAP_WOL BIT(CAPS_HI_WOL)
+
+#define HW_ATL_FW2X_CAP_EEE_1G_MASK   BIT(CAPS_HI_1000BASET_FD_EEE)
+#define HW_ATL_FW2X_CAP_EEE_2G5_MASK  BIT(CAPS_HI_2P5GBASET_FD_EEE)
+#define HW_ATL_FW2X_CAP_EEE_5G_MASK   BIT(CAPS_HI_5GBASET_FD_EEE)
+#define HW_ATL_FW2X_CAP_EEE_10G_MASK  BIT(CAPS_HI_10GBASET_FD_EEE)
 
 #define HAL_ATLANTIC_WOL_FILTERS_COUNT     8
 #define HAL_ATLANTIC_UTILS_FW2X_MSG_WOL    0x0E
@@ -103,6 +108,25 @@ static enum hw_atl_fw2x_rate link_speed_mask_2fw2x_ratemask(u32 speed)
 
 	if (speed & AQ_NIC_RATE_100M)
 		rate |= FW2X_RATE_100M;
+
+	return rate;
+}
+
+static u32 fw2x_to_eee_mask(u32 speed)
+{
+	u32 rate = 0;
+
+	if (speed & HW_ATL_FW2X_CAP_EEE_10G_MASK)
+		rate |= AQ_NIC_RATE_EEE_10G;
+
+	if (speed & HW_ATL_FW2X_CAP_EEE_5G_MASK)
+		rate |= AQ_NIC_RATE_EEE_5G;
+
+	if (speed & HW_ATL_FW2X_CAP_EEE_2G5_MASK)
+		rate |= AQ_NIC_RATE_EEE_2GS;
+
+	if (speed & HW_ATL_FW2X_CAP_EEE_1G_MASK)
+		rate|= AQ_NIC_RATE_EEE_1G;
 
 	return rate;
 }
@@ -304,7 +328,7 @@ static int aq_fw2x_set_sleep_proxy(struct aq_hw_s *self, u8 *mac)
 
 	/* Clear bit 0x36C.23 */
 	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	mpi_opts &= ~FW2X_FW_CAP_SLEEP_PROXY;
+	mpi_opts &= ~HW_ATL_FW2X_CAP_SLEEP_PROXY;
 
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 
@@ -313,11 +337,11 @@ static int aq_fw2x_set_sleep_proxy(struct aq_hw_s *self, u8 *mac)
 		goto err_exit;
 
 	/* Set bit 0x36C.23 */
-	mpi_opts |= FW2X_FW_CAP_SLEEP_PROXY;
+	mpi_opts |= HW_ATL_FW2X_CAP_SLEEP_PROXY;
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 
 	AQ_HW_WAIT_FOR((aq_hw_read_reg(self, HW_ATL_FW2X_MPI_STATE2_ADDR) &
-				FW2X_FW_CAP_SLEEP_PROXY), 1U, 10000U);
+			HW_ATL_FW2X_CAP_SLEEP_PROXY), 1U, 10000U);
 err_exit:
 	return err;
 }
@@ -341,7 +365,7 @@ static int aq_fw2x_set_wol_params(struct aq_hw_s *self, u8 *mac)
 	memcpy(msg->hw_addr, mac, ETH_ALEN);
 
 	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	mpi_opts &= ~(FW2X_FW_CAP_SLEEP_PROXY | FW2X_FW_CAP_WOL);
+	mpi_opts &= ~(HW_ATL_FW2X_CAP_SLEEP_PROXY | HW_ATL_FW2X_CAP_WOL);
 
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 
@@ -350,16 +374,17 @@ static int aq_fw2x_set_wol_params(struct aq_hw_s *self, u8 *mac)
 		goto err_exit;
 
 	/* Set bit 0x36C.24 */
-	mpi_opts |= FW2X_FW_CAP_WOL;
+	mpi_opts |= HW_ATL_FW2X_CAP_WOL;
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 
 	AQ_HW_WAIT_FOR((aq_hw_read_reg(self, HW_ATL_FW2X_MPI_STATE2_ADDR) &
-			FW2X_FW_CAP_WOL), 1U, 10000U);
+			HW_ATL_FW2X_CAP_WOL), 1U, 10000U);
 err_exit:
 	return err;
 }
 
-static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state, u8 *mac)
+static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state,
+				u8 *mac)
 {
 	int err = 0;
 
@@ -375,6 +400,55 @@ err_exit:
 	return err;
 }
 
+static int aq_fw2x_set_eee_rate(struct aq_hw_s *self, u32 speed)
+{
+	u32 mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
+	mpi_opts &= ~(HW_ATL_FW2X_CAP_EEE_1G_MASK |
+		HW_ATL_FW2X_CAP_EEE_2G5_MASK | HW_ATL_FW2X_CAP_EEE_5G_MASK |
+		HW_ATL_FW2X_CAP_EEE_10G_MASK);
+
+	if (speed & AQ_NIC_RATE_EEE_10G)
+		mpi_opts |= HW_ATL_FW2X_CAP_EEE_10G_MASK;
+
+	if (speed & AQ_NIC_RATE_EEE_5G)
+		mpi_opts |= HW_ATL_FW2X_CAP_EEE_5G_MASK;
+
+	if (speed & AQ_NIC_RATE_EEE_2GS)
+		mpi_opts |= HW_ATL_FW2X_CAP_EEE_2G5_MASK;
+
+	if (speed & AQ_NIC_RATE_EEE_1G)
+		mpi_opts |= HW_ATL_FW2X_CAP_EEE_1G_MASK;
+
+	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
+
+	return 0;
+}
+
+static int aq_fw2x_get_eee_rate(struct aq_hw_s *self, u32 *rate,
+					u32 *supported_rates)
+{
+	int err = 0;
+	u32 caps_hi;
+	u32 mpi_state;
+
+	err = hw_atl_utils_fw_downld_dwords(self,
+				self->mbox_addr +
+				offsetof(struct hw_aq_atl_utils_mbox, info) +
+				offsetof(struct hw_aq_info, caps_hi),
+				&caps_hi,
+				sizeof(caps_hi)/sizeof(u32));
+
+	if (err)
+		return err;
+
+	*supported_rates = fw2x_to_eee_mask(caps_hi);
+
+	mpi_state = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_STATE2_ADDR);
+	*rate = fw2x_to_eee_mask(mpi_state);
+
+	return err;
+}
+
 const struct aq_fw_ops aq_fw_2x_ops = {
 	.init = aq_fw2x_init,
 	.deinit = aq_fw2x_deinit,
@@ -387,4 +461,6 @@ const struct aq_fw_ops aq_fw_2x_ops = {
 	.set_power = aq_fw2x_set_power,
 	.get_temp = aq_fw2x_get_temp,
 	.get_cable_len = aq_fw2x_get_cable_len,
+	.set_eee_rate = aq_fw2x_set_eee_rate,
+	.get_eee_rate = aq_fw2x_get_eee_rate,
 };

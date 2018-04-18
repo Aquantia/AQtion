@@ -224,6 +224,11 @@ struct aq_fw_ops {
 	int (*get_temp)(struct aq_hw_s *self, int *temp);
 
 	int (*get_cable_len)(struct aq_hw_s *self, int *cable_len);
+
+	int (*set_eee_rate)(struct aq_hw_s *self, u32 speed);
+
+	int (*get_eee_rate)(struct aq_hw_s *self, u32 *rate,
+			u32 *supported_rates);
 };
 
 #endif /* AQ_HW_H */

@@ -354,6 +354,87 @@ err_exit:
 	return err;
 }
 
+static enum hw_atl_fw2x_rate eee_mask_to_ethtool_mask(u32 speed)
+{
+	u32 rate = 0;
+
+	if (speed & AQ_NIC_RATE_EEE_10G)
+		rate |= SUPPORTED_10000baseT_Full;
+
+	/* This is not supported
+	 * if (speed & AQ_NIC_RATE_EEE_5G)
+	 *	rate |= SUPPORTED_5000baseX_Full;
+	 */
+
+	if (speed & AQ_NIC_RATE_EEE_2GS)
+		rate |= SUPPORTED_2500baseX_Full;
+
+
+	if (speed & AQ_NIC_RATE_EEE_1G)
+		rate |= SUPPORTED_1000baseT_Full;
+
+	return rate;
+}
+
+static int aq_ethtool_get_eee(struct net_device *ndev, struct ethtool_eee *eee)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	int err = 0;
+
+	u32 rate, supported_rates;
+
+	if (!aq_nic->aq_fw_ops->get_eee_rate)
+		return -EOPNOTSUPP;
+
+	err = aq_nic->aq_fw_ops->get_eee_rate(aq_nic->aq_hw, &rate,
+						&supported_rates);
+	if (err < 0)
+		return err;
+
+	eee->supported = eee_mask_to_ethtool_mask(supported_rates);
+
+	if (aq_nic->aq_nic_cfg.eee_enabled)
+		eee->advertised = eee->supported;
+
+	eee->lp_advertised = eee_mask_to_ethtool_mask(rate);
+
+	eee->eee_enabled = !!eee->advertised;
+
+	eee->tx_lpi_enabled = eee->eee_enabled;
+	if (eee->advertised & eee->lp_advertised)
+		eee->eee_active = true;
+
+	return 0;
+}
+
+static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
+	u32 rate, supported_rates;
+	int err = 0;
+
+	if (!aq_nic->aq_fw_ops->get_eee_rate)
+		return -EOPNOTSUPP;
+
+	err = aq_nic->aq_fw_ops->get_eee_rate(aq_nic->aq_hw, &rate,
+							&supported_rates);
+	if (err < 0)
+		return err;
+
+	if (eee->eee_enabled) {
+		rate = supported_rates;
+		cfg->eee_enabled = true;
+	} else {
+		rate = 0;
+		cfg->eee_enabled = false;
+	}
+
+	if (aq_nic->aq_fw_ops->set_eee_rate)
+		return aq_nic->aq_fw_ops->set_eee_rate(aq_nic->aq_hw, rate);
+
+	return -EOPNOTSUPP;
+}
 
 const struct ethtool_ops aq_ethtool_ops = {
 	.get_link            = aq_ethtool_get_link,
@@ -364,6 +445,8 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.get_rxfh_indir_size = aq_ethtool_get_rss_indir_size,
 	.get_wol             = aq_ethtool_get_wol,
 	.set_wol             = aq_ethtool_set_wol,
+	.get_eee             = aq_ethtool_get_eee,
+	.set_eee             = aq_ethtool_set_eee,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 	.get_rxfh_key_size   = aq_ethtool_get_rss_key_size,

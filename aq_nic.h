@@ -46,6 +46,7 @@ struct aq_nic_cfg_s {
 	bool is_lro;
 	u8  tcs;
 	struct aq_rss_parameters aq_rss;
+	bool eee_enabled;
 };
 
 #define AQ_NIC_FLAG_STARTED     0x00000004U
@@ -98,7 +99,6 @@ static inline struct device *aq_nic_get_dev(struct aq_nic_s *self)
 	return self->ndev->dev.parent;
 }
 
-extern unsigned aq_tx_clean_budget;
 extern unsigned aq_rx_refill_thres;
 
 void aq_nic_ndev_init(struct aq_nic_s *self);
@@ -139,6 +139,5 @@ u32 aq_nic_get_fw_version(struct aq_nic_s *self);
 int aq_nic_change_pm_state(struct aq_nic_s *self, pm_message_t *pm_msg);
 int aq_nic_update_interrupt_moderation_settings(struct aq_nic_s *self);
 void aq_nic_shutdown(struct aq_nic_s *self);
-
 
 #endif /* AQ_NIC_H */

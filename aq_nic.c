@@ -42,10 +42,6 @@ static unsigned int aq_rxpageorder = 0;
 module_param_named(aq_rxpageorder, aq_rxpageorder, uint, 0644);
 MODULE_PARM_DESC(aq_rxpageorder, "RX page order override");
 
-unsigned aq_tx_clean_budget = 256;
-module_param_named(aq_tx_clean_budget, aq_tx_clean_budget, uint, 0644);
-MODULE_PARM_DESC(aq_tx_clean_budget, "Maximum descriptors to cleanup on TX at once");
-
 unsigned aq_rx_refill_thres = 32;
 module_param_named(aq_rx_refill_thres, aq_rx_refill_thres, uint, 0644);
 MODULE_PARM_DESC(aq_rx_refill_thres, "RX refill threshold");
@@ -1083,9 +1079,11 @@ void aq_nic_shutdown(struct aq_nic_s *self)
 
 	netif_device_detach(self->ndev);
 
-	err = aq_nic_stop(self);
-	if (err < 0)
-		goto err_exit;
+	if (netif_running(self->ndev)) {
+		err = aq_nic_stop(self);
+		if (err < 0)
+			goto err_exit;
+	}
 	aq_nic_deinit(self);
 
 err_exit:
