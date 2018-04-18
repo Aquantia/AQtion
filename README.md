@@ -6,7 +6,7 @@ Please read technical details in [README.txt](https://github.com/Aquantia/AQtion
 Notice this is an **experimental software**. For stable driver version please either visit http://www.aquantia.com or take the driver
 bundled with your linux kernel.
 
-Being experimental, has the following agreement and limitations:
+Being experimental, it has the following agreement and limitations:
 
 AQUANTIA SOFTWARE LICENSE AGREEMENT – EXPERIMENTAL USE SOFTWARE
 ===========
