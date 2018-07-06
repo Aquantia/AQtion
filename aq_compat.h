@@ -103,7 +103,12 @@ static inline int skb_xmit_more(struct sk_buff *skb)
 
 #endif	/* 3.18.0 */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+#define IFF_UNICAST_FLT        0
+#define dev_alloc_pages(__order) alloc_pages_node(NUMA_NO_NODE,                         \
+                                                  GFP_ATOMIC | __GFP_COMP | __GFP_COLD, \
+                                                  __order)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
 /* introduced in commit 71dfda58aaaf4bf6b1bc59f9d8afa635fa1337d4 */
 #define dev_alloc_pages(__order) __skb_alloc_pages(GFP_ATOMIC | __GFP_COMP, NULL, __order)
 #endif  /* 3.19.0 */

@@ -87,22 +87,78 @@ or run the following commands:
 	sudo rm -f /lib/modules/`uname -r`/aquantia/atlantic.ko
 	depmod -a `uname -r`
 
-
-Alternatively you can use Aquantia-AQtion-x.y.z.src.rpm
+Alternatively build and install driver with dkms
 ------------------------------------------------------------
-1. Move the Aquantia-AQtion-x.y.z.src.rpm file to the directory of your choice. For example,
-   use /home/username/aquantia.
+1. Make sure you have all the environment to build standalone kernel module.
+   On debian based systems you may do the following:
 
-2. Execute the commands:
+	sudo apt-get install linux-headers-`uname -r` build-essential gawk dkms
+
+   On redhat based systems you may do the following:
+
+	sudo yum install kernel-devel-`uname -r` gcc gcc-c++ make gawk dkms
+
+2. Move the base driver tar file to the directory of your choice. For example,
+   use /home/username/aquantia.
+   Untar/unzip archive:
+
+	cd ~/aquantia
+	tar zxf Aquantia-AQtion-x.y.z.tar.gz
+
+3. Change to the driver source directory:
+
+	cd Aquantia-AQtion-x.y.z/
+
+4. Build and install driver:
+
+	sudo ./dkms.sh install
+
+driver will be in:
+
+	/lib/modules/`uname -r`/updates/dkms/atlantic.ko
+
+5. Uninstall the driver:
+
+	sudo ./dkms.sh uninstall
+
+Install driver on Debian\Ubuntu using atlantic-x.y.z.deb
+------------------------------------------------------------
+1. Make sure you have all the environment to build standalone kernel module. Execute the commands:
+	sudo apt-get install linux-headers-`uname -r`
+
+2. Move the atlantic-x.y.z.deb file to the directory of your choice. For example,
+   use /home/username/aquantia. 
+ 
+3. Execute the commands:
     cd /home/username/aquantia
-    sudo rpm -ivh Aquantia-AQtion-x.y.z.x86_64.rpm
+    sudo apt-get install ./atlantic-x.y.z.deb
 	
     After this driver will be installed.
-    (You can check this via "rpm -qa | grep Aquantia")
+    (You can check this via "dpkg -l | grep -i atlantic")
 
-3. Uninstall the driver:
+4. Uninstall the driver:
    Run the following commands:
-   sudo rpm -e Aquantia-AQtion-x.y.z.x86_64
+   sudo dpkg -P atlantic
+
+	
+Alternatively you can use  atlantic-x.y.z.noarch.rpm
+------------------------------------------------------------
+1. Make sure you have all the environment to build standalone kernel module. Execute the commands:
+	sudo yum install kernel-devel-`uname -r`
+
+2. Move the atlantic-x.y.z.noarch.rpm file to the directory of your choice. For example,
+   use /home/username/aquantia. 
+ 
+3. Execute the commands:
+    cd /home/username/aquantia
+    sudo yum install ./atlantic-x.y.z.noarch.rpm
+	
+    After this driver will be installed.
+    (You can check this via "rpm -qa | grep -i atlantic")
+
+4. Uninstall the driver:
+   Run the following commands:
+   sudo rpm -e atlantic-x.y.z.noarch
 
 Check that the driver is working
 ------------------------------------------------------------
@@ -412,6 +468,31 @@ Supported ethtool options
  To disable WOL:
 
  ethtool -s <ethX> wol d
+
+Private flags (testing)
+ ---------------------------------
+
+ Atlantic driver supports private flags for hardware loopback testing:
+
+	$ ethtool --show-priv-flags ethX
+
+	Private flags for ethX:
+	DMASystemLoopback  : off
+	PKTSystemLoopback  : off
+	DMANetworkLoopback : off
+	PHYInternalLoopback: off
+	PHYExternalLoopback: off
+
+ Example:
+
+ 	$ ethtool --set-priv-flags ethX DMASystemLoopback on
+ 
+ DMASystemLoopback:   DMA Host loopback.
+ PKTSystemLoopback:   Packet buffer host loopback.
+ DMANetworkLoopback:  Network side loopback on DMA block.
+ PHYInternalLoopback: Internal loopback on Phy.
+ PHYExternalLoopback: External loopback on Phy (with loopback ethernet cable).
+
 
 Support
 =======

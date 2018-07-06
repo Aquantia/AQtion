@@ -14,18 +14,18 @@
 #include <linux/module.h>
 #include <linux/stat.h>
 #include <linux/string.h>
-#include <linux/sysfs.h>
+#include <linux/hwmon-sysfs.h>
+#include <linux/hwmon.h>
 #include <linux/uaccess.h>
 
 #include "aq_drvinfo.h"
 
-
-static ssize_t show_temp(struct device *ndev, struct device_attribute *attr,
-			    char *buf)
+static ssize_t temperature_show(struct device *ndev,
+				struct device_attribute *attr, char *buf)
 {
 	int err;
 
-	struct aq_nic_s *aq_nic = netdev_priv(to_net_dev(ndev));
+	struct aq_nic_s *aq_nic = pci_get_drvdata(to_pci_dev(ndev));
 
 	int temp = 0;
 
@@ -35,17 +35,16 @@ static ssize_t show_temp(struct device *ndev, struct device_attribute *attr,
 	err = aq_nic->aq_fw_ops->get_temp(aq_nic->aq_hw, &temp);
 
 	if (err == 0)
-		return sprintf(buf, "%d.%d\n", temp / 100, temp % 100);
+		return sprintf(buf, "%d\n", temp * 10);
 	return -ENXIO;
 }
 
-
-static ssize_t show_cable_len(struct device *ndev,
-				struct device_attribute *attr, char *buf)
+static ssize_t cable_show(struct device *ndev,
+			  struct device_attribute *attr, char *buf)
 {
 	int err;
 
-	struct aq_nic_s *aq_nic = netdev_priv(to_net_dev(ndev));
+	struct aq_nic_s *aq_nic = pci_get_drvdata(to_pci_dev(ndev));
 
 	int cable_len = 0;
 
@@ -59,34 +58,54 @@ static ssize_t show_cable_len(struct device *ndev,
 	return -ENXIO;
 }
 
+static ssize_t cable_label_show(struct device *ndev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Estimated cable length (meters)\n");
+}
 
-static struct device_attribute aq_dev_attrs[] = {
-	__ATTR(temperature, 0444, show_temp, NULL),
-	__ATTR(cable_length, 0444, show_cable_len, NULL),
+static ssize_t temperature_label_show(struct device *ndev,
+				      struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "PHY temperature\n");
+}
+
+static DEVICE_ATTR(temp1_label, S_IWUSR | S_IRUGO, temperature_label_show,
+		   NULL);
+static SENSOR_DEVICE_ATTR(temp1_input, S_IWUSR | S_IRUGO, temperature_show,
+			  NULL, 0);
+static DEVICE_ATTR(cable_label, S_IWUSR | S_IRUGO, cable_label_show, NULL);
+static SENSOR_DEVICE_ATTR(cable_input, S_IWUSR | S_IRUGO, cable_show, NULL, 1);
+
+static struct attribute *aq_dev_attrs[] = {
+	&dev_attr_temp1_label.attr,
+	&sensor_dev_attr_temp1_input.dev_attr.attr,
+	&dev_attr_cable_label.attr,
+	&sensor_dev_attr_cable_input.dev_attr.attr,
+	NULL
 };
 
-int aq_sysfs_init(struct net_device *ndev)
-{
-	int i;
-	int err = 0;
+ATTRIBUTE_GROUPS(aq_dev);
 
-	for (i = 0; i < ARRAY_SIZE(aq_dev_attrs); i++) {
-		err = device_create_file(&ndev->dev, &aq_dev_attrs[i]);
-		if (err < 0) {
-			while (i > 0)
-				device_remove_file(&ndev->dev,
-						&aq_dev_attrs[--i]);
-			break;
-		}
-	}
+int aq_drvinfo_init(struct net_device *ndev)
+{
+	int err = 0;
+	struct device *dev;
+
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	dev = devm_hwmon_device_register_with_groups(&aq_nic->pdev->dev,
+			 ndev->name, dev_get_drvdata(&aq_nic->pdev->dev),
+			 aq_dev_groups);
+
+	if (IS_ERR(dev))
+		err = PTR_ERR(dev);
+
 	return err;
 }
 
-void aq_sysfs_exit(struct net_device *ndev)
+void aq_drvinfo_exit(struct net_device *ndev)
 {
-	int i;
 
-	for (i = 0; i < ARRAY_SIZE(aq_dev_attrs); i++)
-		device_remove_file(&ndev->dev, &aq_dev_attrs[i]);
 }
 

@@ -17,8 +17,8 @@
 #include "hw_atl/hw_atl_utils.h"
 
 
-int aq_sysfs_init(struct net_device *ndev);
-void aq_sysfs_exit(struct net_device *ndev);
+int aq_drvinfo_init(struct net_device *ndev);
+void aq_drvinfo_exit(struct net_device *ndev);
 
 
 #endif /* AQ_DRVINFO_H */

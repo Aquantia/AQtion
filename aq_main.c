@@ -21,8 +21,9 @@
 #include <linux/kobject.h>
 #include <linux/stat.h>
 #include <linux/string.h>
-#include <linux/sysfs.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
 #include <uapi/linux/stat.h>
+#endif
 
 MODULE_LICENSE("GPL v2");
 MODULE_VERSION(AQ_CFG_DRV_VERSION);
@@ -53,7 +54,7 @@ static int aq_ndev_open(struct net_device *ndev)
 	int err = 0;
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 
-	aq_sysfs_init(ndev);
+	aq_drvinfo_init(ndev);
 
 	err = aq_nic_init(aq_nic);
 	if (err < 0)
@@ -73,7 +74,7 @@ static int aq_ndev_close(struct net_device *ndev)
 	int err = 0;
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 
-	aq_sysfs_exit(ndev);
+	aq_drvinfo_exit(ndev);
 
 
 	err = aq_nic_stop(aq_nic);
@@ -105,7 +106,7 @@ err_exit:
 	return err;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
 static int aq_ndev_set_features(struct net_device *ndev,
 				netdev_features_t features)
 {
@@ -155,11 +156,9 @@ static void aq_ndev_set_multicast_settings(struct net_device *ndev)
 	if (err < 0)
 		return;
 
-	if (netdev_mc_count(ndev)) {
-		err = aq_nic_set_multicast_list(aq_nic, ndev);
-		if (err < 0)
-			return;
-	}
+	err = aq_nic_set_multicast_list(aq_nic, ndev);
+	if (err < 0)
+		return;
 }
 
 static const struct net_device_ops aq_ndev_ops = {
@@ -171,9 +170,13 @@ static const struct net_device_ops aq_ndev_ops = {
 #else
 	.ndo_set_rx_mode = aq_ndev_set_multicast_settings,
 #endif
+#if (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,5))
+	.extended.ndo_change_mtu = aq_ndev_change_mtu,
+#else
 	.ndo_change_mtu = aq_ndev_change_mtu,
+#endif
 	.ndo_set_mac_address = aq_ndev_set_mac_address,
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
 	.ndo_set_features = aq_ndev_set_features
 #endif
 };

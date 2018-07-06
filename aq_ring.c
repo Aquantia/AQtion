@@ -78,8 +78,10 @@ static int aq_get_rxpages(struct aq_ring_s *self, struct aq_ring_buff_s *rxbuf, 
 					       aq_nic_get_dev(self->aq_nic));
 				self->stats.rx.pg_losts++;
 			}
-		} else
+		} else {
+			rxbuf->rxdata.pg_off = 0;
 			self->stats.rx.pg_reuses++;
+		}
 	}
 
 	if (!rxbuf->rxdata.page) {

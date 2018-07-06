@@ -32,6 +32,10 @@ TARGET := atlantic
 
 CC = gcc
 
+export DEBIAN=`/usr/bin/dpkg --search /usr/bin/dpkg >/dev/null 2>&1 && echo 1 || echo 0`
+
+export KO_EXISTS=`cat /etc/modules 2>/dev/null | grep atlantic && echo 1 || echo 0`
+
 ifeq "$(CC)" "gcc"
 	ccflags-y := -Wall
 endif
@@ -75,11 +79,18 @@ unload:
 	rmmod ./$(TARGET).ko
 
 install:
-	@install -D -m 644 ${TARGET}.ko /lib/modules/$(shell uname -r)/aquantia/${TARGET}.ko
+	@install -D -m 644 ${TARGET}.ko /lib/modules/$(shell uname -r)/updates/drivers/net/ethernet/aquantia/atlantic/${TARGET}.ko
 	@depmod -a $(shell uname -r)
-
+	@if [ "${DEBIAN}" = "1" ]; then \
+		update-initramfs -u ; \
+		if [ "${KO_EXISTS}" = "0" ]; then echo atlantic >> /etc/modules ; fi; \
+	else \
+		dracut --force ; \
+	fi
+	
 uninstall:
-	@rm -f /lib/modules/$(shell uname -r)/aquantia/${TARGET}.ko
+	@if [ "${KO_EXISTS}" != "0" ]; then sed -in '/$TARGET/d' /etc/modules ; fi
+	@rm -f /lib/modules/$(shell uname -r)/updates/drivers/net/ethernet/aquantia/atlantic/${TARGET}.ko
 	@depmod -a $(shell uname -r)
 
 endif

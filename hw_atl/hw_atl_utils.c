@@ -549,7 +549,7 @@ int hw_atl_utils_mpi_set_speed(struct aq_hw_s *self, u32 speed)
 }
 
 int hw_atl_utils_mpi_set_state(struct aq_hw_s *self,
-				enum hal_atl_utils_fw_state_e state)
+			       enum hal_atl_utils_fw_state_e state)
 {
 	int err = 0;
 	u32 transaction_id = 0;
@@ -918,4 +918,5 @@ const struct aq_fw_ops aq_fw_1x_ops = {
 	.get_cable_len = NULL,
 	.set_eee_rate = NULL,
 	.get_eee_rate = NULL,
+	.set_flow_control = NULL,
 };
