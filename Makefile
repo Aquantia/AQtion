@@ -1,7 +1,7 @@
 ################################################################################
 #
 # aQuantia Ethernet Controller AQtion Linux Driver
-# Copyright(c) 2014-2017 aQuantia Corporation.
+# Copyright(c) 2014-2018 aQuantia Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -19,7 +19,7 @@
 # the file called "COPYING".
 #
 # Contact Information: <rdc-drv@aquantia.com>
-# aQuantia Corporation, 105 E. Tasman Dr. San Jose, CA 95134, USA
+# aQuantia Corporation, 91 E. Tasman Dr. Suite 100, San Jose, CA 95134, USA
 #
 ################################################################################
 
@@ -30,14 +30,16 @@
 
 TARGET := atlantic
 
+ifndef CC
 CC = gcc
+endif
 
 export DEBIAN=`/usr/bin/dpkg --search /usr/bin/dpkg >/dev/null 2>&1 && echo 1 || echo 0`
 
 export KO_EXISTS=`cat /etc/modules 2>/dev/null | grep atlantic && echo 1 || echo 0`
 
 ifeq "$(CC)" "gcc"
-	ccflags-y := -Wall
+	ccflags-y := -Wall -DPCI_DEBUG
 endif
 
 ifeq "$(CC)" "clang-3.5"
@@ -46,10 +48,12 @@ ifeq "$(CC)" "clang-3.5"
 	enum,integer-divide-by-zero,shift,unreachable,unsigned-integer-overflow
 endif
 
+CFLAGS_aq_trace.o:=-I$(src)
+
 ifneq ($(KERNELRELEASE),)
-	$(TARGET)-objs:=aq_main.o aq_nic.o aq_pci_func.o aq_nic.o aq_vec.o aq_ring.o \
+	$(TARGET)-objs:=aq_main.o aq_nic.o aq_pci_func.o aq_nic.o aq_vec.o aq_ring.o aq_ptp.o aq_filters.o \
 	aq_hw_utils.o aq_ethtool.o aq_drvinfo.o hw_atl/hw_atl_a0.o hw_atl/hw_atl_b0.o hw_atl/hw_atl_utils.o\
-	hw_atl/hw_atl_utils_fw2x.o \
+	hw_atl/hw_atl_utils_fw2x.o aq_trace.o\
 	hw_atl/hw_atl_llh.o
 
 	obj-m:=$(TARGET).o

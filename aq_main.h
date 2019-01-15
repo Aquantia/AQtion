@@ -13,7 +13,11 @@
 #define AQ_MAIN_H
 
 #include "aq_common.h"
+#include "aq_nic.h"
 
+extern const char aq_ndev_driver_name[];
+
+void aq_ndev_service_event_schedule(struct aq_nic_s *aq_nic);
 struct net_device *aq_ndev_alloc(void);
 
 #endif /* AQ_MAIN_H */

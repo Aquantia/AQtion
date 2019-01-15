@@ -16,17 +16,22 @@
 #include "aq_rss.h"
 #include "aq_hw.h"
 
+#include <linux/semaphore.h>
+#include <linux/workqueue.h>
+
 struct aq_ring_s;
 struct aq_hw_ops;
 struct aq_fw_s;
 struct aq_vec_s;
+struct aq_ptp_s;
 
 struct aq_nic_cfg_s {
 	const struct aq_hw_caps_s *aq_hw_caps;
-	u64 hw_features;
+	u64 features;
 	u32 rxds;		/* rx ring size, descriptors # */
 	u32 txds;		/* tx ring size, descriptors # */
-	u32 vecs;		/* vecs==allocated irqs */
+	u32 vecs;		/* allocated rx/tx vectors */
+	u32 link_irq_vec;
 	u32 irq_type;
 	u32 itr;
 	u16 rx_itr;
@@ -36,10 +41,13 @@ struct aq_nic_cfg_s {
 	u32 mtu;
 	u32 flow_control;
 	u32 link_speed_msk;
-	u32 vlan_id;
 	u32 wol;
+	bool is_vlan_rx_strip;
+	bool is_vlan_tx_insert;
 	u16 is_mc_list_enabled;
 	u16 mc_list_count;
+	/* Bitmask of currently assigned vlan filters from linux */
+	unsigned long active_vlans[BITS_TO_LONGS(VLAN_N_VID)];
 	bool is_autoneg;
 	bool is_polling;
 	bool is_rss;
@@ -47,27 +55,50 @@ struct aq_nic_cfg_s {
 	u32 test_loopback;
 	u8  tcs;
 	struct aq_rss_parameters aq_rss;
-	u32 eee_enabled;
+	u32 eee_speeds;
 };
 
 #define AQ_NIC_FLAG_STARTED     0x00000004U
 #define AQ_NIC_FLAG_STOPPING    0x00000008U
 #define AQ_NIC_FLAG_RESETTING   0x00000010U
 #define AQ_NIC_FLAG_CLOSING     0x00000020U
+#define AQ_NIC_PTP_AVAILABLE    0x01000000U
+#define AQ_NIC_PTP_DPATH_UP     0x02000000U
 #define AQ_NIC_LINK_DOWN        0x04000000U
 #define AQ_NIC_FLAG_ERR_UNPLUG  0x40000000U
 #define AQ_NIC_FLAG_ERR_HW      0x80000000U
 
-
+#ifdef PCI_DEBUG
+#define AQ_NIC_PCI_RESOURCE_BUSY 0x00800000U
+#endif
 #define AQ_NIC_WOL_ENABLED           BIT(0)
-
 
 #define AQ_NIC_TCVEC2RING(_NIC_, _TC_, _VEC_) \
 	((_TC_) * AQ_CFG_TCS_MAX + (_VEC_))
 
+#define aq_nic_print(aq_nic, level, type, args...) \
+	netif_level(level, (aq_nic), type, (aq_nic)->ndev, ##args)
+
+struct aq_hw_rx_fl2 {
+	struct aq_rx_filter_vlan aq_vlans[HW_ATL_VLAN_MAX_FILTERS];
+};
+
+struct aq_hw_rx_fl3l4 {
+	u8   active_ipv4;
+	u8   active_ipv6:2;
+	bool is_ipv6;
+};
+
+struct aq_hw_rx_fltrs_s {
+	struct hlist_head     filter_list;
+	u16                   active_filters;
+	struct aq_hw_rx_fl2   fl2;
+	struct aq_hw_rx_fl3l4 fl3l4;
+};
 
 struct aq_nic_s {
 	atomic_t flags;
+	u32 msg_enable;
 	struct aq_vec_s *aq_vec[AQ_CFG_VECS_MAX];
 	struct aq_ring_s *aq_ring_tx[AQ_CFG_VECS_MAX * AQ_CFG_TCS_MAX];
 	struct aq_hw_s *aq_hw;
@@ -79,13 +110,14 @@ struct aq_nic_s {
 	const struct aq_hw_ops *aq_hw_ops;
 	const struct aq_fw_ops *aq_fw_ops;
 	struct aq_nic_cfg_s aq_nic_cfg;
-	struct timer_list service_timer;
 	struct timer_list polling_timer;
 	struct aq_hw_link_status_s link_status;
 	struct {
 		u32 count;
 		u8 ar[AQ_HW_MULTICAST_ADDRESS_MAX][ETH_ALEN];
 	} mc_list;
+	/* Bitmask of currently assigned vlans from linux */
+	unsigned long active_vlans[BITS_TO_LONGS(VLAN_N_VID)];
 
 	struct pci_dev *pdev;
 	unsigned int msix_entry_mask;
@@ -94,7 +126,15 @@ struct aq_nic_s {
 	unsigned int irq_type;
 	struct msix_entry msix_entry[AQ_CFG_PCI_FUNC_MSIX_IRQS];
 #endif
-	spinlock_t aq_spinlock;
+	struct mutex fwreq_mutex;
+
+	struct timer_list service_timer;
+	struct work_struct service_task;
+
+	/* PTP support */
+	struct aq_ptp_s *aq_ptp;
+	struct aq_hw_rx_fltrs_s aq_hw_rx_fltrs;
+	struct work_struct link_update_task;
 };
 
 static inline struct device *aq_nic_get_dev(struct aq_nic_s *self)
@@ -102,7 +142,7 @@ static inline struct device *aq_nic_get_dev(struct aq_nic_s *self)
 	return self->ndev->dev.parent;
 }
 
-extern unsigned aq_rx_refill_thres;
+extern unsigned int aq_rx_refill_thres;
 
 void aq_nic_ndev_init(struct aq_nic_s *self);
 struct aq_nic_s *aq_nic_alloc_hot(struct net_device *ndev);
@@ -127,6 +167,8 @@ int aq_nic_set_mac(struct aq_nic_s *self, struct net_device *ndev);
 int aq_nic_set_packet_filter(struct aq_nic_s *self, unsigned int flags);
 int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev);
 unsigned int aq_nic_get_link_speed(struct aq_nic_s *self);
+unsigned int aq_nic_map_skb(struct aq_nic_s *self, struct sk_buff *skb,
+		struct aq_ring_s *ring);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
 void aq_nic_get_link_ksettings(struct aq_nic_s *self,

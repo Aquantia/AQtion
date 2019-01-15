@@ -12,13 +12,18 @@
 #ifndef AQ_COMMON_H
 #define AQ_COMMON_H
 
+#ifdef __KERNEL__
 #include <linux/etherdevice.h>
 #include <linux/pci.h>
+#include <linux/if_vlan.h>
 #include <linux/version.h>
 #include "ver.h"
 #include "aq_cfg.h"
 #include "aq_utils.h"
 #include "aq_compat.h"
+#endif
+
+#define PTP_EVENT_MESSAGE_PORT      319
 
 #define PCI_VENDOR_ID_AQUANTIA  0x1D6A
 

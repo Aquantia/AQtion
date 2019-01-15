@@ -9,16 +9,17 @@
 
 /* File aq_pci_func.c: Definition of PCI functions. */
 
-#include <linux/interrupt.h>
 #include <linux/module.h>
 
 #include "aq_main.h"
 #include "aq_nic.h"
 #include "aq_vec.h"
 #include "aq_hw.h"
+#include "aq_ptp.h"
 #include "aq_pci_func.h"
 #include "hw_atl/hw_atl_a0.h"
 #include "hw_atl/hw_atl_b0.h"
+#include "aq_filters.h"
 
 static const struct pci_device_id aq_pci_tbl[] = {
 	{ PCI_VDEVICE(AQUANTIA, AQ_DEVICE_ID_0001), },
@@ -105,15 +106,13 @@ static int aq_pci_probe_get_hw_by_id(struct pci_dev *pdev,
 	return 0;
 }
 
-int aq_pci_func_init(struct pci_dev *pdev)
+static int aq_pci_func_init(struct pci_dev *pdev)
 {
 	int err = 0;
 
 	err = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
-	if (!err) {
+	if (!err)
 		err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
-
-	}
 	if (err) {
 		err = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
 		if (!err)
@@ -125,7 +124,7 @@ int aq_pci_func_init(struct pci_dev *pdev)
 		goto err_exit;
 	}
 
-	err = pci_request_regions(pdev, AQ_CFG_DRV_NAME "_mmio");
+	err = pci_request_regions(pdev, aq_ndev_driver_name);
 	if (err < 0)
 		goto err_exit;
 
@@ -138,43 +137,41 @@ err_exit:
 }
 
 int aq_pci_func_alloc_irq(struct aq_nic_s *self, unsigned int i,
-			  char *name, void *aq_vec, cpumask_t *affinity_mask)
+			  char *name, irq_handler_t irq_handler,
+			  void *irq_arg, cpumask_t *affinity_mask)
 {
 	struct pci_dev *pdev = self->pdev;
 	int err = 0;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 	if (pdev->msix_enabled)
-		err = request_irq(self->msix_entry[i].vector, aq_vec_isr, 0,
-				  name, aq_vec);
+		err = request_irq(self->msix_entry[i].vector, irq_handler, 0,
+				  name, irq_arg);
 	else if (pdev->msi_enabled)
-		err = request_irq(pdev->irq, aq_vec_isr, 0,
-				  name, aq_vec);
+		err = request_irq(pdev->irq, irq_handler, 0, name, irq_arg);
 	else
 		err = request_irq(pdev->irq, aq_vec_isr_legacy,
-				  IRQF_SHARED, name, aq_vec);
+				  IRQF_SHARED, name, irq_arg);
 
 	if (err >= 0) {
 		self->msix_entry_mask |= (1 << i);
-		self->aq_vec[i] = aq_vec;
 
-		if (pdev->msix_enabled)
+		if (pdev->msix_enabled && affinity_mask)
 			irq_set_affinity_hint(self->msix_entry[i].vector,
 					      affinity_mask);
 	}
 #else
 	if (pdev->msix_enabled || pdev->msi_enabled)
-		err = request_irq(pci_irq_vector(pdev, i), aq_vec_isr, 0,
-				  name, aq_vec);
+		err = request_irq(pci_irq_vector(pdev, i), irq_handler, 0,
+				  name, irq_arg);
 	else
 		err = request_irq(pci_irq_vector(pdev, i), aq_vec_isr_legacy,
-				  IRQF_SHARED, name, aq_vec);
+				  IRQF_SHARED, name, irq_arg);
 
 	if (err >= 0) {
 		self->msix_entry_mask |= (1 << i);
-		self->aq_vec[i] = aq_vec;
 
-		if (pdev->msix_enabled)
+		if (pdev->msix_enabled && affinity_mask)
 			irq_set_affinity_hint(pci_irq_vector(pdev, i),
 					      affinity_mask);
 	}
@@ -186,24 +183,33 @@ void aq_pci_func_free_irqs(struct aq_nic_s *self)
 {
 	struct pci_dev *pdev = self->pdev;
 	unsigned int i = 0U;
+	void *irq_data;
 
 	for (i = 32U; i--;) {
+
 		if (!((1U << i) & self->msix_entry_mask))
+			continue;
+		if (self->aq_nic_cfg.link_irq_vec &&
+		    i == self->aq_nic_cfg.link_irq_vec)
+			irq_data = self;
+		else if (i < AQ_CFG_VECS_MAX)
+			irq_data = self->aq_vec[i];
+		else
 			continue;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 		switch (aq_pci_func_get_irq_type(self)) {
 		case AQ_HW_IRQ_MSIX:
 			irq_set_affinity_hint(self->msix_entry[i].vector, NULL);
-			free_irq(self->msix_entry[i].vector, self->aq_vec[i]);
+			free_irq(self->msix_entry[i].vector, irq_data);
 			break;
 
 		case AQ_HW_IRQ_MSI:
-			free_irq(pdev->irq, self->aq_vec[i]);
+			free_irq(pdev->irq, irq_data);
 			break;
 
 		case AQ_HW_IRQ_LEGACY:
-			free_irq(pdev->irq, self->aq_vec[i]);
+			free_irq(pdev->irq, irq_data);
 			break;
 
 		default:
@@ -213,7 +219,7 @@ void aq_pci_func_free_irqs(struct aq_nic_s *self)
 #else
 		if (pdev->msix_enabled)
 			irq_set_affinity_hint(pci_irq_vector(pdev, i), NULL);
-		free_irq(pci_irq_vector(pdev, i), self->aq_vec[i]);
+		free_irq(pci_irq_vector(pdev, i), irq_data);
 #endif
 		self->msix_entry_mask &= ~(1U << i);
 	}
@@ -224,7 +230,7 @@ unsigned int aq_pci_func_get_irq_type(struct aq_nic_s *self)
 	if (self->pdev->msix_enabled)
 		return AQ_HW_IRQ_MSIX;
 	if (self->pdev->msi_enabled)
-		return AQ_HW_IRQ_MSIX;
+		return AQ_HW_IRQ_MSI;
 	return AQ_HW_IRQ_LEGACY;
 }
 
@@ -286,6 +292,8 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	SET_NETDEV_DEV(ndev, &pdev->dev);
 	pci_set_drvdata(pdev, self);
 
+	mutex_init(&self->fwreq_mutex);
+
 	err = aq_pci_probe_get_hw_by_id(pdev, &self->aq_hw_ops,
 					&aq_nic_get_cfg(self)->aq_hw_caps);
 	if (err)
@@ -319,6 +327,21 @@ static int aq_pci_probe(struct pci_dev *pdev,
 				err = -EIO;
 				goto err_free_aq_hw;
 			}
+
+#ifdef PCI_DEBUG
+			if (IORESOURCE_BUSY &
+			    pdev->resource[bar].child->flags) {
+				struct resource *res;
+
+				res = pdev->resource[bar].child;
+				res->flags &= ~IORESOURCE_BUSY;
+				aq_utils_obj_set(&self->flags,
+						 AQ_NIC_PCI_RESOURCE_BUSY);
+				netdev_info(ndev, "Fix resource %d child flag,"
+					    " new: %x\n", bar,
+					    (uint32_t)res->flags);
+			}
+#endif
 			break;
 		}
 	}
@@ -328,9 +351,17 @@ static int aq_pci_probe(struct pci_dev *pdev,
 		goto err_free_aq_hw;
 	}
 
+	if (self->aq_hw_ops->hw_get_version)
+		netdev_info(ndev, "Hardware revision 0x%x\n",
+			    self->aq_hw_ops->hw_get_version(self->aq_hw));
+
 	numvecs = min((u8)AQ_CFG_VECS_DEF,
 		      aq_nic_get_cfg(self)->aq_hw_caps->msix_irqs);
 	numvecs = min(numvecs, num_online_cpus());
+	numvecs += 1; // Request IRQ vector for PTP
+
+	numvecs += AQ_HW_SERVICE_IRQS;
+
 	/*enable interrupts */
 #if !AQ_CFG_FORCE_LEGACY_INT
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
@@ -346,14 +377,13 @@ static int aq_pci_probe(struct pci_dev *pdev,
 			goto err_hwinit;
 	}
 #else
-	numvecs = pci_alloc_irq_vectors(self->pdev, 1, numvecs,
-					PCI_IRQ_MSIX | PCI_IRQ_MSI |
-					PCI_IRQ_LEGACY);
+	err = pci_alloc_irq_vectors(self->pdev, 1, numvecs,
+				    PCI_IRQ_MSIX | PCI_IRQ_MSI |
+				    PCI_IRQ_LEGACY);
 
-	if (numvecs < 0) {
-		err = numvecs;
+	if (err < 0)
 		goto err_hwinit;
-	}
+	numvecs = err;
 #endif
 #endif
 	self->irqvecs = numvecs;
@@ -364,6 +394,16 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	aq_nic_ndev_init(self);
 
 	err = aq_nic_ndev_register(self);
+	if (err < 0)
+		goto err_register;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+	err = aq_ptp_init(self, numvecs - 1, self->msix_entry[numvecs - 1].vector);
+#else
+	err = aq_ptp_init(self, numvecs - 1);
+#endif
+#endif
 	if (err < 0)
 		goto err_register;
 
@@ -390,12 +430,48 @@ static void aq_pci_remove(struct pci_dev *pdev)
 	struct aq_nic_s *self = pci_get_drvdata(pdev);
 
 	if (self->ndev) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+		aq_ptp_unregister(self);
+#endif
+		aq_clear_rxnfc_all_rules(self);
 		if (self->ndev->reg_state == NETREG_REGISTERED)
 			unregister_netdev(self->ndev);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+		aq_ptp_ring_free(self);
+		aq_ptp_free(self);
+#endif
+		
 		aq_nic_free_vectors(self);
 		aq_pci_free_irq_vectors(self);
 		iounmap(self->aq_hw->mmio);
 		kfree(self->aq_hw);
+
+#ifdef PCI_DEBUG
+		if (aq_utils_obj_test(&self->flags, AQ_NIC_PCI_RESOURCE_BUSY)) {
+			u32 bar;
+
+			for (bar = 0; bar < 4; ++bar) {
+				if (IORESOURCE_MEM &
+				    pci_resource_flags(pdev, bar)) {
+					struct resource *res;
+
+					res = pdev->resource[bar].child;
+					res->flags |= IORESOURCE_BUSY;
+					aq_utils_obj_clear(&self->flags,
+							   AQ_NIC_PCI_RESOURCE_BUSY);
+					netdev_info(self->ndev,
+						    "Restore resource %d "
+						    "child flag, new: %x\n",
+						    bar, (uint32_t)res->flags);
+					break;
+				}
+			}
+		}
+#endif
+
 		pci_release_regions(pdev);
 		free_netdev(self->ndev);
 	}
@@ -433,7 +509,7 @@ static int aq_pci_resume(struct pci_dev *pdev)
 }
 
 static struct pci_driver aq_pci_ops = {
-	.name = AQ_CFG_DRV_NAME,
+	.name = aq_ndev_driver_name,
 	.id_table = aq_pci_tbl,
 	.probe = aq_pci_probe,
 	.remove = aq_pci_remove,
@@ -442,4 +518,12 @@ static struct pci_driver aq_pci_ops = {
 	.shutdown = aq_pci_shutdown,
 };
 
-module_pci_driver(aq_pci_ops);
+int aq_pci_func_register_driver(void)
+{
+	return pci_register_driver(&aq_pci_ops);
+}
+
+void aq_pci_func_unregister_driver(void)
+{
+	pci_unregister_driver(&aq_pci_ops);
+}

@@ -307,6 +307,9 @@ void hw_atl_rpb_dma_net_lbk_set(struct aq_hw_s *aq_hw, u32 dma_net_lbk);
 void hw_atl_rpb_rpf_rx_traf_class_mode_set(struct aq_hw_s *aq_hw,
 					   u32 rx_traf_class_mode);
 
+/* get rx traffic class mode */
+u32 hw_atl_rpb_rpf_rx_traf_class_mode_get(struct aq_hw_s *aq_hw);
+
 /* set rx buffer enable */
 void hw_atl_rpb_rx_buff_en_set(struct aq_hw_s *aq_hw, u32 rx_buff_en);
 
@@ -321,15 +324,20 @@ void hw_atl_rpb_rx_buff_lo_threshold_per_tc_set(struct aq_hw_s *aq_hw,
 					 u32 buffer);
 
 /* set rx flow control mode */
-void hw_atl_rpb_rx_flow_ctl_mode_set(struct aq_hw_s *aq_hw, u32 rx_flow_ctl_mode);
+void hw_atl_rpb_rx_flow_ctl_mode_set(struct aq_hw_s *aq_hw,
+				     u32 rx_flow_ctl_mode);
 
 /* set rx packet buffer size (per tc) */
 void hw_atl_rpb_rx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
 					    u32 rx_pkt_buff_size_per_tc,
 					    u32 buffer);
 
+/* set rdm rx dma descriptor cache init */
+void hw_atl_rdm_rx_dma_desc_cache_init_set(struct aq_hw_s *aq_hw, u32 init);
+
 /* set rx xoff enable (per tc) */
-void hw_atl_rpb_rx_xoff_en_per_tc_set(struct aq_hw_s *aq_hw, u32 rx_xoff_en_per_tc,
+void hw_atl_rpb_rx_xoff_en_per_tc_set(struct aq_hw_s *aq_hw,
+				      u32 rx_xoff_en_per_tc,
 				      u32 buffer);
 
 /* rpf */
@@ -441,6 +449,14 @@ void hw_atl_rpf_vlan_flr_act_set(struct aq_hw_s *aq_hw, u32 vlan_filter_act,
 void hw_atl_rpf_vlan_id_flr_set(struct aq_hw_s *aq_hw, u32 vlan_id_flr,
 				u32 filter);
 
+/* Set VLAN RX queue assignment enable */
+void hw_atl_rpf_vlan_rxq_en_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq_en,
+				u32 filter);
+
+/* Set VLAN RX queue */
+void hw_atl_rpf_vlan_rxq_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq,
+				u32 filter);
+
 /* set ethertype filter enable */
 void hw_atl_rpf_etht_flr_en_set(struct aq_hw_s *aq_hw, u32 etht_flr_en,
 				u32 filter);
@@ -475,6 +491,57 @@ void hw_atl_rpf_etht_flr_act_set(struct aq_hw_s *aq_hw, u32 etht_flr_act,
 /* set ethertype filter */
 void hw_atl_rpf_etht_flr_set(struct aq_hw_s *aq_hw, u32 etht_flr, u32 filter);
 
+/* set L3/L4 filter enable */
+void hw_atl_rpf_l3_l4_enf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3 IPv6 enable */
+void hw_atl_rpf_l3_v6_enf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3 source address enable */
+void hw_atl_rpf_l3_saf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3 destination address enable */
+void hw_atl_rpf_l3_daf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 source port enable */
+void hw_atl_rpf_l4_spf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 destination port enable */
+void hw_atl_rpf_l4_dpf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 protocol enable */
+void hw_atl_rpf_l4_protf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3 ARP filter enable */
+void hw_atl_rpf_l3_arpf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3/L4 rx queue enable */
+void hw_atl_rpf_l3_l4_rxqf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3/L4 management queue */
+void hw_atl_rpf_l3_l4_mng_rxqf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 protocol enable */
+void hw_atl_rpf_l4_protf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3/L4 rx queue enable */
+void hw_atl_rpf_l3_l4_rxqf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3/L4 filter action */
+void hw_atl_rpf_l3_l4_actf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L3/L4 rx queue */
+void hw_atl_rpf_l3_l4_rxqf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 protocol value */
+void hw_atl_rpf_l4_protf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 source port */
+void hw_atl_rpf_l4_spd_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
+/* set L4 destination port */
+void hw_atl_rpf_l4_dpd_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
+
 /* rpo */
 
 /* set ipv4 header checksum offload enable */
@@ -485,6 +552,11 @@ void hw_atl_rpo_ipv4header_crc_offload_en_set(struct aq_hw_s *aq_hw,
 void hw_atl_rpo_rx_desc_vlan_stripping_set(struct aq_hw_s *aq_hw,
 					   u32 rx_desc_vlan_stripping,
 					   u32 descriptor);
+
+void hw_atl_rpo_outer_vlan_tag_mode_set(void *context,
+					uint32_t outervlantagmode);
+
+uint32_t hw_atl_rpo_outer_vlan_tag_mode_get(void *context);
 
 /* set tcp/udp checksum offload enable */
 void hw_atl_rpo_tcp_udp_crc_offload_en_set(struct aq_hw_s *aq_hw,
@@ -591,6 +663,12 @@ void hw_atl_thm_lso_tcp_flag_of_middle_pkt_set(struct aq_hw_s *aq_hw,
 
 /* tpb */
 
+/* set TX Traffic Class Mode */
+void hw_atl_rpb_tps_tx_tc_mode_set(struct aq_hw_s *aq_hw, u32 tx_traf_class_mode);
+
+/* get TX Traffic Class Mode */
+u32 hw_atl_rpb_tps_tx_tc_mode_get(struct aq_hw_s *aq_hw);
+
 /* set tx buffer enable */
 void hw_atl_tpb_tx_buff_en_set(struct aq_hw_s *aq_hw, u32 tx_buff_en);
 
@@ -605,17 +683,21 @@ void hw_atl_tpb_tx_buff_lo_threshold_per_tc_set(struct aq_hw_s *aq_hw,
 					 u32 buffer);
 
 /* set tx dma system loopback enable */
-void hw_atl_tpb_tx_dma_sys_lbk_en_set(struct aq_hw_s *aq_hw, u32 tx_dma_sys_lbk_en);
+void hw_atl_tpb_tx_dma_sys_lbk_en_set(struct aq_hw_s *aq_hw,
+				      u32 tx_dma_sys_lbk_en);
 
 /* set tx dma network loopback enable */
-void hw_atl_tpb_tx_dma_net_lbk_en_set(struct aq_hw_s *aq_hw, u32 tx_dma_net_lbk_en);
+void hw_atl_tpb_tx_dma_net_lbk_en_set(struct aq_hw_s *aq_hw,
+				      u32 tx_dma_net_lbk_en);
 
 /* set tx packet buffer size (per tc) */
 void hw_atl_tpb_tx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
-					    u32 tx_pkt_buff_size_per_tc, u32 buffer);
+					    u32 tx_pkt_buff_size_per_tc,
+					    u32 buffer);
 
 /* set tx path pad insert enable */
-void hw_atl_tpb_tx_path_scp_ins_en_set(struct aq_hw_s *aq_hw, u32 tx_path_scp_ins_en);
+void hw_atl_tpb_tx_path_scp_ins_en_set(struct aq_hw_s *aq_hw,
+				       u32 tx_path_scp_ins_en);
 
 /* tpo */
 
@@ -704,8 +786,47 @@ void hw_atl_msm_reg_wr_strobe_set(struct aq_hw_s *aq_hw, u32 reg_wr_strobe);
 /* set pci register reset disable */
 void hw_atl_pci_pci_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 pci_reg_res_dis);
 
+/* pcs */
+
+void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw, u32 ptp_clock_read_enable);
+
+u32 hw_atl_pcs_ptp_clock_get(struct aq_hw_s *aq_hw, u32 index);
+
 /* set uP Force Interrupt */
 void mcp_up_force_intr_set(struct aq_hw_s *aq_hw, u32 up_force_intr);
 
+/* clear ipv4 filter destination address */
+void hw_atl_rpfl3l4_ipv4_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location);
+
+/* clear ipv4 filter source address */
+void hw_atl_rpfl3l4_ipv4_src_addr_clear(struct aq_hw_s *aq_hw, u8 location);
+
+/* clear command for filter l3-l4 */
+void hw_atl_rpfl3l4_cmd_clear(struct aq_hw_s *aq_hw, u8 location);
+
+/* clear ipv6 filter destination address */
+void hw_atl_rpfl3l4_ipv6_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location);
+
+/* clear ipv6 filter source address */
+void hw_atl_rpfl3l4_ipv6_src_addr_clear(struct aq_hw_s *aq_hw, u8 location);
+
+/* set ipv4 filter destination address */
+void hw_atl_rpfl3l4_ipv4_dest_addr_set(struct aq_hw_s *aq_hw, u8 location,
+				       u32 ipv4_dest);
+
+/* set ipv4 filter source address */
+void hw_atl_rpfl3l4_ipv4_src_addr_set(struct aq_hw_s *aq_hw, u8 location,
+				      u32 ipv4_src);
+
+/* set command for filter l3-l4 */
+void hw_atl_rpfl3l4_cmd_set(struct aq_hw_s *aq_hw, u8 location, u32 cmd);
+
+/* set ipv6 filter source address */
+void hw_atl_rpfl3l4_ipv6_src_addr_set(struct aq_hw_s *aq_hw, u8 location,
+				      u32 *ipv6_src);
+
+/* set ipv6 filter destination address */
+void hw_atl_rpfl3l4_ipv6_dest_addr_set(struct aq_hw_s *aq_hw, u8 location,
+				       u32 *ipv6_dest);
 
 #endif /* HW_ATL_LLH_H */

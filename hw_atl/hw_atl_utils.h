@@ -47,6 +47,14 @@ struct __packed hw_atl_rxd_wb_s {
 	u16 vlan;
 };
 
+/* Hardware rx HW TIMESTAMP writeback */
+struct __packed hw_atl_rxd_hwts_wb_s {
+	u32 sec_hw;
+	u32 ns;
+	u32 sec_lw0;
+	u32 sec_lw1;
+};
+
 struct __packed hw_atl_stats_s {
 	u32 uprc;
 	u32 mprc;
@@ -190,6 +198,34 @@ struct __packed hw_aq_atl_utils_mbox_header {
 	u32 error;
 };
 
+struct __packed hw_aq_ptp_offset {
+	u16 ingress_100;
+	u16 egress_100;
+	u16 ingress_1000;
+	u16 egress_1000;
+	u16 ingress_2500;
+	u16 egress_2500;
+	u16 ingress_5000;
+	u16 egress_5000;
+	u16 ingress_10000;
+	u16 egress_10000;
+};
+
+enum gpio_pin_function {
+	GPIO_PIN_FUNCTION_NC,
+	GPIO_PIN_FUNCTION_VAUX_ENABLE,
+	GPIO_PIN_FUNCTION_EFUSE_BURN_ENABLE,
+	GPIO_PIN_FUNCTION_SFP_PLUS_DETECT,
+	GPIO_PIN_FUNCTION_TX_DISABLE,
+	GPIO_PIN_FUNCTION_RATE_SEL_0,
+	GPIO_PIN_FUNCTION_RATE_SEL_1,
+	GPIO_PIN_FUNCTION_TX_FAULT,
+	GPIO_PIN_FUNCTION_PTP0,
+	GPIO_PIN_FUNCTION_PTP1,
+	GPIO_PIN_FUNCTION_PTP2,
+	GPIO_PIN_FUNCTION_SIZE
+};
+
 struct __packed hw_aq_info {
 	u8 reserved[6];
 	u16 phy_fault_code;
@@ -197,9 +233,21 @@ struct __packed hw_aq_info {
 	u8 cable_len;
 	u8 reserved1;
 	u32 cable_diag_data[4];
-	u8 reserved2[32];
+	struct hw_aq_ptp_offset ptp_offset;
+	u8 reserved2[12];
 	u32 caps_lo;
 	u32 caps_hi;
+	u32 reserved_datapath;
+	u32 reserved3[7];
+	u32 reserved_simpleresp[3];
+	u32 reserved_linkstat[7];
+	u32 reserved_wakesCount;
+	u32 reserved_eeeStat[12];
+	u32 tx_stuck_cnt;
+	u32 setting_address;
+	u32 setting_length;
+	u32 caps_ex;
+	enum gpio_pin_function gpio_pin[3];
 };
 
 struct __packed hw_aq_atl_utils_mbox {
@@ -211,7 +259,7 @@ struct __packed hw_aq_atl_utils_mbox {
 /* fw2x */
 typedef u16	in_port_t;
 typedef u32	ip4_addr_t;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 typedef int	int32_t;
 typedef short	int16_t;
 #endif
@@ -280,11 +328,9 @@ struct __packed offload_rr_info {
 };
 
 struct __packed offload_info {
-	u32 version;		// current version is 0x00000000
-	u32 len;		// The whole structure length
-				// including the variable-size buf
-	u8 mac_addr[6];		// 8 bytes to keep alignment. Only
-				// first 6 meaningful.
+	u32 version;
+	u32 len;
+	u8 mac_addr[6];
 
 	u8 reserved[2];
 
@@ -294,6 +340,127 @@ struct __packed offload_info {
 	struct offload_rr_info rrs;
 	u8 buf[0];
 };
+
+/* Mailbox FW Request interface */
+struct __packed hw_fw_request_ptp_gpio_ctrl {
+	u32 index;
+	u32 period;
+	u64 start;
+};
+
+struct __packed hw_fw_request_ptp_adj_freq {
+	u32 ns_mac;
+	u32 fns_mac;
+	u32 ns_phy;
+	u32 fns_phy;
+	u32 mac_ns_adj;
+	u32 mac_fns_adj;
+};
+
+struct __packed hw_fw_request_ptp_adj_clock {
+	u32 ns;
+	u32 sec;
+	int sign;
+};
+
+#define HW_AQ_FW_REQUEST_PTP_GPIO_CTRL	         0x11
+#define HW_AQ_FW_REQUEST_PTP_ADJ_FREQ	         0x12
+#define HW_AQ_FW_REQUEST_PTP_ADJ_CLOCK	         0x13
+
+struct __packed hw_fw_request_iface {
+	u32 msg_id;
+	union {
+		/* PTP FW Request */
+		struct hw_fw_request_ptp_gpio_ctrl ptp_gpio_ctrl;
+		struct hw_fw_request_ptp_adj_freq ptp_adj_freq;
+		struct hw_fw_request_ptp_adj_clock ptp_adj_clock;
+	};
+};
+
+enum hw_atl_rx_action_with_traffic {
+	HW_ATL_RX_DISCARD,
+	HW_ATL_RX_HOST,
+	HW_ATL_RX_MNGMNT,
+	HW_ATL_RX_HOST_AND_MNGMNT,
+	HW_ATL_RX_WOL
+};
+
+struct aq_rx_filter_vlan {
+	u8 enable;
+	u8 location;
+	u16 vlan_id;
+	u8 queue;
+};
+
+#define HW_ATL_VLAN_MAX_FILTERS         16U
+#define HW_ATL_RX_FILTER_REGISTER_CLEAR 0U
+
+struct aq_rx_filter_l2 {
+	s8 queue;
+	u8 location;
+	u8 user_priority_en;
+	u8 user_priority;
+	u16 ethertype;
+};
+
+#define HW_ATL_RX_BOFFSET_ACTION_FL2      16U
+#define HW_ATL_RX_UNICAST1_ADDR_BEGIN_FL2 0x00005110
+#define HW_ATL_RX_UNICAST2_ADDR_BEGIN_FL2 0x00005114
+
+#define HW_ATL_RX_GET_ADDR_UNICAST1_FL2(location) \
+	(HW_ATL_RX_UNICAST1_ADDR_BEGIN_FL2 + \
+		((location - AQ_RX_FIRST_LOC_FL2) * 0x8))
+
+#define HW_ATL_RX_GET_ADDR_UNICAST2_FL2(location) \
+	(HW_ATL_RX_UNICAST2_ADDR_BEGIN_FL2 + \
+		((location - AQ_RX_FIRST_LOC_FL2) * 0x8))
+
+enum hw_atl_rx_ctrl_registers_l2 {
+	HW_ATL_RX_ENABLE_UNICAST_MNGNT_QUEUE_L2 = BIT(19),
+	HW_ATL_RX_ENABLE_UNICAST_FLTR_L2        = BIT(31)
+};
+
+struct aq_rx_filter_l3l4 {
+	u32 cmd;
+	u8 location;
+	u32 ip_dst[4];
+	u32 ip_src[4];
+	u16 p_dst;
+	u16 p_src;
+	bool is_ipv6;
+};
+
+enum hw_atl_rx_protocol_value_l3l4 {
+	HW_ATL_RX_TCP,
+	HW_ATL_RX_UDP,
+	HW_ATL_RX_SCTP,
+	HW_ATL_RX_ICMP
+};
+
+enum hw_atl_rx_ctrl_registers_l3l4 {
+	HW_ATL_RX_ENABLE_MNGMNT_QUEUE_L3L4 = BIT(22),
+	HW_ATL_RX_ENABLE_QUEUE_L3L4        = BIT(23),
+	HW_ATL_RX_ENABLE_ARP_FLTR_L3       = BIT(24),
+	HW_ATL_RX_ENABLE_CMP_PROT_L4       = BIT(25),
+	HW_ATL_RX_ENABLE_CMP_DEST_PORT_L4  = BIT(26),
+	HW_ATL_RX_ENABLE_CMP_SRC_PORT_L4   = BIT(27),
+	HW_ATL_RX_ENABLE_CMP_DEST_ADDR_L3  = BIT(28),
+	HW_ATL_RX_ENABLE_CMP_SRC_ADDR_L3   = BIT(29),
+	HW_ATL_RX_ENABLE_L3_IPv6           = BIT(30),
+	HW_ATL_RX_ENABLE_FLTR_L3L4         = BIT(31)
+};
+
+#define HW_ATL_RX_BOFFSET_PROT_FL3L4      0U
+#define HW_ATL_RX_BOFFSET_QUEUE_FL3L4     8U
+#define HW_ATL_RX_BOFFSET_ACTION_FL3F4    16U
+
+#define HW_ATL_RX_CNT_REG_ADDR_IPV6       4U
+
+#define HW_ATL_RX_MAX_QUEUE		   num_online_cpus()
+#define HW_ATL_TX_MAX_QUEUE		   num_online_cpus()
+
+#define HW_ATL_GET_REG_LOCATION_FL3L4(location) \
+	((location) - AQ_RX_FIRST_LOC_FL3L4)
 
 #define HAL_ATLANTIC_UTILS_CHIP_MIPS         0x00000001U
 #define HAL_ATLANTIC_UTILS_CHIP_TPO2         0x00000002U
@@ -322,17 +489,17 @@ enum hal_atl_utils_fw_state_e {
 #define HAL_ATLANTIC_RATE_100M       BIT(5)
 #define HAL_ATLANTIC_RATE_INVALID    BIT(6)
 
-#define HAL_ATLANTIC_UTILS_FW_MSG_PING     1U
-#define HAL_ATLANTIC_UTILS_FW_MSG_ARP      2U
-#define HAL_ATLANTIC_UTILS_FW_MSG_INJECT   3U
-#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_ADD 4U
-#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_DEL 5U
-#define HAL_ATLANTIC_UTILS_FW_MSG_ENABLE_WAKEUP 6U
-#define HAL_ATLANTIC_UTILS_FW_MSG_MSM_PFC  7U
-#define HAL_ATLANTIC_UTILS_FW_MSG_PROVISIONING 8U
-#define HAL_ATLANTIC_UTILS_FW_MSG_OFFLOAD_ADD  9U
-#define HAL_ATLANTIC_UTILS_FW_MSG_OFFLOAD_DEL  10U
-#define HAL_ATLANTIC_UTILS_FW_MSG_CABLE_DIAG   13U // 0xd
+#define HAL_ATLANTIC_UTILS_FW_MSG_PING          0x1U
+#define HAL_ATLANTIC_UTILS_FW_MSG_ARP           0x2U
+#define HAL_ATLANTIC_UTILS_FW_MSG_INJECT        0x3U
+#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_ADD       0x4U
+#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_DEL       0x5U
+#define HAL_ATLANTIC_UTILS_FW_MSG_ENABLE_WAKEUP 0x6U
+#define HAL_ATLANTIC_UTILS_FW_MSG_MSM_PFC       0x7U
+#define HAL_ATLANTIC_UTILS_FW_MSG_PROVISIONING  0x8U
+#define HAL_ATLANTIC_UTILS_FW_MSG_OFFLOAD_ADD   0x9U
+#define HAL_ATLANTIC_UTILS_FW_MSG_OFFLOAD_DEL   0xAU
+#define HAL_ATLANTIC_UTILS_FW_MSG_CABLE_DIAG    0xDU
 
 enum hw_atl_fw2x_rate {
 	FW2X_RATE_100M    = 0x20,
@@ -342,89 +509,133 @@ enum hw_atl_fw2x_rate {
 	FW2X_RATE_10G     = 0x800,
 };
 
+/* 0x370
+ * Link capabilities resolution register
+ */
 enum hw_atl_fw2x_caps_lo {
-	CAPS_LO_10BASET_HD = 0x00,
+	CAPS_LO_10BASET_HD        = 0x00,
 	CAPS_LO_10BASET_FD,
 	CAPS_LO_100BASETX_HD,
 	CAPS_LO_100BASET4_HD,
 	CAPS_LO_100BASET2_HD,
-	CAPS_LO_100BASETX_FD,
+	CAPS_LO_100BASETX_FD      = 5,
 	CAPS_LO_100BASET2_FD,
 	CAPS_LO_1000BASET_HD,
 	CAPS_LO_1000BASET_FD,
 	CAPS_LO_2P5GBASET_FD,
-	CAPS_LO_5GBASET_FD,
+	CAPS_LO_5GBASET_FD        = 10,
 	CAPS_LO_10GBASET_FD,
 };
 
+/* 0x374
+ * Status register
+ */
 enum hw_atl_fw2x_caps_hi {
-	CAPS_HI_RESERVED1 = 0x00,
+	CAPS_HI_RESERVED1         = 0x00,
 	CAPS_HI_10BASET_EEE,
 	CAPS_HI_RESERVED2,
 	CAPS_HI_PAUSE,
 	CAPS_HI_ASYMMETRIC_PAUSE,
-	CAPS_HI_100BASETX_EEE,
+	CAPS_HI_100BASETX_EEE     = 5,
 	CAPS_HI_RESERVED3,
 	CAPS_HI_RESERVED4,
 	CAPS_HI_1000BASET_FD_EEE,
 	CAPS_HI_2P5GBASET_FD_EEE,
-	CAPS_HI_5GBASET_FD_EEE,
+	CAPS_HI_5GBASET_FD_EEE    = 10,
 	CAPS_HI_10GBASET_FD_EEE,
-	CAPS_HI_RESERVED5,
+	CAPS_HI_FW_REQUEST,
 	CAPS_HI_RESERVED6,
 	CAPS_HI_RESERVED7,
-	CAPS_HI_RESERVED8,
+	CAPS_HI_RESERVED8         = 15,
 	CAPS_HI_RESERVED9,
 	CAPS_HI_CABLE_DIAG,
 	CAPS_HI_TEMPERATURE,
 	CAPS_HI_DOWNSHIFT,
-	CAPS_HI_PTP_AVB_EN,
+	CAPS_HI_PTP_AVB_EN_FW2X   = 20,
 	CAPS_HI_MEDIA_DETECT,
 	CAPS_HI_LINK_DROP,
 	CAPS_HI_SLEEP_PROXY,
 	CAPS_HI_WOL,
-	CAPS_HI_MAC_STOP,
+	CAPS_HI_MAC_STOP          = 25,
 	CAPS_HI_EXT_LOOPBACK,
 	CAPS_HI_INT_LOOPBACK,
 	CAPS_HI_EFUSE_AGENT,
 	CAPS_HI_WOL_TIMER,
-	CAPS_HI_STATISTICS,
+	CAPS_HI_STATISTICS        = 30,
 	CAPS_HI_TRANSACTION_ID,
 };
 
+/* 0x36C
+ * Control register
+ */
 enum hw_atl_fw2x_ctrl {
-	CTRL_RESERVED1 = 0x00,
+	CTRL_RESERVED1            = 0x00,
 	CTRL_RESERVED2,
 	CTRL_RESERVED3,
 	CTRL_PAUSE,
 	CTRL_ASYMMETRIC_PAUSE,
-	CTRL_RESERVED4,
+	CTRL_RESERVED4            = 5,
 	CTRL_RESERVED5,
 	CTRL_RESERVED6,
 	CTRL_1GBASET_FD_EEE,
 	CTRL_2P5GBASET_FD_EEE,
-	CTRL_5GBASET_FD_EEE,
+	CTRL_5GBASET_FD_EEE       = 10,
 	CTRL_10GBASET_FD_EEE,
 	CTRL_THERMAL_SHUTDOWN,
 	CTRL_PHY_LOGS,
 	CTRL_EEE_AUTO_DISABLE,
-	CTRL_PFC,
+	CTRL_PFC                  = 15,
 	CTRL_WAKE_ON_LINK,
 	CTRL_CABLE_DIAG,
 	CTRL_TEMPERATURE,
 	CTRL_DOWNSHIFT,
-	CTRL_PTP_AVB,
+	CTRL_PTP_AVB              = 20,
 	CTRL_RESERVED7,
 	CTRL_LINK_DROP,
 	CTRL_SLEEP_PROXY,
 	CTRL_WOL,
-	CTRL_MAC_STOP,
+	CTRL_MAC_STOP             = 25,
 	CTRL_EXT_LOOPBACK,
 	CTRL_INT_LOOPBACK,
 	CTRL_RESERVED8,
 	CTRL_WOL_TIMER,
-	CTRL_STATISTICS,
+	CTRL_STATISTICS           = 30,
 	CTRL_FORCE_RECONNECT,
+};
+
+enum hw_atl_caps_ex {
+	CAPS_EX_RESERVED00, //  0 (0x00)
+	CAPS_EX_RESERVED01, //  1 (0x01)
+	CAPS_EX_RESERVED02, //  2 (0x02)
+	CAPS_EX_RESERVED03, //  3 (0x03)
+	CAPS_EX_RESERVED04, //  4 (0x04)
+	CAPS_EX_RESERVED05, //  5 (0x05)
+	CAPS_EX_RESERVED06, //  6 (0x06)
+	CAPS_EX_RESERVED07, //  7 (0x07)
+	CAPS_EX_RESERVED08, //  8 (0x08)
+	CAPS_EX_RESERVED09, //  9 (0x09)
+	CAPS_EX_RESERVED10, // 10 (0x0a)
+	CAPS_EX_RESERVED11, // 11 (0x0b)
+	CAPS_EX_RESERVED12, // 12 (0x0c)
+	CAPS_EX_RESERVED13, // 13 (0x0d)
+	CAPS_EX_RESERVED14, // 14 (0x0e)
+	CAPS_EX_RESERVED15, // 15 (0x0f)
+	CAPS_EX_PHY_PTP_EN, // 16 (0x10)
+	CAPS_EX_MAC_PTP_EN, // 17 (0x11)
+	CAPS_EX_EXT_CLK_EN, // 18 (0x12)
+	CAPS_EX_SCHED_DMA_EN, // 19 (0x13)
+	CAPS_EX_PTP_GPIO_EN, // 20 (0x14)
+	CAPS_EX_UPDATE_SETTINGS, // 21 (0x15)
+	CAPS_EX_RESERVED22, // 22 (0x16)
+	CAPS_EX_RESERVED23, // 23 (0x17)
+	CAPS_EX_RESERVED24, // 24 (0x18)
+	CAPS_EX_RESERVED25, // 25 (0x19)
+	CAPS_EX_RESERVED26, // 26 (0x1a)
+	CAPS_EX_RESERVED27, // 27 (0x1b)
+	CAPS_EX_RESERVED28, // 28 (0x1c)
+	CAPS_EX_RESERVED29, // 29 (0x1d)
+	CAPS_EX_RESERVED30, // 30 (0x1e)
+	CAPS_EX_RESERVED31  // 31 (0x1f)
 };
 
 struct aq_hw_s;
@@ -472,6 +683,9 @@ struct aq_stats_s *hw_atl_utils_get_hw_stats(struct aq_hw_s *self);
 
 int hw_atl_utils_fw_downld_dwords(struct aq_hw_s *self, u32 a,
 				  u32 *p, u32 cnt);
+
+int hw_atl_utils_fw_upload_dwords(struct aq_hw_s *self, u32 a,
+		u32 *p, u32 cnt);
 
 int hw_atl_utils_fw_set_wol(struct aq_hw_s *self, bool wol_enabled, u8 *mac);
 

@@ -18,32 +18,34 @@
 #include "hw_atl_llh.h"
 #include "hw_atl_a0_internal.h"
 
-#define DEFAULT_A0_BOARD_BASIC_CAPABILITIES \
-	.is_64_dma = true,		  \
-	.msix_irqs = 4U,		  \
-	.irq_mask = ~0U,		  \
-	.vecs = HW_ATL_A0_RSS_MAX,	  \
-	.tcs = HW_ATL_A0_TC_MAX,	  \
-	.rxd_alignment = 1U,		  \
-	.rxd_size = HW_ATL_A0_RXD_SIZE,   \
-	.rxds_max = HW_ATL_A0_MAX_RXD,    \
-	.rxds_min = HW_ATL_A0_MIN_RXD,    \
-	.txd_alignment = 1U,		  \
-	.txd_size = HW_ATL_A0_TXD_SIZE,   \
-	.txds_max = HW_ATL_A0_MAX_TXD,    \
-	.txds_min = HW_ATL_A0_MIN_RXD,    \
-	.txhwb_alignment = 4096U,	  \
-	.tx_rings = HW_ATL_A0_TX_RINGS,   \
-	.rx_rings = HW_ATL_A0_RX_RINGS,   \
-	.hw_features = NETIF_F_HW_CSUM |  \
-			NETIF_F_RXHASH |  \
-			NETIF_F_RXCSUM |  \
-			NETIF_F_SG |	  \
-			NETIF_F_TSO,	  \
-	.hw_priv_flags = IFF_UNICAST_FLT, \
-	.flow_control = true,		  \
-	.mtu = HW_ATL_A0_MTU_JUMBO,       \
-	.mac_regs_count = 88,		  \
+#define DEFAULT_A0_BOARD_BASIC_CAPABILITIES	     \
+	.is_64_dma = true,			     \
+	.msix_irqs = 4U,			     \
+	.irq_mask = ~0U,			     \
+	.vecs = HW_ATL_A0_RSS_MAX,		     \
+	.tcs = HW_ATL_A0_TC_MAX,		     \
+	.rxd_alignment = 1U,			     \
+	.rxd_size = HW_ATL_A0_RXD_SIZE,		     \
+	.rxds_max = HW_ATL_A0_MAX_RXD,		     \
+	.rxds_min = HW_ATL_A0_MIN_RXD,		     \
+	.txd_alignment = 1U,			     \
+	.txd_size = HW_ATL_A0_TXD_SIZE,		     \
+	.txds_max = HW_ATL_A0_MAX_TXD,		     \
+	.txds_min = HW_ATL_A0_MIN_RXD,		     \
+	.txhwb_alignment = 4096U,		     \
+	.tx_rings = HW_ATL_A0_TX_RINGS,		     \
+	.rx_rings = HW_ATL_A0_RX_RINGS,		     \
+	.hw_features = NETIF_F_HW_CSUM |	     \
+			NETIF_F_RXHASH |	     \
+			NETIF_F_RXCSUM |	     \
+			NETIF_F_SG |		     \
+			NETIF_F_TSO |		     \
+			NETIF_F_NTUPLE |	     \
+			NETIF_F_HW_VLAN_CTAG_FILTER, \
+	.hw_priv_flags = IFF_UNICAST_FLT,	     \
+	.flow_control = true,			     \
+	.mtu = HW_ATL_A0_MTU_JUMBO,		     \
+	.mac_regs_count = 88,			     \
 	.hw_alive_check_addr = 0x10U
 
 const struct aq_hw_caps_s hw_atl_a0_caps_aqc100 = {
@@ -165,7 +167,8 @@ static int hw_atl_a0_hw_qos_set(struct aq_hw_s *self)
 						   (buff_size *
 						   (1024U / 32U) * 50U) /
 						   100U, tc);
-	hw_atl_rpb_rx_xoff_en_per_tc_set(self, is_rx_flow_control ? 1U : 0U, tc);
+	hw_atl_rpb_rx_xoff_en_per_tc_set(self, is_rx_flow_control ?
+					 1U : 0U, tc);
 
 	/* QoS 802.1p priority -> TC mapping */
 	for (i_priority = 8U; i_priority--;)
@@ -284,7 +287,7 @@ static int hw_atl_a0_hw_init_rx_path(struct aq_hw_s *self)
 
 	/* RSS Ring selection */
 	hw_atl_reg_rx_flr_rss_control1set(self, cfg->is_rss ?
-					0xB3333333U : 0x00000000U);
+					  0xB3333333U : 0x00000000U);
 
 	/* Multicast filters */
 	for (i = HW_ATL_A0_MAC_MAX; i--;) {
@@ -323,9 +326,10 @@ static int hw_atl_a0_hw_mac_addr_set(struct aq_hw_s *self, u8 *mac_addr)
 		err = -EINVAL;
 		goto err_exit;
 	}
+
 	h = (mac_addr[0] << 8) | (mac_addr[1]);
 	l = (mac_addr[2] << 24) | (mac_addr[3] << 16) |
-		(mac_addr[4] << 8) | mac_addr[5];
+	    (mac_addr[4] << 8) | mac_addr[5];
 
 	hw_atl_rpfl2_uc_flr_en_set(self, 0U, HW_ATL_A0_MAC);
 	hw_atl_rpfl2unicast_dest_addresslsw_set(self, l, HW_ATL_A0_MAC);
@@ -383,8 +387,10 @@ static int hw_atl_a0_hw_init(struct aq_hw_s *self, u8 *mac_addr)
 
 	/* Interrupts */
 	hw_atl_reg_gen_irq_map_set(self,
-				   ((HW_ATL_A0_ERR_INT << 0x18) | (1U << 0x1F)) |
-				   ((HW_ATL_A0_ERR_INT << 0x10) | (1U << 0x17)) |
+				   ((HW_ATL_A0_ERR_INT << 0x18) |
+				    (1U << 0x1F)) |
+				   ((HW_ATL_A0_ERR_INT << 0x10) |
+				    (1U << 0x17)) |
 				   ((HW_ATL_A0_ERR_INT << 8) | (1U << 0xF)) |
 				   ((HW_ATL_A0_ERR_INT) | (1U << 0x7)), 0U);
 
@@ -445,14 +451,14 @@ static int hw_atl_a0_hw_ring_tx_xmit(struct aq_hw_s *self,
 
 		buff = &ring->buff_ring[ring->sw_tail];
 
-		if (buff->is_txc) {
+		if (buff->is_gso) {
 			txd->ctl |= (buff->len_l3 << 31) |
 				(buff->len_l2 << 24) |
 				HW_ATL_A0_TXD_CTL_CMD_TCP |
 				HW_ATL_A0_TXD_CTL_DESC_TYPE_TXC;
 			txd->ctl2 |= (buff->mss << 16) |
-				(buff->len_l4 << 8) |
-				(buff->len_l3 >> 1);
+				     (buff->len_l4 << 8) |
+				     (buff->len_l3 >> 1);
 
 			pkt_len -= (buff->len_l4 +
 				    buff->len_l3 +
@@ -463,7 +469,7 @@ static int hw_atl_a0_hw_ring_tx_xmit(struct aq_hw_s *self,
 
 			txd->buf_addr = buff->pa;
 			txd->ctl |= (HW_ATL_A0_TXD_CTL_BLEN &
-						((u32)buff_pa_len << 4));
+				     ((u32)buff_pa_len << 4));
 			txd->ctl |= HW_ATL_A0_TXD_CTL_DESC_TYPE_TXD;
 			/* PAY_LEN */
 			txd->ctl2 |= HW_ATL_A0_TXD_CTL2_LEN & (pkt_len << 14);
@@ -619,10 +625,14 @@ static int hw_atl_a0_hw_ring_rx_receive(struct aq_hw_s *self,
 		if (!(rxd_wb->status & 0x5U)) { /* RxD is not done */
 			if ((1U << 4) &
 			hw_atl_reg_rx_dma_desc_status_get(self, ring->idx)) {
-				hw_atl_rdm_rx_desc_en_set(self, false, ring->idx);
-				hw_atl_rdm_rx_desc_res_set(self, true, ring->idx);
-				hw_atl_rdm_rx_desc_res_set(self, false, ring->idx);
-				hw_atl_rdm_rx_desc_en_set(self, true, ring->idx);
+				hw_atl_rdm_rx_desc_en_set(self, false,
+							  ring->idx);
+				hw_atl_rdm_rx_desc_res_set(self, true,
+							   ring->idx);
+				hw_atl_rdm_rx_desc_res_set(self, false,
+							   ring->idx);
+				hw_atl_rdm_rx_desc_en_set(self, true,
+							  ring->idx);
 			}
 
 			if (ring->hw_head ||
@@ -689,9 +699,9 @@ static int hw_atl_a0_hw_ring_rx_receive(struct aq_hw_s *self,
 
 			if (HW_ATL_A0_RXD_WB_STAT2_EOP & rxd_wb->status) {
 				buff->len = rxd_wb->pkt_len %
-					AQ_CFG_RX_FRAME_MAX;
+					    AQ_CFG_RX_FRAME_MAX;
 				buff->len = buff->len ?
-					buff->len : AQ_CFG_RX_FRAME_MAX;
+					    buff->len : AQ_CFG_RX_FRAME_MAX;
 				buff->next = 0U;
 				buff->is_eop = 1U;
 			} else {
@@ -709,7 +719,7 @@ static int hw_atl_a0_hw_ring_rx_receive(struct aq_hw_s *self,
 static int hw_atl_a0_hw_irq_enable(struct aq_hw_s *self, u64 mask)
 {
 	hw_atl_itr_irq_msk_setlsw_set(self, LODWORD(mask) |
-			       (1U << HW_ATL_A0_ERR_INT));
+				      (1U << HW_ATL_A0_ERR_INT));
 	return aq_hw_err_from_flags(self);
 }
 
@@ -736,6 +746,7 @@ static int hw_atl_a0_hw_packet_filter_set(struct aq_hw_s *self,
 					  unsigned int packet_filter)
 {
 	unsigned int i = 0U;
+	struct aq_nic_cfg_s *cfg = self->aq_nic_cfg;
 
 	hw_atl_rpfl2promiscuous_mode_en_set(self,
 					    IS_FILTER_ENABLED(IFF_PROMISC));
@@ -743,14 +754,14 @@ static int hw_atl_a0_hw_packet_filter_set(struct aq_hw_s *self,
 					 IS_FILTER_ENABLED(IFF_MULTICAST), 0);
 	hw_atl_rpfl2broadcast_en_set(self, IS_FILTER_ENABLED(IFF_BROADCAST));
 
-	self->aq_nic_cfg->is_mc_list_enabled =
+	cfg->is_mc_list_enabled =
 			IS_FILTER_ENABLED(IFF_MULTICAST);
 
 	for (i = HW_ATL_A0_MAC_MIN; i < HW_ATL_A0_MAC_MAX; ++i)
 		hw_atl_rpfl2_uc_flr_en_set(self,
-					   (self->aq_nic_cfg->is_mc_list_enabled &&
-					   (i <= self->aq_nic_cfg->mc_list_count)) ?
-					    1U : 0U, i);
+					   (cfg->is_mc_list_enabled &&
+					    (i <= cfg->mc_list_count)) ?
+					   1U : 0U, i);
 
 	return aq_hw_err_from_flags(self);
 }
@@ -764,18 +775,19 @@ static int hw_atl_a0_hw_multicast_list_set(struct aq_hw_s *self,
 					   u32 count)
 {
 	int err = 0;
+	struct aq_nic_cfg_s *cfg = self->aq_nic_cfg;
 
 	if (count > (HW_ATL_A0_MAC_MAX - HW_ATL_A0_MAC_MIN)) {
 		err = EBADRQC;
 		goto err_exit;
 	}
-	for (self->aq_nic_cfg->mc_list_count = 0U;
-			self->aq_nic_cfg->mc_list_count < count;
-			++self->aq_nic_cfg->mc_list_count) {
-		u32 i = self->aq_nic_cfg->mc_list_count;
+	for (cfg->mc_list_count = 0U;
+			cfg->mc_list_count < count;
+			++cfg->mc_list_count) {
+		u32 i = cfg->mc_list_count;
 		u32 h = (ar_mac[i][0] << 8) | (ar_mac[i][1]);
 		u32 l = (ar_mac[i][2] << 24) | (ar_mac[i][3] << 16) |
-					(ar_mac[i][4] << 8) | ar_mac[i][5];
+			(ar_mac[i][4] << 8) | ar_mac[i][5];
 
 		hw_atl_rpfl2_uc_flr_en_set(self, 0U, HW_ATL_A0_MAC_MIN + i);
 
@@ -788,7 +800,7 @@ static int hw_atl_a0_hw_multicast_list_set(struct aq_hw_s *self,
 							HW_ATL_A0_MAC_MIN + i);
 
 		hw_atl_rpfl2_uc_flr_en_set(self,
-					   (self->aq_nic_cfg->is_mc_list_enabled),
+					   (cfg->is_mc_list_enabled),
 					   HW_ATL_A0_MAC_MIN + i);
 	}
 
@@ -866,6 +878,75 @@ static int hw_atl_a0_hw_ring_rx_stop(struct aq_hw_s *self,
 	return aq_hw_err_from_flags(self);
 }
 
+static int hw_atl_a0_hw_fl3l4_clear(struct aq_hw_s *self,
+				    struct aq_rx_filter_l3l4 *data)
+{
+	u8 location = data->location;
+
+	if (!data->is_ipv6) {
+		hw_atl_rpfl3l4_cmd_clear(self, location);
+		hw_atl_rpf_l4_spd_set(self, 0U, location);
+		hw_atl_rpf_l4_dpd_set(self, 0U, location);
+		hw_atl_rpfl3l4_ipv4_src_addr_clear(self, location);
+		hw_atl_rpfl3l4_ipv4_dest_addr_clear(self, location);
+	} else {
+		int i;
+
+		for (i = 0; i < HW_ATL_RX_CNT_REG_ADDR_IPV6; ++i) {
+			hw_atl_rpfl3l4_cmd_clear(self, location + i);
+			hw_atl_rpf_l4_spd_set(self, 0U, location + i);
+			hw_atl_rpf_l4_dpd_set(self, 0U, location + i);
+		}
+		hw_atl_rpfl3l4_ipv6_src_addr_clear(self, location);
+		hw_atl_rpfl3l4_ipv6_dest_addr_clear(self, location);
+	}
+
+	return aq_hw_err_from_flags(self);
+}
+
+static int hw_atl_a0_hw_fl3l4_set(struct aq_hw_s *self,
+				  struct aq_rx_filter_l3l4 *data)
+{
+	u8 location = data->location;
+
+	hw_atl_a0_hw_fl3l4_clear(self, data);
+
+	if (data->cmd) {
+		if (!data->is_ipv6) {
+			hw_atl_rpfl3l4_ipv4_dest_addr_set(self,
+							  location,
+							  data->ip_dst[0]);
+			hw_atl_rpfl3l4_ipv4_src_addr_set(self,
+							 location,
+							 data->ip_src[0]);
+		} else {
+			hw_atl_rpfl3l4_ipv6_dest_addr_set(self,
+							  location,
+							  data->ip_dst);
+			hw_atl_rpfl3l4_ipv6_src_addr_set(self,
+							 location,
+							 data->ip_src);
+		}
+	}
+	hw_atl_rpf_l4_dpd_set(self, data->p_dst, location);
+	hw_atl_rpf_l4_spd_set(self, data->p_src, location);
+	hw_atl_rpfl3l4_cmd_set(self, location, data->cmd);
+
+	return aq_hw_err_from_flags(self);
+}
+
+static int hw_atl_a0_hw_fl3l4_ctrl(struct aq_hw_s *self, u32 location,
+				   bool enable)
+{
+	if (enable)
+		hw_atl_rpf_l3_l4_enf_set(self, 1U, location);
+	else
+		hw_atl_rpf_l3_l4_enf_set(self, 0U, location);
+
+	return aq_hw_err_from_flags(self);
+}
+
+
 const struct aq_hw_ops hw_atl_ops_a0 = {
 	.hw_set_mac_address   = hw_atl_a0_hw_mac_addr_set,
 	.hw_init              = hw_atl_a0_hw_init,
@@ -890,6 +971,9 @@ const struct aq_hw_ops hw_atl_ops_a0 = {
 	.hw_ring_rx_init             = hw_atl_a0_hw_ring_rx_init,
 	.hw_ring_tx_init             = hw_atl_a0_hw_ring_tx_init,
 	.hw_packet_filter_set        = hw_atl_a0_hw_packet_filter_set,
+	.hw_filter_l3l4_set          = hw_atl_a0_hw_fl3l4_set,
+	.hw_filter_l3l4_clear        = hw_atl_a0_hw_fl3l4_clear,
+	.hw_filter_l3l4_ctrl         = hw_atl_a0_hw_fl3l4_ctrl,
 	.hw_multicast_list_set       = hw_atl_a0_hw_multicast_list_set,
 	.hw_interrupt_moderation_set = hw_atl_a0_hw_interrupt_moderation_set,
 	.hw_rss_set                  = hw_atl_a0_hw_rss_set,
@@ -897,4 +981,17 @@ const struct aq_hw_ops hw_atl_ops_a0 = {
 	.hw_get_regs                 = hw_atl_utils_hw_get_regs,
 	.hw_get_hw_stats             = hw_atl_utils_get_hw_stats,
 	.hw_get_fw_version           = hw_atl_utils_get_fw_version,
+
+	.hw_tx_tc_mode_get       = NULL,
+	.hw_rx_tc_mode_get       = NULL,
+
+	.hw_ring_hwts_rx_fill        = NULL,
+	.hw_ring_hwts_rx_receive     = NULL,
+
+	.hw_ptp_dpath_enable     = NULL,
+	.hw_get_ptp_ts           = NULL,
+	.hw_adj_clock_freq        = NULL,
+	.hw_gpio_pulse           = NULL,
+
+	.enable_ptp              = NULL,
 };

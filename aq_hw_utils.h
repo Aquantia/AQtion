@@ -35,6 +35,9 @@ do { \
 	} \
 } while (0)
 
+/* These print helpers are for modules where aq_nic is not
+ * accessible directly. In all other cases use aq_nic_print
+ */
 #define aq_pr_err(...) pr_err(AQ_CFG_DRV_NAME ": " __VA_ARGS__)
 #define aq_pr_trace(...) pr_info(AQ_CFG_DRV_NAME ": " __VA_ARGS__)
 

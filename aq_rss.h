@@ -19,7 +19,7 @@ struct aq_rss_parameters {
 	u16 base_cpu_number;
 	u16 indirection_table_size;
 	u16 hash_secret_key_size;
-	u32 hash_secret_key[AQ_CFG_RSS_HASHKEY_SIZE / sizeof(u32)];
+	u32 hash_secret_key[AQ_CFG_RSS_HASHKEY_SIZE / 8 / sizeof(u32)];
 	u8 indirection_table[AQ_CFG_RSS_INDIRECTION_TABLE_MAX];
 };
 

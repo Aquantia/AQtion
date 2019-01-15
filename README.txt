@@ -295,6 +295,18 @@ AQ_CFG_TX_CLEAN_BUDGET
 Maximum descriptors to cleanup on TX at once.
 Default value: 256
 
+AQ_CFG_UDP_RSS_DISABLE
+------------------------------------------------------------
+Disable RSS for UDP traffic
+
+Turning on workaround of HW bug by routing all UDP pakets through queue 0.
+
+Valid values
+0 - disabled
+1 - enabled
+
+Default value: 0
+
 After the aq_cfg.h file changed the driver must be rebuilt to take effect.
 
 Additional Configurations
@@ -469,7 +481,143 @@ Supported ethtool options
 
  ethtool -s <ethX> wol d
 
-Private flags (testing)
+ Set and check the driver message level
+ ---------------------------------
+
+ Set message level
+
+ ethtool -s <ethX> msglvl <level>
+
+ Level values:
+
+ 0x0001 - general driver status.
+ 0x0002 - hardware probing.
+ 0x0004 - link state.
+ 0x0008 - periodic status check.
+ 0x0010 - interface being brought down.
+ 0x0020 - interface being brought up.
+ 0x0040 - receive error.
+ 0x0080 - transmit error.
+ 0x0200 - interrupt handling.
+ 0x0400 - transmit completion.
+ 0x0800 - receive completion.
+ 0x1000 - packet contents.
+ 0x2000 - hardware status.
+ 0x4000 - Wake-on-LAN status.
+
+ By default, the level of debugging messages is set 0x0001(general driver status).
+
+ Check message level
+
+ ethtool <ethX> | grep "Current message level"
+
+ If you want to disable the output of messages
+
+ ethtool -s <ethX> msglvl 0
+
+ RX flow rules (ntuple filters)
+ ---------------------------------
+ There are separate rules supported, that applies in that order:
+ 1. 16 VLAN ID rules
+ 2. 16 L2 EtherType rules
+ 3. 8 L3/L4 5-Tuple rules
+
+
+ The driver utilizes the ethtool interface for configuring ntuple filters,
+ via "ethtool -N <device> <filter>".
+
+ To enable or disable the RX flow rules:
+
+ ethtool -K ethX ntuple <on|off>
+
+ When disabling ntuple filters, all the user programed filters are
+ flushed from the driver cache and hardware. All needed filters must
+ be re-added when ntuple is re-enabled.
+
+ Because of the fixed order of the rules, the location of filters is also fixed:
+ - Locations 0 - 15 for VLAN ID filters
+ - Locations 16 - 31 for L2 EtherType filters
+ - Locations 32 - 39 for L3/L4 5-tuple filters (locations 32, 36 for IPv6)
+
+ The L3/L4 5-tuple (protocol, source and destination IP address, source and
+ destination TCP/UDP/SCTP port) is compared against 8 filters. For IPv4, up to
+ 8 source and destination addresses can be matched. For IPv6, up to 2 pairs of
+ addresses can be supported. Source and destination ports are only compared for
+ TCP/UDP/SCTP packets.
+
+ To add a filter that directs packet to queue 5, use <-N|-U|--config-nfc|--config-ntuple> switch:
+
+ ethtool -N <ethX> flow-type udp4 src-ip 10.0.0.1 dst-ip 10.0.0.2 src-port 2000 dst-port 2001 action 5 <loc 32>
+
+ - action is the queue number.
+ - loc is the rule number.
+
+ For "flow-type ip4|udp4|tcp4|sctp4|ip6|udp6|tcp6|sctp6" you must set the loc
+ number within 32 - 39.
+ For "flow-type ip4|udp4|tcp4|sctp4|ip6|udp6|tcp6|sctp6" you can set 8 rules
+ for traffic IPv4 or you can set 2 rules for traffic IPv6. Loc number traffic
+ IPv6 is 32 and 36.
+ At the moment you can not use IPv4 and IPv6 filters at the same time.
+
+ Example filter for IPv6 filter traffic:
+
+ sudo ethtool -N <ethX> flow-type tcp6 src-ip 2001:db8:0:f101::1 dst-ip 2001:db8:0:f101::2 action 1 loc 32
+ sudo ethtool -N <ethX> flow-type ip6 src-ip 2001:db8:0:f101::2 dst-ip 2001:db8:0:f101::5 action -1 loc 36
+
+ Example filter for IPv4 filter traffic:
+
+ sudo ethtool -N <ethX> flow-type udp4 src-ip 10.0.0.4 dst-ip 10.0.0.7 src-port 2000 dst-port 2001 loc 32
+ sudo ethtool -N <ethX> flow-type tcp4 src-ip 10.0.0.3 dst-ip 10.0.0.9 src-port 2000 dst-port 2001 loc 33
+ sudo ethtool -N <ethX> flow-type ip4 src-ip 10.0.0.6 dst-ip 10.0.0.4 loc 34
+
+ If you set action -1, then all traffic corresponding to the filter will be discarded.
+ The maximum value action is 31.
+
+
+ The VLAN filter (VLAN id) is compared against 16 filters.
+ VLAN id must be accompanied by mask 0xF000. That is to distinguish VLAN filter
+ from L2 Ethertype filter with UserPriority since both User Priority and VLAN ID
+ are passed in the same 'vlan' parameter.
+
+ To add a filter that directs packets from VLAN 2001 to queue 5:
+ ethtool -N <ethX> flow-type ip4 vlan 2001 m 0xF000 action 1 loc 0
+
+
+ L2 EtherType filters allows filter packet by EtherType field or both EtherType
+ and User Priority (PCP) field of 802.1Q.
+ UserPriority (vlan) parameter must be accompanied by mask 0x1FFF. That is to
+ distinguish VLAN filter from L2 Ethertype filter with UserPriority since both
+ User Priority and VLAN ID are passed in the same 'vlan' parameter.
+
+ To add a filter that directs IP4 packess of priority 3 to queue 3:
+ ethtool -N <ethX> flow-type ether proto 0x800 vlan 0x600 m 0x1FFF action 3 loc 16
+
+
+ To see the list of filters currently present:
+
+ ethtool <-u|-n|--show-nfc|--show-ntuple> <ethX>
+
+ Rules may be deleted from the table itself. This is done using:
+
+ sudo ethtool <-N|-U|--config-nfc|--config-ntuple> <ethX> delete <loc>
+
+ - loc is the rule number to be deleted.
+
+ Rx filters is an interface to load the filter table that funnels all flow
+ into queue 0 unless an alternative queue is specified using "action". In that
+ case, any flow that matches the filter criteria will be directed to the
+ appropriate queue. RX filters is supported on all kernels 2.6.30 and later.
+
+ RSS for UDP
+ ---------------------------------
+ Currently, NIC does not support RSS for fragmented IP packets, which leads to
+ incorrect working of RSS for fragmented UDP traffic. To disable RSS for UDP the
+ RX Flow L3/L4 rule may be used.
+
+ Example:
+ ethtool -N eth0 flow-type udp4 action 0 loc 32
+
+ Private flags (testing)
  ---------------------------------
 
  Atlantic driver supports private flags for hardware loopback testing:

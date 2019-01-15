@@ -12,7 +12,7 @@
 #ifndef AQ_CFG_H
 #define AQ_CFG_H
 
-#define AQ_CFG_VECS_DEF   4U
+#define AQ_CFG_VECS_DEF   8U
 #define AQ_CFG_TCS_DEF    1U
 
 #define AQ_CFG_TXDS_DEF    4096U
@@ -44,7 +44,7 @@
 #define AQ_CFG_IS_LRO_DEF           1U
 
 /* RSS */
-#define AQ_CFG_RSS_INDIRECTION_TABLE_MAX  128U
+#define AQ_CFG_RSS_INDIRECTION_TABLE_MAX  64U
 #define AQ_CFG_RSS_HASHKEY_SIZE           320U
 
 #define AQ_CFG_IS_RSS_DEF           1U
@@ -82,6 +82,19 @@
 
 #define AQ_CFG_IS_AUTONEG_DEF       1U
 #define AQ_CFG_MTU_DEF              1514U
+
+/* When defined, driver ensures fastest link up time
+ * on start and on ifup. Full hardware reset sequence
+ * is skipped in that case, we rely on existing FW state.
+ * 
+ * #define AQ_CFG_FAST_START
+ */
+
+/* HW bug workaround:
+ * Disable RSS for UDP using rx flow filter 0.
+ */
+#define AQ_CFG_UDP_RSS_DISABLE	0
+
 
 #define AQ_CFG_LOCK_TRYS   100U
 
