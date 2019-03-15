@@ -527,15 +527,6 @@ static enum hw_atl_fw2x_rate eee_mask_to_ethtool_mask(u32 speed)
 	if (speed & AQ_NIC_RATE_EEE_10G)
 		rate |= SUPPORTED_10000baseT_Full;
 
-	/* This is not supported
-	 * if (speed & AQ_NIC_RATE_EEE_5G)
-	 *	rate |= SUPPORTED_5000baseX_Full;
-	 */
-
-	if (speed & AQ_NIC_RATE_EEE_2GS)
-		rate |= SUPPORTED_2500baseX_Full;
-
-
 	if (speed & AQ_NIC_RATE_EEE_1G)
 		rate |= SUPPORTED_1000baseT_Full;
 
@@ -545,16 +536,17 @@ static enum hw_atl_fw2x_rate eee_mask_to_ethtool_mask(u32 speed)
 static int aq_ethtool_get_eee(struct net_device *ndev, struct ethtool_eee *eee)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	u32 rate, supported_rates;
 	int err = 0;
 
-	u32 rate, supported_rates;
 
 	if (!aq_nic->aq_fw_ops->get_eee_rate)
 		return -EOPNOTSUPP;
 
 	mutex_lock(&aq_nic->fwreq_mutex);
 	err = aq_nic->aq_fw_ops->get_eee_rate(aq_nic->aq_hw, &rate,
-					      &supported_rates);
+					      &supported_rates,
+					      &eee->tx_lpi_timer);
 	mutex_unlock(&aq_nic->fwreq_mutex);
 	if (err < 0)
 		return err;
@@ -569,7 +561,7 @@ static int aq_ethtool_get_eee(struct net_device *ndev, struct ethtool_eee *eee)
 	eee->eee_enabled = !!eee->advertised;
 
 	eee->tx_lpi_enabled = eee->eee_enabled;
-	if (eee->advertised & eee->lp_advertised)
+	if ((supported_rates & rate) & AQ_NIC_RATE_EEE_MSK)
 		eee->eee_active = true;
 
 	return 0;
@@ -579,7 +571,7 @@ static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
-	u32 rate, supported_rates;
+	u32 rate, supported_rates, lpi_timer;
 	int err = 0;
 
 	if (unlikely(!aq_nic->aq_fw_ops->get_eee_rate ||
@@ -588,7 +580,7 @@ static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 
 	mutex_lock(&aq_nic->fwreq_mutex);
 	err = aq_nic->aq_fw_ops->get_eee_rate(aq_nic->aq_hw, &rate,
-					      &supported_rates);
+					      &supported_rates, &lpi_timer);
 	mutex_unlock(&aq_nic->fwreq_mutex);
 	if (err < 0)
 		return err;

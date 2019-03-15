@@ -61,6 +61,9 @@
 
 #define HW_ATL_FW_VER_LED                0x03010026U
 
+/* clock is 3.2 ns*/
+#define HW_ATL_CLOCK_TO_US(clk)  ((clk) * 32 / 10000)
+
 struct __packed fw2x_msg_wol_pattern {
 	u8 mask[16];
 	u32 crc;
@@ -529,18 +532,19 @@ static int aq_fw2x_set_eee_rate(struct aq_hw_s *self, u32 speed)
 }
 
 static int aq_fw2x_get_eee_rate(struct aq_hw_s *self, u32 *rate,
-				u32 *supported_rates)
+				u32 *supported_rates, u32 *lpi_timer)
 {
 	int err = 0;
 	u32 caps_hi;
 	u32 mpi_state;
+	u32 lpi;
 
 	err = hw_atl_utils_fw_downld_dwords(self,
 				self->mbox_addr +
 				offsetof(struct hw_aq_atl_utils_mbox, info) +
 				offsetof(struct hw_aq_info, caps_hi),
 				&caps_hi,
-				sizeof(caps_hi)/sizeof(u32));
+				sizeof(caps_hi) / sizeof(u32));
 
 	if (err)
 		return err;
@@ -549,6 +553,11 @@ static int aq_fw2x_get_eee_rate(struct aq_hw_s *self, u32 *rate,
 
 	mpi_state = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_STATE2_ADDR);
 	*rate = fw2x_to_eee_mask(mpi_state);
+
+	err = hw_atl_msm_read_lpi_timer(self, &lpi);
+	if (err)
+		return err;
+	*lpi_timer = HW_ATL_CLOCK_TO_US(lpi);
 
 	return err;
 }

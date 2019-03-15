@@ -300,7 +300,7 @@ static void aq_rx_checksum(struct aq_ring_s *self,
 		return;
 	}
 	if (buff->is_ip_cso) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || (RHEL_RELEASE_CODE > 0)
 		__skb_incr_checksum_unnecessary(skb);
 #else
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
@@ -308,7 +308,7 @@ static void aq_rx_checksum(struct aq_ring_s *self,
 	} else {
 		skb->ip_summed = CHECKSUM_NONE;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || (RHEL_RELEASE_CODE > 0)
 	if (buff->is_udp_cso || buff->is_tcp_cso)
 		__skb_incr_checksum_unnecessary(skb);
 #endif
@@ -335,37 +335,50 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 		unsigned int i = 0U;
 		u16 hdr_len;
 
-		if (buff->is_error)
-			continue;
-
 		if (buff->is_cleaned)
 			continue;
 
 		rmb();
 
 		if (!buff->is_eop) {
-			for (next_ = buff->next,
-			     buff_ = &self->buff_ring[next_]; true;
-			     next_ = buff_->next,
-			     buff_ = &self->buff_ring[next_]) {
+			buff_ = buff;
+			do {
+				next_ = buff_->next,
+				buff_ = &self->buff_ring[next_];
 				is_rsc_completed =
 					aq_ring_dx_in_range(self->sw_head,
 							    next_,
 							    self->hw_head);
 
 				if (unlikely(!is_rsc_completed)) {
-					is_rsc_completed = false;
 					break;
 				}
 
-				if (buff_->is_eop)
-					break;
-			}
+				buff->is_error |= buff_->is_error;
+
+			} while (!buff_->is_eop);
 
 			if (!is_rsc_completed) {
 				err = 0;
 				goto err_exit;
 			}
+			if (buff->is_error) {
+				buff_ = buff;
+				do {
+					next_ = buff_->next,
+					buff_ = &self->buff_ring[next_];
+
+					buff_->is_cleaned = true;
+				} while (!buff_->is_eop);
+
+				++self->stats.rx.errors;
+				continue;
+			}
+		}
+
+		if (buff->is_error) {
+			++self->stats.rx.errors;
+			continue;
 		}
 
 		dma_sync_single_range_for_cpu(aq_nic_get_dev(self->aq_nic),
@@ -416,17 +429,19 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 			}
 
 			if (!buff->is_eop) {
-				for (i = 1U, next_ = buff->next,
-				buff_ = &self->buff_ring[next_]; true;
-				next_ = buff_->next,
-				buff_ = &self->buff_ring[next_], ++i) {
+				buff_ = buff;
+				i = 1U;
+				do {
+					next_ = buff_->next,
+					buff_ = &self->buff_ring[next_];
+
 					dma_sync_single_range_for_cpu(
 							aq_nic_get_dev(self->aq_nic),
 							buff_->rxdata.daddr,
 							buff_->rxdata.pg_off,
 							buff_->len,
 							DMA_FROM_DEVICE);
-					skb_add_rx_frag(skb, i,
+					skb_add_rx_frag(skb, i++,
 							buff_->rxdata.page,
 							buff_->rxdata.pg_off,
 							buff_->len,
@@ -434,9 +449,12 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 					page_ref_inc(buff_->rxdata.page);
 					buff_->is_cleaned = 1;
 
-					if (buff_->is_eop)
-						break;
-				}
+					buff->is_ip_cso &= buff_->is_ip_cso;
+					buff->is_udp_cso &= buff_->is_udp_cso;
+					buff->is_tcp_cso &= buff_->is_tcp_cso;
+					buff->is_cso_err |= buff_->is_cso_err;
+
+				} while (!buff_->is_eop);
 			}
 		}
 		if (buff->is_vlan)

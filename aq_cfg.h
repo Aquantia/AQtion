@@ -28,7 +28,7 @@
 
 #define AQ_CFG_INTERRUPT_MODERATION_USEC_MAX (0x1FF * 2)
 
-#define AQ_CFG_IRQ_MASK                      0x1FFU
+#define AQ_CFG_IRQ_MASK                      0x3FFU
 
 #define AQ_CFG_VECS_MAX   8U
 #define AQ_CFG_TCS_MAX    8U

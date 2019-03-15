@@ -23,6 +23,7 @@
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 6))
 
 #define from_timer(var, callback_timer, timer_fieldname) \
 	container_of(callback_timer, typeof(*var), timer_fieldname)
@@ -35,6 +36,7 @@ static inline void timer_setup(struct timer_list *timer,
 		    (unsigned long)timer);
 }
 
+#endif
 #endif
 
 #ifndef SPEED_5000

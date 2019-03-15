@@ -40,6 +40,9 @@
 /* preprocessor definitions for msm rx errors counter register */
 #define HW_ATL_MAC_MSM_RX_ERRS_CNT_ADR 0x00000120u
 
+/* preprocessor definitions for msm tx lpi delay register */
+#define HW_ATL_MAC_MSM_TX_LPI_DELAY_ADR 0x00000078u
+
 /* preprocessor definitions for msm rx unicast frames counter register */
 #define HW_ATL_MAC_MSM_RX_UCST_FRM_CNT_ADR 0x000000e0u
 
@@ -92,6 +95,19 @@
 #define HW_ATL_ITR_RES_MSK 0x80000000
 /* lower bit position of bitfield itr_reset */
 #define HW_ATL_ITR_RES_SHIFT 31
+
+/* register address for bitfield  rsc_en */
+#define HW_ATL_ITR_RSC_EN_ADR 0x00002200
+
+/* register address for bitfield  rsc_delay */
+#define HW_ATL_ITR_RSC_DELAY_ADR 0x00002204
+/* bitmask for bitfield  rsc_delay */
+#define HW_ATL_ITR_RSC_DELAY_MSK 0x0000000f
+/* width of bitfield  rsc_delay */
+#define HW_ATL_ITR_RSC_DELAY_WIDTH 4
+/* lower bit position of bitfield  rsc_delay */
+#define HW_ATL_ITR_RSC_DELAY_SHIFT 0
+
 /* register address for bitfield dca{d}_cpuid[7:0] */
 #define HW_ATL_RDM_DCADCPUID_ADR(dca) (0x00006100 + (dca) * 0x4)
 /* bitmask for bitfield dca{d}_cpuid[7:0] */
@@ -2812,5 +2828,126 @@
 	(HW_ATL_RX_SRCA_ADDR_BEGIN_FL3L4 + ((location) * 0x4))
 #define HW_ATL_RX_GET_ADDR_DESTA_FL3L4(location) \
 	(HW_ATL_RX_DESTA_ADDR_BEGIN_FL3L4 + ((location) * 0x4))
+
+/*
+ * Preprocessor definitions for Global MDIO Interfaces
+ * Address: 0x00000276 + 0x4 * Number of interface
+ */
+#define HW_ATL_GLB_MDIO_IFACE_ADDR_BEGIN   0x00000276u
+
+#define HW_ATL_GLB_MDIO_IFACE_N_ADR(number) \
+	(HW_ATL_GLB_MDIO_IFACE_ADDR_BEGIN + ((number) * 0x4))
+
+/*
+ * MIF MDIO Busy Bitfield Definitions
+ * Preprocessor definitions for the bitfield "MDIO Busy".
+ * PORT="mdio_pif_busy_o"
+ */
+
+/* Register address for bitfield MDIO Busy */
+#define HW_ATL_MDIO_BUSY_ADR 0x00000284
+/* Bitmask for bitfield MDIO Busy */
+#define HW_ATL_MDIO_BUSY_MSK 0x80000000
+/* Inverted bitmask for bitfield MDIO Busy */
+#define HW_ATL_MDIO_BUSY_MSKN 0x7FFFFFFF
+/* Lower bit position of bitfield MDIO Busy */
+#define HW_ATL_MDIO_BUSY_SHIFT 31
+/* Width of bitfield MDIO Busy */
+#define HW_ATL_MDIO_BUSY_WIDTH 1
+
+/*
+ * MIF MDIO Execute Operation Bitfield Definitions
+ * Preprocessor definitions for the bitfield "MDIO Execute Operation".
+ * PORT="pif_mdio_op_start_i"
+ */
+
+/* Register address for bitfield MDIO Execute Operation */
+#define HW_ATL_MDIO_EXECUTE_OPERATION_ADR 0x00000284
+/* Bitmask for bitfield MDIO Execute Operation */
+#define HW_ATL_MDIO_EXECUTE_OPERATION_MSK 0x00008000
+/* Inverted bitmask for bitfield MDIO Execute Operation */
+#define HW_ATL_MDIO_EXECUTE_OPERATION_MSKN 0xFFFF7FFF
+/* Lower bit position of bitfield MDIO Execute Operation */
+#define HW_ATL_MDIO_EXECUTE_OPERATION_SHIFT 15
+/* Width of bitfield MDIO Execute Operation */
+#define HW_ATL_MDIO_EXECUTE_OPERATION_WIDTH 1
+/* Default value of bitfield MDIO Execute Operation */
+#define HW_ATL_MDIO_EXECUTE_OPERATION_DEFAULT 0x0
+
+/*
+ * MIF Op Mode [1:0] Bitfield Definitions
+ * Preprocessor definitions for the bitfield "Op Mode [1:0]".
+ * PORT="pif_mdio_mode_i[1:0]"
+ */
+
+/* Register address for bitfield Op Mode [1:0] */
+#define HW_ATL_MDIO_OP_MODE_ADR 0x00000284
+/* Bitmask for bitfield Op Mode [1:0] */
+#define HW_ATL_MDIO_OP_MODE_MSK 0x00003000
+/* Inverted bitmask for bitfield Op Mode [1:0] */
+#define HW_ATL_MDIO_OP_MODE_MSKN 0xFFFFCFFF
+/* Lower bit position of bitfield Op Mode [1:0] */
+#define HW_ATL_MDIO_OP_MODE_SHIFT 12
+/* Width of bitfield Op Mode [1:0] */
+#define HW_ATL_MDIO_OP_MODE_WIDTH 2
+/* Default value of bitfield Op Mode [1:0] */
+#define HW_ATL_MDIO_OP_MODE_DEFAULT 0x0
+
+/*
+ * MIF PHY address Bitfield Definitions
+ * Preprocessor definitions for the bitfield "PHY address".
+ * PORT="pif_mdio_phy_addr_i[9:0]"
+ */
+
+/* Register address for bitfield PHY address */
+#define HW_ATL_MDIO_PHY_ADDRESS_ADR 0x00000284
+/* Bitmask for bitfield PHY address */
+#define HW_ATL_MDIO_PHY_ADDRESS_MSK 0x000003FF
+/* Inverted bitmask for bitfield PHY address */
+#define HW_ATL_MDIO_PHY_ADDRESS_MSKN 0xFFFFFC00
+/* Lower bit position of bitfield PHY address */
+#define HW_ATL_MDIO_PHY_ADDRESS_SHIFT 0
+/* Width of bitfield PHY address */
+#define HW_ATL_MDIO_PHY_ADDRESS_WIDTH 10
+/* Default value of bitfield PHY address */
+#define HW_ATL_MDIO_PHY_ADDRESS_DEFAULT 0x0
+
+/*
+ * MIF MDIO WriteData [F:0] Bitfield Definitions
+ * Preprocessor definitions for the bitfield "MDIO WriteData [F:0]".
+ * PORT="pif_mdio_wdata_i[15:0]"
+ */
+
+/* Register address for bitfield MDIO WriteData [F:0] */
+#define HW_ATL_MDIO_WRITE_DATA_ADR 0x00000288
+/* Bitmask for bitfield MDIO WriteData [F:0] */
+#define HW_ATL_MDIO_WRITE_DATA_MSK 0x0000FFFF
+/* Inverted bitmask for bitfield MDIO WriteData [F:0] */
+#define HW_ATL_MDIO_WRITE_DATA_MSKN 0xFFFF0000
+/* Lower bit position of bitfield MDIO WriteData [F:0] */
+#define HW_ATL_MDIO_WRITE_DATA_SHIFT 0
+/* Width of bitfield MDIO WriteData [F:0] */
+#define HW_ATL_MDIO_WRITE_DATA_WIDTH 16
+/* Default value of bitfield MDIO WriteData [F:0] */
+#define HW_ATL_MDIO_WRITE_DATA_DEFAULT 0x0
+
+/*
+ * MIF MDIO Address [F:0] Bitfield Definitions
+ * Preprocessor definitions for the bitfield "MDIO Address [F:0]".
+ * PORT="pif_mdio_addr_i[15:0]"
+ */
+
+/* Register address for bitfield MDIO Address [F:0] */
+#define HW_ATL_MDIO_ADDRESS_ADR 0x0000028C
+/* Bitmask for bitfield MDIO Address [F:0] */
+#define HW_ATL_MDIO_ADDRESS_MSK 0x0000FFFF
+/* Inverted bitmask for bitfield MDIO Address [F:0] */
+#define HW_ATL_MDIO_ADDRESS_MSKN 0xFFFF0000
+/* Lower bit position of bitfield MDIO Address [F:0] */
+#define HW_ATL_MDIO_ADDRESS_SHIFT 0
+/* Width of bitfield MDIO Address [F:0] */
+#define HW_ATL_MDIO_ADDRESS_WIDTH 16
+/* Default value of bitfield MDIO Address [F:0] */
+#define HW_ATL_MDIO_ADDRESS_DEFAULT 0x0
 
 #endif /* HW_ATL_LLH_INTERNAL_H */

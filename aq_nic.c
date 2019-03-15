@@ -27,6 +27,7 @@
 #include "aq_pci_func.h"
 #include "aq_main.h"
 #include "aq_ptp.h"
+#include "aq_phy.h"
 
 static unsigned int aq_itr = AQ_CFG_INTERRUPT_MODERATION_AUTO;
 module_param_named(aq_itr, aq_itr, uint, 0644);
@@ -378,23 +379,31 @@ int aq_nic_init(struct aq_nic_s *self)
 	unsigned int i = 0U;
 
 	self->power_state = AQ_HW_POWER_STATE_D0;
-#ifdef AQ_CFG_FAST_START
-	mutex_lock(&self->fwreq_mutex);
-	self->aq_fw_ops->set_state(self->aq_hw, MPI_RESET);
-	mutex_unlock(&self->fwreq_mutex);
-#else
 	mutex_lock(&self->fwreq_mutex);
 	err = self->aq_hw_ops->hw_reset(self->aq_hw);
 	mutex_unlock(&self->fwreq_mutex);
 	if (err < 0)
 		goto err_exit;
-#endif
 
 	err = self->aq_hw_ops->hw_init(self->aq_hw,
 				       aq_nic_get_ndev(self)->dev_addr);
 
 	if (err < 0)
 		goto err_exit;
+
+	/*
+	 * [ATLDRV-742] Workaround for Bermuda:
+	 * Disable PTP block because it can cause data path problems.
+	 * This should be done by PHY provisioning but a lot of units with
+	 * enabled PTP block has been shipped already.
+	 * So, we workaround this issue in the driver.
+	 */
+	if (self->aq_nic_cfg.aq_hw_caps->quirks & AQ_NIC_QUIRK_BAD_PTP) {
+		self->aq_hw->phy_id = HW_ATL_PHY_ID_MAX;
+
+		if (aq_phy_init(self->aq_hw))
+			aq_phy_disable_ptp(self->aq_hw);
+	}
 
 	for (i = 0U, aq_vec = self->aq_vec[0];
 		self->aq_vecs > i; ++i, aq_vec = self->aq_vec[i])

@@ -152,6 +152,12 @@ u32 hw_atl_itr_res_irq_get(struct aq_hw_s *aq_hw);
 /* set reset interrupt */
 void hw_atl_itr_res_irq_set(struct aq_hw_s *aq_hw, u32 res_irq);
 
+/* set RSC interrupt */
+void hw_atl_itr_rsc_en_set(struct aq_hw_s *aq_hw, u32 enable);
+
+/* set RSC delay */
+void hw_atl_itr_rsc_delay_set(struct aq_hw_s *aq_hw, u32 delay);
+
 /* rdm */
 
 /* set cpu id */
@@ -828,5 +834,37 @@ void hw_atl_rpfl3l4_ipv6_src_addr_set(struct aq_hw_s *aq_hw, u8 location,
 /* set ipv6 filter destination address */
 void hw_atl_rpfl3l4_ipv6_dest_addr_set(struct aq_hw_s *aq_hw, u8 location,
 				       u32 *ipv6_dest);
+
+/* set Global MDIO Interface 1 */
+void hw_atl_glb_mdio_iface1_set(struct aq_hw_s *hw, u32 value);
+
+/* get Global MDIO Interface 1 */
+u32 hw_atl_glb_mdio_iface1_get(struct aq_hw_s *hw);
+
+/* set Global MDIO Interface 2 */
+void hw_atl_glb_mdio_iface2_set(struct aq_hw_s *hw, u32 value);
+
+/* get Global MDIO Interface 2 */
+u32 hw_atl_glb_mdio_iface2_get(struct aq_hw_s *hw);
+
+/* set Global MDIO Interface 3 */
+void hw_atl_glb_mdio_iface3_set(struct aq_hw_s *hw, u32 value);
+
+/* get Global MDIO Interface 3 */
+u32 hw_atl_glb_mdio_iface3_get(struct aq_hw_s *hw);
+
+/* set Global MDIO Interface 4 */
+void hw_atl_glb_mdio_iface4_set(struct aq_hw_s *hw, u32 value);
+
+/* get Global MDIO Interface 4 */
+u32 hw_atl_glb_mdio_iface4_get(struct aq_hw_s *hw);
+
+/* set Global MDIO Interface 5 */
+void hw_atl_glb_mdio_iface5_set(struct aq_hw_s *hw, u32 value);
+
+/* get Global MDIO Interface 5 */
+u32 hw_atl_glb_mdio_iface5_get(struct aq_hw_s *hw);
+
+u32 hw_atl_mdio_busy_get(struct aq_hw_s *aq_hw);
 
 #endif /* HW_ATL_LLH_H */

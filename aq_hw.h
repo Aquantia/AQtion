@@ -72,6 +72,7 @@ struct aq_hw_caps_s {
 	u8 rx_rings;
 	bool flow_control;
 	bool is_64_dma;
+	u32 quirks;
 };
 
 struct aq_hw_link_status_s {
@@ -175,6 +176,7 @@ struct aq_hw_s {
 	u32 rpc_addr;
 	u32 rpc_tid;
 	struct hw_aq_atl_utils_fw_rpc rpc;
+	u16 phy_id;
 };
 
 struct aq_ring_s;
@@ -352,7 +354,7 @@ struct aq_fw_ops {
 	int (*set_eee_rate)(struct aq_hw_s *self, u32 speed);
 
 	int (*get_eee_rate)(struct aq_hw_s *self, u32 *rate,
-			u32 *supported_rates);
+			u32 *supported_rates, u32 *lpi_timer);
 
 	int (*set_flow_control)(struct aq_hw_s *self);
 

@@ -25,6 +25,7 @@
 #define HW_ATL_MIF_ADDR         0x0208U
 #define HW_ATL_MIF_VAL          0x020CU
 
+#define HW_ATL_FW_SM_MSM        0x1U
 #define HW_ATL_FW_SM_RAM        0x2U
 #define HW_ATL_MPI_FW_VERSION	0x18
 #define HW_ATL_MPI_CONTROL_ADR  0x0368U
@@ -922,6 +923,52 @@ err_exit:
 	return err;
 }
 
+static int __hw_atl_msm_wait(struct aq_hw_s *self)
+{
+	int err = 0;
+
+	AQ_HW_WAIT_FOR(hw_atl_msm_reg_access_status_get(self) == 0U,
+		       1U, 1000U);
+
+	return err;
+}
+
+static int __hw_atl_atl_msm_read(struct aq_hw_s *self,
+				 uint32_t addr,
+				 uint32_t *val)
+{
+	int err;
+
+	hw_atl_msm_reg_addr_for_indirect_addr_set(self, addr >> 2);
+	hw_atl_msm_reg_rd_strobe_set(self, 1);
+	err = __hw_atl_msm_wait(self);
+	if (err)
+		return err;
+
+	*val = hw_atl_msm_reg_rd_data_get(self);
+	return 0;
+}
+
+static int hw_atl_msm_read(struct aq_hw_s *self, uint32_t addr, uint32_t *val)
+{
+	int err = 0;
+
+	AQ_HW_WAIT_FOR(hw_atl_reg_glb_cpu_sem_get(self,
+						  HW_ATL_FW_SM_MSM) == 1U,
+						  1U, 1000U);
+	if (err)
+		return err;
+
+	err = __hw_atl_atl_msm_read(self, addr, val);
+
+	hw_atl_reg_glb_cpu_sem_set(self, 1U, HW_ATL_FW_SM_MSM);
+	return err;
+}
+
+int hw_atl_msm_read_lpi_timer(struct aq_hw_s *self, uint32_t *val)
+{
+	return hw_atl_msm_read(self, HW_ATL_MAC_MSM_TX_LPI_DELAY_ADR, val);
+}
 
 
 const struct aq_fw_ops aq_fw_1x_ops = {
