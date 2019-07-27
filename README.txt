@@ -68,7 +68,9 @@ To manually build this driver:
 4. Compile the driver module:
 	make
 
-5. Load the module:
+5. Load the dependencies and the module:
+	sudo modprobe ptp
+	sudo modprobe crc_itu_t
 	sudo insmod atlantic.ko
 
 6. Unload the driver

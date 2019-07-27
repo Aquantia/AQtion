@@ -40,5 +40,6 @@ int aq_vec_get_sw_stats(struct aq_vec_s *self, u64 *data,
 void aq_vec_add_stats(struct aq_vec_s *self,
 		      struct aq_ring_stats_rx_s *stats_rx,
 		      struct aq_ring_stats_tx_s *stats_tx);
+int aq_vec_dump_rx_ring_descr(struct aq_vec_s *self, void *data, int len);
 
 #endif /* AQ_VEC_H */

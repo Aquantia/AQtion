@@ -324,6 +324,25 @@
 /* default value of bitfield rdm_desc_init_i */
 #define HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_DEFAULT 0x0
 
+/* rdm_desc_init_done_i bitfield definitions
+ * preprocessor definitions for the bitfield rdm_desc_init_done_i.
+ * port="pif_rdm_desc_init_done_i"
+ */
+
+/* register address for bitfield rdm_desc_init_done_i */
+#define RDM_RX_DMA_DESC_CACHE_INIT_DONE_ADR 0x00005a10
+/* bitmask for bitfield rdm_desc_init_done_i */
+#define RDM_RX_DMA_DESC_CACHE_INIT_DONE_MSK 0x00000001U
+/* inverted bitmask for bitfield rdm_desc_init_done_i */
+#define RDM_RX_DMA_DESC_CACHE_INIT_DONE_MSKN 0xfffffffe
+/* lower bit position of bitfield  rdm_desc_init_done_i */
+#define RDM_RX_DMA_DESC_CACHE_INIT_DONE_SHIFT 0U
+/* width of bitfield rdm_desc_init_done_i */
+#define RDM_RX_DMA_DESC_CACHE_INIT_DONE_WIDTH 1
+/* default value of bitfield rdm_desc_init_done_i */
+#define RDM_RX_DMA_DESC_CACHE_INIT_DONE_DEFAULT 0x0
+
+
 /* rx int_desc_wrb_en bitfield definitions
  * preprocessor definitions for the bitfield "int_desc_wrb_en".
  * port="pif_rdm_int_desc_wrb_en_i"
@@ -2802,8 +2821,12 @@
 #define HW_ATL_PCI_REG_CONTROL6_ADR 0x1014u
 
 /* global microprocessor scratch pad definitions */
-#define HW_ATL_GLB_CPU_SCRATCH_SCP_ADR(scratch_scp) \
-	(0x00000300u + (scratch_scp) * 0x4)
+#define HW_ATL_GLB_CPU_SCRPAD_ADR(scratch_pad) \
+	(0x00000300u + (scratch_pad) * 0x4)
+
+/* global microprocessor scratch pad no reset definitions */
+#define HW_ATL_GLB_CPU_SCRPAD_NR_ADR(scratch_pad) \
+	(0x00000380u + (scratch_pad) * 0x4)
 
 /* register address for bitfield uP Force Interrupt */
 #define mcp_up_force_interrupt_adr 0x00000404
@@ -2822,21 +2845,54 @@
 #define HW_ATL_RX_SRCA_ADDR_BEGIN_FL3L4   0x000053B0
 #define HW_ATL_RX_DESTA_ADDR_BEGIN_FL3L4  0x000053D0
 
-#define HW_ATL_RX_GET_ADDR_CTRL_FL3L4(location)  \
-	(HW_ATL_RX_CTRL_ADDR_BEGIN_FL3L4 + ((location) * 0x4))
-#define HW_ATL_RX_GET_ADDR_SRCA_FL3L4(location)  \
-	(HW_ATL_RX_SRCA_ADDR_BEGIN_FL3L4 + ((location) * 0x4))
-#define HW_ATL_RX_GET_ADDR_DESTA_FL3L4(location) \
-	(HW_ATL_RX_DESTA_ADDR_BEGIN_FL3L4 + ((location) * 0x4))
+#define HW_ATL_RPF_L3_REG_CTRL_ADR(location) (0x00005380 + (location) * 0x4)
+
+/* RX rpf_l3_sa{D}[1F:0] Bitfield Definitions
+ * Preprocessor definitions for the bitfield "l3_sa{D}[1F:0]".
+ * Parameter: location {D} | stride size 0x4 | range [0, 7]
+ * PORT="pif_rpf_l3_sa0_i[31:0]"
+ */
+
+/* Register address for bitfield pif_rpf_l3_sa0_i[31:0] */
+#define HW_ATL_RPF_L3_SRCA_ADR(location) (0x000053B0 + (location) * 0x4)
+/* Bitmask for bitfield l3_sa0[1F:0] */
+#define HW_ATL_RPF_L3_SRCA_MSK 0xFFFFFFFFu
+/* Inverted bitmask for bitfield l3_sa0[1F:0] */
+#define HW_ATL_RPF_L3_SRCA_MSKN 0xFFFFFFFFu
+/* Lower bit position of bitfield l3_sa0[1F:0] */
+#define HW_ATL_RPF_L3_SRCA_SHIFT 0
+/* Width of bitfield l3_sa0[1F:0] */
+#define HW_ATL_RPF_L3_SRCA_WIDTH 32
+/* Default value of bitfield l3_sa0[1F:0] */
+#define HW_ATL_RPF_L3_SRCA_DEFAULT 0x0
+
+/* RX rpf_l3_da{D}[1F:0] Bitfield Definitions
+ * Preprocessor definitions for the bitfield "l3_da{D}[1F:0]".
+ * Parameter: location {D} | stride size 0x4 | range [0, 7]
+ * PORT="pif_rpf_l3_da0_i[31:0]"
+ */
+
+ /* Register address for bitfield pif_rpf_l3_da0_i[31:0] */
+#define HW_ATL_RPF_L3_DSTA_ADR(location) (0x000053B0 + (location) * 0x4)
+/* Bitmask for bitfield l3_da0[1F:0] */
+#define HW_ATL_RPF_L3_DSTA_MSK 0xFFFFFFFFu
+/* Inverted bitmask for bitfield l3_da0[1F:0] */
+#define HW_ATL_RPF_L3_DSTA_MSKN 0xFFFFFFFFu
+/* Lower bit position of bitfield l3_da0[1F:0] */
+#define HW_ATL_RPF_L3_DSTA_SHIFT 0
+/* Width of bitfield l3_da0[1F:0] */
+#define HW_ATL_RPF_L3_DSTA_WIDTH 32
+/* Default value of bitfield l3_da0[1F:0] */
+#define HW_ATL_RPF_L3_DSTA_DEFAULT 0x0
 
 /*
  * Preprocessor definitions for Global MDIO Interfaces
- * Address: 0x00000276 + 0x4 * Number of interface
+ * Address: 0x00000280 + 0x4 * Number of interface
  */
-#define HW_ATL_GLB_MDIO_IFACE_ADDR_BEGIN   0x00000276u
+#define HW_ATL_GLB_MDIO_IFACE_ADDR_BEGIN   0x00000280u
 
 #define HW_ATL_GLB_MDIO_IFACE_N_ADR(number) \
-	(HW_ATL_GLB_MDIO_IFACE_ADDR_BEGIN + ((number) * 0x4))
+	(HW_ATL_GLB_MDIO_IFACE_ADDR_BEGIN + ((number - 1) * 0x4))
 
 /*
  * MIF MDIO Busy Bitfield Definitions
@@ -2949,5 +3005,9 @@
 #define HW_ATL_MDIO_ADDRESS_WIDTH 16
 /* Default value of bitfield MDIO Address [F:0] */
 #define HW_ATL_MDIO_ADDRESS_DEFAULT 0x0
+
+#define HW_ATL_FW_SM_MDIO       0x0U
+#define HW_ATL_FW_SM_MSM        0x1U
+#define HW_ATL_FW_SM_RAM        0x2U
 
 #endif /* HW_ATL_LLH_INTERNAL_H */

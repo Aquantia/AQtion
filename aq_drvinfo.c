@@ -30,14 +30,14 @@ static ssize_t temperature_show(struct device *ndev,
 
 	int temp = 0;
 
-	if (!aq_nic->aq_fw_ops->get_temp)
+	if (!aq_nic->aq_fw_ops->get_phy_temp)
 		return -ENXIO;
 	mutex_lock(&aq_nic->fwreq_mutex);
-	err = aq_nic->aq_fw_ops->get_temp(aq_nic->aq_hw, &temp);
+	err = aq_nic->aq_fw_ops->get_phy_temp(aq_nic->aq_hw, &temp);
 	mutex_unlock(&aq_nic->fwreq_mutex);
 
 	if (err == 0)
-		return sprintf(buf, "%d\n", temp * 10);
+		return sprintf(buf, "%d\n", temp);
 	return -ENXIO;
 }
 

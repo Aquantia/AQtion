@@ -45,7 +45,7 @@
 
 /* RSS */
 #define AQ_CFG_RSS_INDIRECTION_TABLE_MAX  64U
-#define AQ_CFG_RSS_HASHKEY_SIZE           320U
+#define AQ_CFG_RSS_HASHKEY_SIZE           40U
 
 #define AQ_CFG_IS_RSS_DEF           1U
 #define AQ_CFG_NUM_RSS_QUEUES_DEF   AQ_CFG_VECS_DEF

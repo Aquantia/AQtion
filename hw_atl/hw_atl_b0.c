@@ -56,38 +56,42 @@
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc100 = {
 	DEFAULT_B0_BOARD_BASIC_CAPABILITIES,
 	.media_type = AQ_HW_MEDIA_TYPE_FIBRE,
-	.link_speed_msk = AQ_NIC_RATE_10G|
-			  AQ_NIC_RATE_5G|
-			  AQ_NIC_RATE_2GS|
-			  AQ_NIC_RATE_1G|
+	.link_speed_msk = AQ_NIC_RATE_10G |
+			  AQ_NIC_RATE_5G |
+			  AQ_NIC_RATE_2GS |
+			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.fw_image_name = AQ_FW_AQC100X,
 };
 
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc107 = {
 	DEFAULT_B0_BOARD_BASIC_CAPABILITIES,
 	.media_type = AQ_HW_MEDIA_TYPE_TP,
-	.link_speed_msk = AQ_NIC_RATE_10G|
-			  AQ_NIC_RATE_5G|
-			  AQ_NIC_RATE_2GS|
-			  AQ_NIC_RATE_1G|
+	.link_speed_msk = AQ_NIC_RATE_10G |
+			  AQ_NIC_RATE_5G |
+			  AQ_NIC_RATE_2GS |
+			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.fw_image_name = AQ_FW_AQC10XX,
 };
 
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc108 = {
 	DEFAULT_B0_BOARD_BASIC_CAPABILITIES,
 	.media_type = AQ_HW_MEDIA_TYPE_TP,
-	.link_speed_msk = AQ_NIC_RATE_5G|
-			  AQ_NIC_RATE_2GS|
-			  AQ_NIC_RATE_1G|
+	.link_speed_msk = AQ_NIC_RATE_5G |
+			  AQ_NIC_RATE_2GS |
+			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.fw_image_name = AQ_FW_AQC10XX,
 };
 
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc109 = {
 	DEFAULT_B0_BOARD_BASIC_CAPABILITIES,
 	.media_type = AQ_HW_MEDIA_TYPE_TP,
 	.link_speed_msk = AQ_NIC_RATE_2GS |
-			  AQ_NIC_RATE_1G  |
+			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.fw_image_name = AQ_FW_AQC10XX,
 };
 
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc111 = {
@@ -98,6 +102,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc111 = {
 			  AQ_NIC_RATE_1G|
 			  AQ_NIC_RATE_100M,
 	.quirks = AQ_NIC_QUIRK_BAD_PTP,
+	.fw_image_name = AQ_FW_AQC11XX,
 };
 
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc112 = {
@@ -107,6 +112,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc112 = {
 			  AQ_NIC_RATE_1G  |
 			  AQ_NIC_RATE_100M,
 	.quirks = AQ_NIC_QUIRK_BAD_PTP,
+	.fw_image_name = AQ_FW_AQC11XX,
 };
 
 static s64 ptp_clk_offset;
@@ -212,9 +218,10 @@ static int hw_atl_b0_hw_rss_hash_set(struct aq_hw_s *self,
 				     struct aq_rss_parameters *rss_params)
 {
 	struct aq_nic_cfg_s *cfg = self->aq_nic_cfg;
-	int err = 0;
-	unsigned int i = 0U;
 	unsigned int addr = 0U;
+	unsigned int i = 0U;
+	int err = 0;
+	u32 val;
 
 	for (i = 10, addr = 0U; i--; ++addr) {
 		u32 key_data = cfg->is_rss ?
@@ -222,8 +229,9 @@ static int hw_atl_b0_hw_rss_hash_set(struct aq_hw_s *self,
 		hw_atl_rpf_rss_key_wr_data_set(self, key_data);
 		hw_atl_rpf_rss_key_addr_set(self, addr);
 		hw_atl_rpf_rss_key_wr_en_set(self, 1U);
-		AQ_HW_WAIT_FOR(hw_atl_rpf_rss_key_wr_en_get(self) == 0,
-			       1000U, 10U);
+		err = readx_poll_timeout_atomic(hw_atl_rpf_rss_key_wr_en_get,
+						self, val, val == 0,
+						1000U, 10000U);
 		if (err < 0)
 			goto err_exit;
 	}
@@ -237,12 +245,13 @@ err_exit:
 static int hw_atl_b0_hw_rss_set(struct aq_hw_s *self,
 				struct aq_rss_parameters *rss_params)
 {
-	u8 *indirection_table =	rss_params->indirection_table;
-	u32 i = 0U;
 	u32 num_rss_queues = max(1U, self->aq_nic_cfg->num_rss_queues);
+	u16 bitary[1 + (HW_ATL_B0_RSS_REDIRECTION_MAX *
+			HW_ATL_B0_RSS_REDIRECTION_BITS / 16U)];
+	u8 *indirection_table =	rss_params->indirection_table;
 	int err = 0;
-	u16 bitary[(HW_ATL_B0_RSS_REDIRECTION_MAX *
-					HW_ATL_B0_RSS_REDIRECTION_BITS / 16U)];
+	u32 i = 0U;
+	u32 val;
 
 	memset(bitary, 0, sizeof(bitary));
 
@@ -256,8 +265,9 @@ static int hw_atl_b0_hw_rss_set(struct aq_hw_s *self,
 		hw_atl_rpf_rss_redir_tbl_wr_data_set(self, bitary[i]);
 		hw_atl_rpf_rss_redir_tbl_addr_set(self, i);
 		hw_atl_rpf_rss_redir_wr_en_set(self, 1U);
-		AQ_HW_WAIT_FOR(hw_atl_rpf_rss_redir_wr_en_get(self) == 0,
-			       1000U, 10U);
+		err = readx_poll_timeout_atomic(hw_atl_rpf_rss_redir_wr_en_get,
+						self, val, val == 0,
+						1000U, 10000U);
 		if (err < 0)
 			goto err_exit;
 	}
@@ -311,7 +321,7 @@ static int hw_atl_b0_hw_offload_set(struct aq_hw_s *self,
 
 		hw_atl_rpo_lro_total_desc_lim_set(self, 2U);
 
-		hw_atl_rpo_lro_patch_optimization_en_set(self, 0U);
+		hw_atl_rpo_lro_patch_optimization_en_set(self, 1U);
 
 		hw_atl_rpo_lro_min_pay_of_first_pkt_set(self, 10U);
 
@@ -329,7 +339,7 @@ static int hw_atl_b0_hw_offload_set(struct aq_hw_s *self,
 
 static int hw_atl_b0_hw_init_tx_path(struct aq_hw_s *self)
 {
-	/* Tx TC/RSS number config */
+	/* Tx TC/Queue number config */
 	hw_atl_rpb_tps_tx_tc_mode_set(self, 1U);
 
 	hw_atl_thm_lso_tcp_flag_of_first_pkt_set(self, 0x0FF6U);
@@ -917,15 +927,21 @@ static int hw_atl_b0_hw_packet_filter_set(struct aq_hw_s *self,
 
 	hw_atl_rpfl2promiscuous_mode_en_set(self,
 					    IS_FILTER_ENABLED(IFF_PROMISC));
+
+	hw_atl_rpf_vlan_prom_mode_en_set(self,
+				     IS_FILTER_ENABLED(IFF_PROMISC) ||
+				     cfg->is_vlan_force_promisc);
+
 	hw_atl_rpfl2multicast_flr_en_set(self,
-					 IS_FILTER_ENABLED(IFF_ALLMULTI), 0);
+					 IS_FILTER_ENABLED(IFF_ALLMULTI) &&
+					 IS_FILTER_ENABLED(IFF_MULTICAST), 0);
 
 	hw_atl_rpfl2_accept_all_mc_packets_set(self,
-					       IS_FILTER_ENABLED(IFF_ALLMULTI));
+					      IS_FILTER_ENABLED(IFF_ALLMULTI) &&
+					      IS_FILTER_ENABLED(IFF_MULTICAST));
 
 	hw_atl_rpfl2broadcast_en_set(self, IS_FILTER_ENABLED(IFF_BROADCAST));
 
-	cfg->is_mc_list_enabled = IS_FILTER_ENABLED(IFF_MULTICAST);
 
 	for (i = HW_ATL_B0_MAC_MIN; i < HW_ATL_B0_MAC_MAX; ++i)
 		hw_atl_rpfl2_uc_flr_en_set(self,
@@ -1069,14 +1085,25 @@ static int hw_atl_b0_hw_interrupt_moderation_set(struct aq_hw_s *self)
 
 static int hw_atl_b0_hw_stop(struct aq_hw_s *self)
 {
+	int err;
+
 	hw_atl_b0_hw_irq_disable(self, HW_ATL_B0_INT_MASK);
 
 	/* Invalidate Descriptor Cache to prevent writing to the cached
 	 * descriptors and to the data pointer of those descriptors
 	 */
-	hw_atl_rdm_rx_dma_desc_cache_init_set(self, 1);
+	hw_atl_rdm_rx_dma_desc_cache_init_tgl(self);
 
-	return aq_hw_err_from_flags(self);
+	err = aq_hw_err_from_flags(self);
+
+	if (err)
+		goto err_exit;
+
+	readx_poll_timeout_atomic(hw_atl_rdm_rx_dma_desc_cache_init_done_get,
+				  self, err, err == 1, 1000U, 10000U);
+
+err_exit:
+	return err;
 }
 
 static int hw_atl_b0_hw_ring_tx_stop(struct aq_hw_s *self,
@@ -1378,17 +1405,6 @@ static int hw_atl_b0_hw_fl3l4_set(struct aq_hw_s *self,
 	return aq_hw_err_from_flags(self);
 }
 
-static int hw_atl_b0_hw_fl3l4_ctrl(struct aq_hw_s *self, u32 location,
-				   bool enable)
-{
-	if (enable)
-		hw_atl_rpf_l3_l4_enf_set(self, 1U, location);
-	else
-		hw_atl_rpf_l3_l4_enf_set(self, 0U, location);
-
-	return aq_hw_err_from_flags(self);
-}
-
 static int hw_atl_b0_hw_fl2_set(struct aq_hw_s *self,
 				struct aq_rx_filter_l2 *data)
 {
@@ -1417,7 +1433,6 @@ static int hw_atl_b0_hw_fl2_set(struct aq_hw_s *self,
 static int hw_atl_b0_hw_fl2_clear(struct aq_hw_s *self,
 				  struct aq_rx_filter_l2 *data)
 {
-
 	hw_atl_rpf_etht_flr_en_set(self, 0U, data->location);
 	hw_atl_rpf_etht_flr_set(self, 0U, data->location);
 	hw_atl_rpf_etht_user_priority_en_set(self, 0U, data->location);
@@ -1436,13 +1451,11 @@ static int hw_atl_b0_hw_fl2_clear(struct aq_hw_s *self,
  * @return 0 - OK, <0 - error
  */
 static int hw_atl_b0_hw_vlan_set(struct aq_hw_s *self,
-				  struct aq_rx_filter_vlan *aq_vlans)
+				 struct aq_rx_filter_vlan *aq_vlans)
 {
 	int i;
 
-	hw_atl_rpf_vlan_prom_mode_en_set(self, 1U);
-
-	for (i = 0; i < HW_ATL_VLAN_MAX_FILTERS; i++) {
+	for (i = 0; i < AQ_VLAN_MAX_FILTERS; i++) {
 		hw_atl_rpf_vlan_flr_en_set(self, 0U, i);
 		hw_atl_rpf_vlan_rxq_en_flr_set(self, 0U, i);
 		if (aq_vlans[i].enable) {
@@ -1466,7 +1479,7 @@ static int hw_atl_b0_hw_vlan_set(struct aq_hw_s *self,
 static int hw_atl_b0_hw_vlan_ctrl(struct aq_hw_s *self, bool enable)
 {
 	/* set promisc in case of disabing the vland filter */
-	hw_atl_rpf_vlan_prom_mode_en_set(self, !!!enable);
+	hw_atl_rpf_vlan_prom_mode_en_set(self, !enable);
 
 	return aq_hw_err_from_flags(self);
 }
@@ -1520,8 +1533,6 @@ const struct aq_hw_ops hw_atl_ops_b0 = {
 	.hw_filter_l2_set            = hw_atl_b0_hw_fl2_set,
 	.hw_filter_l2_clear          = hw_atl_b0_hw_fl2_clear,
 	.hw_filter_l3l4_set          = hw_atl_b0_hw_fl3l4_set,
-	.hw_filter_l3l4_clear        = hw_atl_b0_hw_fl3l4_clear,
-	.hw_filter_l3l4_ctrl         = hw_atl_b0_hw_fl3l4_ctrl,
 	.hw_filter_vlan_set          = hw_atl_b0_hw_vlan_set,
 	.hw_filter_vlan_ctrl         = hw_atl_b0_hw_vlan_ctrl,
 	.hw_multicast_list_set       = hw_atl_b0_hw_multicast_list_set,
@@ -1551,4 +1562,5 @@ const struct aq_hw_ops hw_atl_ops_b0 = {
 	.hw_set_offload          = hw_atl_b0_hw_offload_set,
 	.hw_set_loopback             = hw_atl_b0_set_loopback,
 	.hw_set_fc                   = hw_atl_b0_set_fc,
+	.hw_get_chip_info            = hw_atl_utils_get_chip_info,
 };

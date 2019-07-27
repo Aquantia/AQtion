@@ -40,29 +40,17 @@ u32 hw_atl_glb_soft_res_get(struct aq_hw_s *aq_hw);
 
 u32 hw_atl_rpb_rx_dma_drop_pkt_cnt_get(struct aq_hw_s *aq_hw);
 
-/* get rx dma good octet counter lsw */
-u32 hw_atl_stats_rx_dma_good_octet_counterlsw_get(struct aq_hw_s *aq_hw);
+/* get rx dma good octet counter */
+u64 hw_atl_stats_rx_dma_good_octet_counter_get(struct aq_hw_s *aq_hw);
 
-/* get rx dma good packet counter lsw */
-u32 hw_atl_stats_rx_dma_good_pkt_counterlsw_get(struct aq_hw_s *aq_hw);
+/* get rx dma good packet counter */
+u64 hw_atl_stats_rx_dma_good_pkt_counter_get(struct aq_hw_s *aq_hw);
 
-/* get tx dma good octet counter lsw */
-u32 hw_atl_stats_tx_dma_good_octet_counterlsw_get(struct aq_hw_s *aq_hw);
+/* get tx dma good octet counter */
+u64 hw_atl_stats_tx_dma_good_octet_counter_get(struct aq_hw_s *aq_hw);
 
-/* get tx dma good packet counter lsw */
-u32 hw_atl_stats_tx_dma_good_pkt_counterlsw_get(struct aq_hw_s *aq_hw);
-
-/* get rx dma good octet counter msw */
-u32 hw_atl_stats_rx_dma_good_octet_countermsw_get(struct aq_hw_s *aq_hw);
-
-/* get rx dma good packet counter msw */
-u32 hw_atl_stats_rx_dma_good_pkt_countermsw_get(struct aq_hw_s *aq_hw);
-
-/* get tx dma good octet counter msw */
-u32 hw_atl_stats_tx_dma_good_octet_countermsw_get(struct aq_hw_s *aq_hw);
-
-/* get tx dma good packet counter msw */
-u32 hw_atl_stats_tx_dma_good_pkt_countermsw_get(struct aq_hw_s *aq_hw);
+/* get tx dma good packet counter */
+u64 hw_atl_stats_tx_dma_good_pkt_counter_get(struct aq_hw_s *aq_hw);
 
 /* get msm rx errors counter register */
 u32 hw_atl_reg_mac_msm_rx_errs_cnt_get(struct aq_hw_s *aq_hw);
@@ -81,9 +69,6 @@ u32 hw_atl_reg_mac_msm_rx_bcst_octets_counter1get(struct aq_hw_s *aq_hw);
 
 /* get msm rx unicast octets counter register 0 */
 u32 hw_atl_reg_mac_msm_rx_ucst_octets_counter0get(struct aq_hw_s *aq_hw);
-
-/* get rx dma statistics counter 7 */
-u32 hw_atl_reg_rx_dma_stat_counter7get(struct aq_hw_s *aq_hw);
 
 /* get msm tx errors counter register */
 u32 hw_atl_reg_mac_msm_tx_errs_cnt_get(struct aq_hw_s *aq_hw);
@@ -296,10 +281,24 @@ void hw_atl_reg_tx_intr_moder_ctrl_set(struct aq_hw_s *aq_hw,
 				       u32 tx_intr_moderation_ctl,
 				       u32 queue);
 
+/* get global microprocessor scratch pad */
+u32 hw_atl_reg_glb_cpu_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_pad);
+
 /* set global microprocessor scratch pad */
-void hw_atl_reg_glb_cpu_scratch_scp_set(struct aq_hw_s *aq_hw,
-					u32 glb_cpu_scratch_scp,
-					u32 scratch_scp);
+void hw_atl_reg_glb_cpu_scrpad_set(struct aq_hw_s *aq_hw,
+				   u32 glb_cpu_scratch_pad,
+				   u32 scratch_pad);
+
+/* get global microprocessor scratch pad no reset*/
+u32 hw_atl_reg_glb_cpu_scrpad_nr_get(struct aq_hw_s *aq_hw, u32 scratch_pad);
+
+/* set global microprocessor scratch pad no reset*/
+void hw_atl_reg_glb_cpu_scrpad_nr_set(struct aq_hw_s *aq_hw,
+				      u32 glb_cpu_scratch_pad,
+				      u32 scratch_pad);
+
+/* set global microprocessor control 2 register*/
+void hw_atl_reg_glb_cpu_ctrl2_set(struct aq_hw_s *aq_hw, u32 glb_cpu_ctrl);
 
 /* rpb */
 
@@ -338,8 +337,11 @@ void hw_atl_rpb_rx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
 					    u32 rx_pkt_buff_size_per_tc,
 					    u32 buffer);
 
-/* set rdm rx dma descriptor cache init */
-void hw_atl_rdm_rx_dma_desc_cache_init_set(struct aq_hw_s *aq_hw, u32 init);
+/* toggle rdm rx dma descriptor cache init */
+void hw_atl_rdm_rx_dma_desc_cache_init_tgl(struct aq_hw_s *aq_hw);
+
+/* get rdm rx dma descriptor cache init done */
+u32 hw_atl_rdm_rx_dma_desc_cache_init_done_get(struct aq_hw_s *aq_hw);
 
 /* set rx xoff enable (per tc) */
 void hw_atl_rpb_rx_xoff_en_per_tc_set(struct aq_hw_s *aq_hw,
@@ -457,11 +459,11 @@ void hw_atl_rpf_vlan_id_flr_set(struct aq_hw_s *aq_hw, u32 vlan_id_flr,
 
 /* Set VLAN RX queue assignment enable */
 void hw_atl_rpf_vlan_rxq_en_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq_en,
-				u32 filter);
+				    u32 filter);
 
 /* Set VLAN RX queue */
 void hw_atl_rpf_vlan_rxq_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq,
-				u32 filter);
+				 u32 filter);
 
 /* set ethertype filter enable */
 void hw_atl_rpf_etht_flr_en_set(struct aq_hw_s *aq_hw, u32 etht_flr_en,
@@ -866,5 +868,23 @@ void hw_atl_glb_mdio_iface5_set(struct aq_hw_s *hw, u32 value);
 u32 hw_atl_glb_mdio_iface5_get(struct aq_hw_s *hw);
 
 u32 hw_atl_mdio_busy_get(struct aq_hw_s *aq_hw);
+
+/* get global microprocessor ram semaphore */
+u32 hw_atl_sem_ram_get(struct aq_hw_s *self);
+
+/* get global microprocessor mdio semaphore */
+u32 hw_atl_sem_mdio_get(struct aq_hw_s *self);
+
+/* get global microprocessor msm semaphore */
+u32 hw_atl_sem_msm_get(struct aq_hw_s *self);
+
+/* get global microprocessor scratch pad register */
+u32 hw_atl_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_scp);
+
+/* get global microprocessor scratch pad 12 register */
+u32 hw_atl_scrpad12_get(struct aq_hw_s *self);
+
+/* get global microprocessor scratch pad 25 register */
+u32 hw_atl_scrpad25_get(struct aq_hw_s *self);
 
 #endif /* HW_ATL_LLH_H */

@@ -120,6 +120,14 @@ static const char aq_ethtool_queue_stat_names[][ETH_GSTRING_LEN] = {
 	"Queue[%d] InJumboPackets",
 	"Queue[%d] InLroPackets",
 	"Queue[%d] InErrors",
+	"Queue[%d] AllocFails",
+	"Queue[%d] SkbAllocFails",
+	"Queue[%d] Polls",
+	"Queue[%d] Irqs",
+	"Queue[%d] RX Head",
+	"Queue[%d] RX Tail",
+	"Queue[%d] TX Head",
+	"Queue[%d] TX Tail",
 };
 
 /** This sequence should follow AQ_HW_LOOPBACK_* defines
@@ -130,6 +138,7 @@ static const char aq_ethtool_priv_flag_names[][ETH_GSTRING_LEN] = {
 	"DMANetworkLoopback",
 	"PHYInternalLoopback",
 	"PHYExternalLoopback",
+	"Downshift",
 };
 
 static void aq_ethtool_stats(struct net_device *ndev,
@@ -288,17 +297,20 @@ static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key)
 
 #if defined(ETH_RSS_HASH_TOP)
 static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
-			  const u8 *key, const u8 hfunc)
+			      const u8 *key, const u8 hfunc)
 #else
 static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
-			  const u8 *key)
+			      const u8 *key)
 #endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(netdev);
-	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
+	struct aq_nic_cfg_s *cfg;
 	unsigned int i = 0U;
+	u32 rss_entries;
 	int err = 0;
-	u32 rss_entries = cfg->aq_rss.indirection_table_size;
+
+	cfg = aq_nic_get_cfg(aq_nic);
+	rss_entries = cfg->aq_rss.indirection_table_size;
 
 #if defined(ETH_RSS_HASH_TOP)
 	/* We do not allow change in unsupported parameters */
@@ -307,25 +319,21 @@ static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
 #endif
 
 	/* Fill out the redirection table */
-	if (indir) {
-		/* Verify user input. */
-		for (i = 0; i < rss_entries; i++)
-			if (indir[i] >= cfg->num_rss_queues)
-				return -EINVAL;
-
+	if (indir)
 		for (i = 0; i < rss_entries; i++)
 			cfg->aq_rss.indirection_table[i] = indir[i];
-	}
 
 	/* Fill out the rss hash key */
 	if (key) {
 		memcpy(cfg->aq_rss.hash_secret_key, key,
-			sizeof(cfg->aq_rss.hash_secret_key));
+		       sizeof(cfg->aq_rss.hash_secret_key));
 		err = aq_nic->aq_hw_ops->hw_rss_hash_set(aq_nic->aq_hw,
 			&cfg->aq_rss);
+		if (err)
+			return err;
 	}
 
-	aq_nic->aq_hw_ops->hw_rss_set(aq_nic->aq_hw, &cfg->aq_rss);
+	err = aq_nic->aq_hw_ops->hw_rss_set(aq_nic->aq_hw, &cfg->aq_rss);
 
 	return err;
 }
@@ -469,9 +477,9 @@ static void aq_ethtool_get_wol(struct net_device *ndev,
 static int aq_ethtool_set_wol(struct net_device *ndev,
 			      struct ethtool_wolinfo *wol)
 {
+	struct pci_dev *pdev = to_pci_dev(ndev->dev.parent);
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
-	struct pci_dev *pdev = to_pci_dev(ndev->dev.parent);
 	int err = 0;
 
 	if (wol->wolopts & WAKE_MAGIC)
@@ -592,11 +600,12 @@ static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 		rate = 0;
 		cfg->eee_speeds = 0;
 	}
+
 	mutex_lock(&aq_nic->fwreq_mutex);
 	err = aq_nic->aq_fw_ops->set_eee_rate(aq_nic->aq_hw, rate);
 	mutex_unlock(&aq_nic->fwreq_mutex);
 
-	return  err;
+	return err;
 }
 
 static int aq_ethtool_nway_reset(struct net_device *ndev)
@@ -734,18 +743,104 @@ static void aq_set_msg_level(struct net_device *ndev, u32 data)
 u32 aq_ethtool_get_priv_flags(struct net_device *ndev)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
-	u32 priv_flags = 0;
 
-	priv_flags |= aq_nic_getloopback(aq_nic) & AQ_HW_LOOPBACK_MASK;
-
-	return priv_flags;
+	return aq_nic->aq_nic_cfg.priv_flags;
 }
 
 int aq_ethtool_set_priv_flags(struct net_device *ndev, u32 flags)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	struct aq_nic_cfg_s *cfg = &aq_nic->aq_nic_cfg;
+	u32 priv_flags = cfg->priv_flags;
 
-	return aq_nic_setloopback(aq_nic, flags & AQ_HW_LOOPBACK_MASK);
+	if (flags & ~AQ_PRIV_FLAGS_MASK)
+		return -EOPNOTSUPP;
+
+	cfg->priv_flags = flags;
+
+	if ((priv_flags ^ flags) & AQ_HW_DOWNSHIFT_MASK)
+		aq_nic_set_downshift(aq_nic);
+
+	if ((priv_flags ^ flags) & AQ_HW_LOOPBACK_MASK)
+		aq_nic_set_loopback(aq_nic);
+
+	return 0;
+}
+
+int aq_ethtool_get_dump_flag(struct net_device *ndev, struct ethtool_dump *dump)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	struct aq_dump_flag_s *flag;
+	int ret = 0;
+
+	dump->version = 1;
+	dump->flag = aq_nic->dump_flag;
+	flag  = (struct aq_dump_flag_s *)&aq_nic->dump_flag;
+
+	switch (flag->dump_type) {
+	case AQ_DUMP_TYPE_DESCRIPTOR:
+		dump->len = aq_nic->aq_nic_cfg.aq_hw_caps->rxd_size *
+			    aq_nic->aq_nic_cfg.rxds;
+		break;
+	default:
+		netdev_info(ndev, "Invalid dump flag: 0x%x\n", dump->flag);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+int aq_ethtool_get_dump_data(struct net_device *ndev, struct ethtool_dump *dump,
+			 void *data)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	struct aq_dump_flag_s *flag;
+	int ret = 0;
+	int len;
+
+	flag  = (struct aq_dump_flag_s *)&aq_nic->dump_flag;
+
+	switch (flag->dump_type) {
+	case AQ_DUMP_TYPE_DESCRIPTOR:
+		netdev_info(ndev, "Dumping ring[%d]\n", flag->ring_type.ring);
+		len = aq_nic->aq_nic_cfg.aq_hw_caps->rxd_size *
+			aq_nic->aq_nic_cfg.rxds;
+		ret = aq_vec_dump_rx_ring_descr(
+			aq_nic->aq_vec[flag->ring_type.ring], data, len);
+		break;
+	default:
+		netdev_info(ndev, "Invalid dump flag: 0x%x\n", dump->flag);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+int aq_ethtool_set_dump(struct net_device *ndev, struct ethtool_dump *dump)
+{
+	struct aq_dump_flag_s *flag  = (struct aq_dump_flag_s *)&dump->flag;
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+	int ret = 0;
+
+	BUILD_BUG_ON(sizeof(struct aq_dump_flag_s) != sizeof(u32));
+
+	switch (flag->dump_type) {
+	case AQ_DUMP_TYPE_DESCRIPTOR:
+		if (flag->ring_type.ring > aq_nic->aq_nic_cfg.vecs) {
+			netdev_info(ndev, "Invalid ring number %d\n",
+				    flag->ring_type.ring);
+			ret = -EINVAL;
+		}
+		break;
+	default:
+		netdev_info(ndev, "Invalid dump flag: 0x%x\n", dump->flag);
+		ret = -EINVAL;
+	}
+
+	if (!ret)
+		aq_nic->dump_flag = dump->flag;
+
+	return ret;
 }
 
 const struct ethtool_ops aq_ethtool_ops = {
@@ -794,4 +889,7 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.get_coalesce        = aq_ethtool_get_coalesce,
 	.set_coalesce        = aq_ethtool_set_coalesce,
 	.get_ts_info         = aq_ethtool_get_ts_info,
+	.get_dump_flag       = aq_ethtool_get_dump_flag,
+	.get_dump_data       = aq_ethtool_get_dump_data,
+	.set_dump            = aq_ethtool_set_dump,
 };

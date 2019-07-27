@@ -86,28 +86,19 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 }
 #endif /* 3.14.0 */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !(RHEL_RELEASE_CODE)
 
 /* introduced in commit 56193d1bce2b2759cb4bdcc00cd05544894a0c90
  * pull the whole head buffer len for now
  */
-#define eth_get_headlen(__data, __max_len) (__max_len)
+#define eth_get_headlen(ndev, __data, __max_len) (__max_len)
+#else	/* 3.18.0 */
 
-/* ->xmit_more introduced in commit
- * 0b725a2ca61bedc33a2a63d0451d528b268cf975 for 3.18-rc1
- */
-static inline int skb_xmit_more(struct sk_buff *skb)
-{
-	return 0;
-}
-
-#else /* 3.18.0 */
-static inline int skb_xmit_more(struct sk_buff *skb)
-{
-	return skb->xmit_more;
-}
-
-#endif	/* 3.18.0 */
+#define eth_get_headlen(ndev, data, len) \
+	eth_get_headlen(data, len)
+#endif /* 3.18.0 */
+#endif /* 5.2.0 */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 #define IFF_UNICAST_FLT        0
@@ -149,6 +140,27 @@ static inline int skb_xmit_more(struct sk_buff *skb)
 		(tc)->nsec += delta; } while(0)
 #define skb_vlan_tag_present(__skb) ((__skb)->vlan_tci & VLAN_TAG_PRESENT)
 #define skb_vlan_tag_get(__skb) ((__skb)->vlan_tci & ~VLAN_TAG_PRESENT)
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+#include <linux/iopoll.h>
+#else
+#define readx_poll_timeout_atomic(op, addr, val, cond, delay_us, timeout_us) \
+({ \
+	ktime_t timeout = ktime_add_us(ktime_get(), timeout_us); \
+	for (;;) { \
+		(val) = op(addr); \
+		if (cond) \
+			break; \
+		if (timeout_us && ktime_compare(ktime_get(), timeout) > 0) { \
+			(val) = op(addr); \
+			break; \
+		} \
+		if (delay_us) \
+			udelay(delay_us);	\
+	} \
+	(cond) ? 0 : -ETIMEDOUT; \
+})
 #endif
 
 #endif /* AQ_COMMON_H */

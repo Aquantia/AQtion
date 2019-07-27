@@ -44,7 +44,9 @@ enum aq_rx_hw_action_with_traffic {
 #define AQ_RX_FIRST_LOC_FL3L4	   32U
 #define AQ_RX_LAST_LOC_FL3L4	   39U
 #define AQ_RX_MAX_RXNFC_LOC	   AQ_RX_LAST_LOC_FL3L4
-#define AQ_RX_QUEUE_INVALID	   0xFFU
+#define AQ_VLAN_MAX_FILTERS   \
+			(AQ_RX_LAST_LOC_FVLANID - AQ_RX_FIRST_LOC_FVLANID + 1U)
+#define AQ_RX_QUEUE_NOT_ASSIGNED   0xFFU
 
 /* NIC H/W capabilities */
 struct aq_hw_caps_s {
@@ -73,6 +75,7 @@ struct aq_hw_caps_s {
 	bool flow_control;
 	bool is_64_dma;
 	u32 quirks;
+	const char *fw_image_name;
 };
 
 struct aq_hw_link_status_s {
@@ -147,13 +150,16 @@ enum {
 	AQ_HW_LOOPBACK_DMA_NET,
 	AQ_HW_LOOPBACK_PHYINT_SYS,
 	AQ_HW_LOOPBACK_PHYEXT_SYS,
+	AQ_HW_LOOPBACK_MAX,
 };
 
+#define AQ_HW_DOWNSHIFT AQ_HW_LOOPBACK_MAX
 #define AQ_HW_LOOPBACK_MASK	(BIT(AQ_HW_LOOPBACK_DMA_SYS) |\
 				 BIT(AQ_HW_LOOPBACK_PKT_SYS) |\
 				 BIT(AQ_HW_LOOPBACK_DMA_NET) |\
 				 BIT(AQ_HW_LOOPBACK_PHYINT_SYS) |\
 				 BIT(AQ_HW_LOOPBACK_PHYEXT_SYS))
+#define AQ_HW_DOWNSHIFT_MASK    (BIT(AQ_HW_DOWNSHIFT))
 
 struct aq_hw_s {
 	atomic_t flags;
@@ -163,7 +169,7 @@ struct aq_hw_s {
 	const struct aq_fw_ops *aq_fw_ops;
 	void __iomem *mmio;
 	struct aq_hw_link_status_s aq_link_status;
-	struct hw_aq_atl_utils_mbox mbox;
+	struct hw_atl_utils_mbox mbox;
 	struct hw_atl_stats_s last_stats;
 	struct aq_stats_s curr_stats;
 	u64 speed;
@@ -175,8 +181,9 @@ struct aq_hw_s {
 	u32 mbox_addr;
 	u32 rpc_addr;
 	u32 rpc_tid;
-	struct hw_aq_atl_utils_fw_rpc rpc;
+	struct hw_atl_utils_fw_rpc rpc;
 	u16 phy_id;
+	u32 ssid;
 };
 
 struct aq_ring_s;
@@ -184,6 +191,11 @@ struct aq_ring_param_s;
 struct sk_buff;
 struct aq_rx_filter_l3l4;
 struct aq_hw_vlans;
+
+struct aq_hw_chip_info {
+	u32 chip_id;
+	u32 chip_rev;
+};
 
 struct aq_hw_ops {
 
@@ -242,12 +254,6 @@ struct aq_hw_ops {
 	int (*hw_filter_l3l4_set)(struct aq_hw_s *self,
 				  struct aq_rx_filter_l3l4 *data);
 
-	int (*hw_filter_l3l4_clear)(struct aq_hw_s *self,
-				    struct aq_rx_filter_l3l4 *data);
-
-	int (*hw_filter_l3l4_ctrl)(struct aq_hw_s *self, u32 location,
-				   bool enable);
-
 	int (*hw_filter_l2_set)(struct aq_hw_s *self,
 				struct aq_rx_filter_l2 *data);
 
@@ -278,7 +284,7 @@ struct aq_hw_ops {
 
 	struct aq_stats_s *(*hw_get_hw_stats)(struct aq_hw_s *self);
 
-	int (*hw_get_fw_version)(struct aq_hw_s *self, u32 *fw_version);
+	u32 (*hw_get_fw_version)(struct aq_hw_s *self);
 	int (*hw_set_offload)(struct aq_hw_s *self,
 					struct aq_nic_cfg_s *aq_nic_cfg);
 
@@ -317,6 +323,8 @@ struct aq_hw_ops {
 	int (*hw_set_loopback)(struct aq_hw_s *self, u32 mode, bool enable);
 
 	int (*hw_set_fc)(struct aq_hw_s *self, u32 fc, u32 tc);
+	void (*hw_get_chip_info)(struct aq_hw_s *self,
+				 struct aq_hw_chip_info *chip_info);
 };
 
 struct aq_fw_ops {
@@ -342,7 +350,7 @@ struct aq_fw_ops {
 	int (*set_power)(struct aq_hw_s *self, unsigned int power_state,
 			u8 *mac);
 
-	int (*get_temp)(struct aq_hw_s *self, int *temp);
+	int (*get_phy_temp)(struct aq_hw_s *self, int *temp);
 
 	int (*get_cable_len)(struct aq_hw_s *self, int *cable_len);
 
@@ -363,6 +371,8 @@ struct aq_fw_ops {
 	int (*led_control)(struct aq_hw_s *self, u32 mode);
 
 	int (*set_phyloopback)(struct aq_hw_s *self, u32 mode, bool enable);
+
+	void (*set_downshift)(struct aq_hw_s *self, bool enable);
 };
 
 #endif /* AQ_HW_H */

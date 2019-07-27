@@ -10,6 +10,7 @@
 /* File aq_pci_func.c: Definition of PCI functions. */
 
 #include <linux/module.h>
+#include <linux/firmware.h>
 
 #include "aq_main.h"
 #include "aq_nic.h"
@@ -79,7 +80,7 @@ static int aq_pci_probe_get_hw_by_id(struct pci_dev *pdev,
 				     const struct aq_hw_ops **ops,
 				     const struct aq_hw_caps_s **caps)
 {
-	int i = 0;
+	int i;
 
 	if (pdev->vendor != PCI_VENDOR_ID_AQUANTIA)
 		return -EINVAL;
@@ -102,7 +103,7 @@ static int aq_pci_probe_get_hw_by_id(struct pci_dev *pdev,
 
 static int aq_pci_func_init(struct pci_dev *pdev)
 {
-	int err = 0;
+	int err;
 
 	err = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
 	if (!err)
@@ -135,7 +136,7 @@ int aq_pci_func_alloc_irq(struct aq_nic_s *self, unsigned int i,
 			  void *irq_arg, cpumask_t *affinity_mask)
 {
 	struct pci_dev *pdev = self->pdev;
-	int err = 0;
+	int err;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 	if (pdev->msix_enabled)
@@ -176,11 +177,10 @@ int aq_pci_func_alloc_irq(struct aq_nic_s *self, unsigned int i,
 void aq_pci_func_free_irqs(struct aq_nic_s *self)
 {
 	struct pci_dev *pdev = self->pdev;
-	unsigned int i = 0U;
+	unsigned int i;
 	void *irq_data;
 
 	for (i = 32U; i--;) {
-
 		if (!((1U << i) & self->msix_entry_mask))
 			continue;
 		if (self->aq_nic_cfg.link_irq_vec &&
@@ -257,15 +257,16 @@ static void aq_pci_free_irq_vectors(struct aq_nic_s *self)
 static int aq_pci_probe(struct pci_dev *pdev,
 			const struct pci_device_id *pci_id)
 {
-	struct aq_nic_s *self = NULL;
-	int err = 0;
+	static unsigned int nic_count;
 	struct net_device *ndev;
 	resource_size_t mmio_pa;
+	struct aq_nic_s *self;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
-	unsigned int i = 0U;
+	unsigned int i;
 #endif
-	u32 bar;
 	u32 numvecs;
+	u32 bar;
+	int err;
 
 	err = pci_enable_device(pdev);
 	if (err)
@@ -387,6 +388,9 @@ static int aq_pci_probe(struct pci_dev *pdev,
 
 	aq_nic_ndev_init(self);
 
+	aq_nic_parse_parameters(self, nic_count);
+	aq_nic_request_firmware(self);
+
 	err = aq_nic_ndev_register(self);
 	if (err < 0)
 		goto err_register;
@@ -401,6 +405,7 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	if (err < 0)
 		goto err_register;
 
+	nic_count++;
 	return 0;
 
 err_register:
@@ -409,6 +414,8 @@ err_register:
 err_hwinit:
 	iounmap(self->aq_hw->mmio);
 err_free_aq_hw:
+	if (aq_nic_get_cfg(self)->fw_image)
+		release_firmware(aq_nic_get_cfg(self)->fw_image);
 	kfree(self->aq_hw);
 err_ioremap:
 	free_netdev(ndev);
@@ -424,6 +431,8 @@ static void aq_pci_remove(struct pci_dev *pdev)
 	struct aq_nic_s *self = pci_get_drvdata(pdev);
 
 	if (self->ndev) {
+		if (aq_nic_get_cfg(self)->fw_image)
+			release_firmware(aq_nic_get_cfg(self)->fw_image);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 		aq_ptp_unregister(self);
@@ -521,3 +530,7 @@ void aq_pci_func_unregister_driver(void)
 {
 	pci_unregister_driver(&aq_pci_ops);
 }
+
+MODULE_FIRMWARE(AQ_FW_AQC100X);
+MODULE_FIRMWARE(AQ_FW_AQC10XX);
+MODULE_FIRMWARE(AQ_FW_AQC11XX);

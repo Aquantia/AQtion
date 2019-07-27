@@ -94,9 +94,15 @@ struct aq_ring_stats_rx_s {
 	u64 bytes;
 	u64 lro_packets;
 	u64 jumbo_packets;
+	u64 alloc_fails;
+	u64 skb_alloc_fails;
+	u64 polls;
+	u64 irqs;
 	u64 pg_losts;
 	u64 pg_flips;
 	u64 pg_reuses;
+	u32 head;
+	u32 tail;
 };
 
 struct aq_ring_stats_tx_s {
@@ -104,6 +110,8 @@ struct aq_ring_stats_tx_s {
 	u64 packets;
 	u64 bytes;
 	u64 queue_restarts;
+	u32 head;
+	u32 tail;
 };
 
 union aq_ring_stats_s {

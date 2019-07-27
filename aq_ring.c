@@ -56,15 +56,15 @@ static int aq_get_rxpage(struct aq_rxpage *rxpage, unsigned int order,
 
 free_page:
 	__free_pages(page, order);
-err_exit:
 
+err_exit:
 	return ret;
 }
 
 static int aq_get_rxpages(struct aq_ring_s *self, struct aq_ring_buff_s *rxbuf,
 			  int order)
 {
-	int ret;
+	int ret = 0;
 
 	if (rxbuf->rxdata.page) {
 		/* One means ring is the only user and can reuse */
@@ -90,11 +90,12 @@ static int aq_get_rxpages(struct aq_ring_s *self, struct aq_ring_buff_s *rxbuf,
 
 	if (!rxbuf->rxdata.page) {
 		ret = aq_get_rxpage(&rxbuf->rxdata, order,
-				  aq_nic_get_dev(self->aq_nic));
-		return ret;
+				    aq_nic_get_dev(self->aq_nic));
+		if (ret)
+			self->stats.rx.alloc_fails++;
 	}
 
-	return 0;
+	return ret;
 }
 
 static struct aq_ring_s *aq_ring_alloc(struct aq_ring_s *self,
@@ -164,6 +165,7 @@ struct aq_ring_s *aq_ring_rx_alloc(struct aq_ring_s *self,
 	self->dx_size = aq_nic_cfg->aq_hw_caps->rxd_size;
 	self->page_order = fls(AQ_CFG_RX_FRAME_MAX / PAGE_SIZE +
 			       (AQ_CFG_RX_FRAME_MAX % PAGE_SIZE ? 1 : 0)) - 1;
+
 	if (aq_nic_cfg->rxpageorder > self->page_order)
 		self->page_order = aq_nic_cfg->rxpageorder;
 
@@ -255,10 +257,10 @@ void aq_ring_queue_stop(struct aq_ring_s *ring)
 bool aq_ring_tx_clean(struct aq_ring_s *self)
 {
 	struct device *dev = aq_nic_get_dev(self->aq_nic);
-	unsigned int budget = AQ_CFG_TX_CLEAN_BUDGET;
+	unsigned int budget;
 
-	for (; self->sw_head != self->hw_head && budget--;
-		self->sw_head = aq_ring_next_dx(self, self->sw_head)) {
+	for (budget = AQ_CFG_TX_CLEAN_BUDGET;
+	     budget && self->sw_head != self->hw_head; budget--) {
 		struct aq_ring_buff_s *buff = &self->buff_ring[self->sw_head];
 
 		if (likely(buff->is_mapped)) {
@@ -266,8 +268,8 @@ bool aq_ring_tx_clean(struct aq_ring_s *self)
 				if (!buff->is_eop &&
 				    buff->eop_index != 0xffffU &&
 				    (!aq_ring_dx_in_range(self->sw_head,
-							  buff->eop_index,
-							  self->hw_head)))
+						buff->eop_index,
+						self->hw_head)))
 					break;
 
 				dma_unmap_single(dev, buff->pa, buff->len,
@@ -283,10 +285,12 @@ bool aq_ring_tx_clean(struct aq_ring_s *self)
 
 		buff->pa = 0U;
 		buff->eop_index = 0xffffU;
+		self->sw_head = aq_ring_next_dx(self, self->sw_head);
 	}
 
 	return !!budget;
 }
+
 static void aq_rx_checksum(struct aq_ring_s *self,
 			   struct aq_ring_buff_s *buff,
 			   struct sk_buff *skb)
@@ -355,6 +359,7 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 				}
 
 				buff->is_error |= buff_->is_error;
+				buff->is_cso_err |= buff_->is_cso_err;
 
 			} while (!buff_->is_eop);
 
@@ -362,7 +367,7 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 				err = 0;
 				goto err_exit;
 			}
-			if (buff->is_error) {
+			if (buff->is_error || buff->is_cso_err) {
 				buff_ = buff;
 				do {
 					next_ = buff_->next,
@@ -392,6 +397,7 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 			skb = build_skb(aq_buf_vaddr(&buff->rxdata),
 					AQ_CFG_RX_FRAME_MAX);
 			if (unlikely(!skb)) {
+				self->stats.rx.skb_alloc_fails++;
 				err = -ENOMEM;
 				goto err_exit;
 			}
@@ -404,6 +410,7 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 		} else {
 			skb = napi_alloc_skb(napi, AQ_CFG_RX_HDR_SIZE);
 			if (unlikely(!skb)) {
+				self->stats.rx.skb_alloc_fails++;
 				err = -ENOMEM;
 				goto err_exit;
 			}
@@ -414,8 +421,9 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 
 			hdr_len = buff->len;
 			if (hdr_len > AQ_CFG_RX_HDR_SIZE)
-				hdr_len = eth_get_headlen(aq_buf_vaddr(&buff->rxdata),
-							  AQ_CFG_RX_HDR_SIZE);
+				hdr_len = eth_get_headlen(ndev,
+						aq_buf_vaddr(&buff->rxdata),
+						AQ_CFG_RX_HDR_SIZE);
 
 			memcpy(__skb_put(skb, hdr_len), aq_buf_vaddr(&buff->rxdata),
 			       ALIGN(hdr_len, sizeof(long)));
@@ -480,7 +488,6 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 
 		trace_aq_produce_skb(self->idx, skb);
 		napi_gro_receive(napi, skb);
-
 	}
 
 err_exit:
@@ -512,7 +519,7 @@ int aq_ring_rx_fill(struct aq_ring_s *self)
 	int i = 0;
 
 	if (aq_ring_avail_dx(self) < min_t(unsigned int, aq_rx_refill_thres,
-					   self->size/2))
+					   self->size / 2))
 		return err;
 
 	for (i = aq_ring_avail_dx(self); i--;
@@ -544,7 +551,6 @@ void aq_ring_rx_deinit(struct aq_ring_s *self)
 		struct aq_ring_buff_s *buff = &self->buff_ring[self->sw_head];
 
 		aq_free_rxpage(&buff->rxdata, aq_nic_get_dev(self->aq_nic));
-
 	}
 
 err_exit:;

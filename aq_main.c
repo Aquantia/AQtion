@@ -230,10 +230,6 @@ static void aq_ndev_set_multicast_settings(struct net_device *ndev)
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	int err = 0;
 
-	err = aq_nic_set_packet_filter(aq_nic, ndev->flags);
-	if (err < 0)
-		return;
-
 	err = aq_nic_set_multicast_list(aq_nic, ndev);
 	if (err < 0)
 		return;
@@ -387,7 +383,7 @@ static int __init aq_ndev_init_module(void)
 
 	aq_ndev_wq = create_singlethread_workqueue(aq_ndev_driver_name);
 	if (!aq_ndev_wq) {
-		pr_err("Failed to create workwueue\n");
+		pr_err("Failed to create workqueue\n");
 		return -ENOMEM;
 	}
 
@@ -403,7 +399,7 @@ static int __init aq_ndev_init_module(void)
 static void __exit aq_ndev_exit_module(void)
 {
 	aq_pci_func_unregister_driver();
-	
+
 	if (aq_ndev_wq) {
 		destroy_workqueue(aq_ndev_wq);
 		aq_ndev_wq = NULL;

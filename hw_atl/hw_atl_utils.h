@@ -83,7 +83,7 @@ union __packed ip_addr {
 	} v4;
 };
 
-struct __packed hw_aq_atl_utils_fw_rpc {
+struct __packed hw_atl_utils_fw_rpc {
 	u32 msg_id;
 
 	union {
@@ -111,6 +111,7 @@ struct __packed hw_aq_atl_utils_fw_rpc {
 			u32 wol_packet_type;
 			u32 pattern_id;
 			u32 next_wol_pattern_offset;
+
 			union {
 				struct {
 					u32 flags;
@@ -139,10 +140,10 @@ struct __packed hw_aq_atl_utils_fw_rpc {
 					u32 pattern_offset;
 					u32 pattern_size;
 				} wol_bit_map_pattern;
-				struct {
-					u8 mac_addr[6];
-				} wol_magic_packet_pattern;
 
+				struct {
+					u8 mac_addr[ETH_ALEN];
+				} wol_magic_packet_pattern;
 			} wol_pattern;
 		} msg_wol;
 
@@ -154,16 +155,18 @@ struct __packed hw_aq_atl_utils_fw_rpc {
 		struct {
 			union {
 				u32 pattern_mask;
+
 				struct {
-					u32 aq_pm_wol_reason_arp_v4_pkt : 1;
-					u32 aq_pm_wol_reason_ipv4_ping_pkt : 1;
-					u32 aq_pm_wol_reason_ipv6_ns_pkt : 1;
-					u32 aq_pm_wol_reason_ipv6_ping_pkt : 1;
-					u32 aq_pm_wol_reason_link_up : 1;
-					u32 aq_pm_wol_reason_link_down : 1;
-					u32 aq_pm_wol_reason_maximum : 1;
+					u32 reason_arp_v4_pkt : 1;
+					u32 reason_ipv4_ping_pkt : 1;
+					u32 reason_ipv6_ns_pkt : 1;
+					u32 reason_ipv6_ping_pkt : 1;
+					u32 reason_link_up : 1;
+					u32 reason_link_down : 1;
+					u32 reason_maximum : 1;
 				};
 			};
+
 			union {
 				u32 offload_mask;
 			};
@@ -188,11 +191,10 @@ struct __packed hw_aq_atl_utils_fw_rpc {
 		struct {
 			u32 id;
 		} msg_del_id;
-
 	};
 };
 
-struct __packed hw_aq_atl_utils_mbox_header {
+struct __packed hw_atl_utils_mbox_header {
 	u32 version;
 	u32 transaction_id;
 	u32 error;
@@ -250,8 +252,8 @@ struct __packed hw_aq_info {
 	enum gpio_pin_function gpio_pin[3];
 };
 
-struct __packed hw_aq_atl_utils_mbox {
-	struct hw_aq_atl_utils_mbox_header header;
+struct __packed hw_atl_utils_mbox {
+	struct hw_atl_utils_mbox_header header;
 	struct hw_atl_stats_s stats;
 	struct hw_aq_info info;
 };
@@ -330,7 +332,7 @@ struct __packed offload_rr_info {
 struct __packed offload_info {
 	u32 version;
 	u32 len;
-	u8 mac_addr[6];
+	u8 mac_addr[ETH_ALEN];
 
 	u8 reserved[2];
 
@@ -393,7 +395,6 @@ struct aq_rx_filter_vlan {
 };
 
 #define HW_ATL_VLAN_MAX_FILTERS         16U
-#define HW_ATL_RX_FILTER_REGISTER_CLEAR 0U
 
 struct aq_rx_filter_l2 {
 	s8 queue;
@@ -401,23 +402,6 @@ struct aq_rx_filter_l2 {
 	u8 user_priority_en;
 	u8 user_priority;
 	u16 ethertype;
-};
-
-#define HW_ATL_RX_BOFFSET_ACTION_FL2      16U
-#define HW_ATL_RX_UNICAST1_ADDR_BEGIN_FL2 0x00005110
-#define HW_ATL_RX_UNICAST2_ADDR_BEGIN_FL2 0x00005114
-
-#define HW_ATL_RX_GET_ADDR_UNICAST1_FL2(location) \
-	(HW_ATL_RX_UNICAST1_ADDR_BEGIN_FL2 + \
-		((location - AQ_RX_FIRST_LOC_FL2) * 0x8))
-
-#define HW_ATL_RX_GET_ADDR_UNICAST2_FL2(location) \
-	(HW_ATL_RX_UNICAST2_ADDR_BEGIN_FL2 + \
-		((location - AQ_RX_FIRST_LOC_FL2) * 0x8))
-
-enum hw_atl_rx_ctrl_registers_l2 {
-	HW_ATL_RX_ENABLE_UNICAST_MNGNT_QUEUE_L2 = BIT(19),
-	HW_ATL_RX_ENABLE_UNICAST_FLTR_L2        = BIT(31)
 };
 
 struct aq_rx_filter_l3l4 {
@@ -446,18 +430,14 @@ enum hw_atl_rx_ctrl_registers_l3l4 {
 	HW_ATL_RX_ENABLE_CMP_SRC_PORT_L4   = BIT(27),
 	HW_ATL_RX_ENABLE_CMP_DEST_ADDR_L3  = BIT(28),
 	HW_ATL_RX_ENABLE_CMP_SRC_ADDR_L3   = BIT(29),
-	HW_ATL_RX_ENABLE_L3_IPv6           = BIT(30),
+	HW_ATL_RX_ENABLE_L3_IPV6           = BIT(30),
 	HW_ATL_RX_ENABLE_FLTR_L3L4         = BIT(31)
 };
 
-#define HW_ATL_RX_BOFFSET_PROT_FL3L4      0U
-#define HW_ATL_RX_BOFFSET_QUEUE_FL3L4     8U
-#define HW_ATL_RX_BOFFSET_ACTION_FL3F4    16U
+#define HW_ATL_RX_QUEUE_FL3L4_SHIFT       8U
+#define HW_ATL_RX_ACTION_FL3F4_SHIFT      16U
 
 #define HW_ATL_RX_CNT_REG_ADDR_IPV6       4U
-
-#define HW_ATL_RX_MAX_QUEUE		   num_online_cpus()
-#define HW_ATL_TX_MAX_QUEUE		   num_online_cpus()
 
 #define HW_ATL_GET_REG_LOCATION_FL3L4(location) \
 	((location) - AQ_RX_FIRST_LOC_FL3L4)
@@ -469,7 +449,6 @@ enum hw_atl_rx_ctrl_registers_l3l4 {
 #define HAL_ATLANTIC_UTILS_CHIP_REVISION_A0  0x01000000U
 #define HAL_ATLANTIC_UTILS_CHIP_REVISION_B0  0x02000000U
 #define HAL_ATLANTIC_UTILS_CHIP_REVISION_B1  0x04000000U
-
 
 #define IS_CHIP_FEATURE(_F_) (HAL_ATLANTIC_UTILS_CHIP_##_F_ & \
 	self->chip_features)
@@ -493,6 +472,9 @@ enum hal_atl_utils_fw_state_e {
 #define HAL_ATLANTIC_UTILS_FW_MSG_ARP           0x2U
 #define HAL_ATLANTIC_UTILS_FW_MSG_INJECT        0x3U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_ADD       0x4U
+#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_PRIOR     0x10000000U
+#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_PATTERN   0x1U
+#define HAL_ATLANTIC_UTILS_FW_MSG_WOL_MAG_PKT   0x2U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_DEL       0x5U
 #define HAL_ATLANTIC_UTILS_FW_MSG_ENABLE_WAKEUP 0x6U
 #define HAL_ATLANTIC_UTILS_FW_MSG_MSM_PFC       0x7U
@@ -642,6 +624,7 @@ struct aq_hw_s;
 struct aq_fw_ops;
 struct aq_hw_caps_s;
 struct aq_hw_link_status_s;
+struct aq_hw_chip_info;
 
 int hw_atl_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops);
 
@@ -650,10 +633,10 @@ int hw_atl_utils_soft_reset(struct aq_hw_s *self);
 void hw_atl_utils_hw_chip_features_init(struct aq_hw_s *self, u32 *p);
 
 int hw_atl_utils_mpi_read_mbox(struct aq_hw_s *self,
-			       struct hw_aq_atl_utils_mbox_header *pmbox);
+			       struct hw_atl_utils_mbox_header *pmbox);
 
 void hw_atl_utils_mpi_read_stats(struct aq_hw_s *self,
-				 struct hw_aq_atl_utils_mbox *pmbox);
+				 struct hw_atl_utils_mbox *pmbox);
 
 void hw_atl_utils_mpi_set(struct aq_hw_s *self,
 			  enum hal_atl_utils_fw_state_e state,
@@ -675,7 +658,7 @@ int hw_atl_utils_hw_set_power(struct aq_hw_s *self,
 
 int hw_atl_utils_hw_deinit(struct aq_hw_s *self);
 
-int hw_atl_utils_get_fw_version(struct aq_hw_s *self, u32 *fw_version);
+u32 hw_atl_utils_get_fw_version(struct aq_hw_s *self);
 
 int hw_atl_utils_update_stats(struct aq_hw_s *self);
 
@@ -692,10 +675,12 @@ int hw_atl_utils_fw_set_wol(struct aq_hw_s *self, bool wol_enabled, u8 *mac);
 int hw_atl_utils_fw_rpc_call(struct aq_hw_s *self, unsigned int rpc_size);
 
 int hw_atl_utils_fw_rpc_wait(struct aq_hw_s *self,
-		    struct hw_aq_atl_utils_fw_rpc **rpc);
+			     struct hw_atl_utils_fw_rpc **rpc);
 
 int hw_atl_msm_read_lpi_timer(struct aq_hw_s *self, uint32_t *val);
 
+void hw_atl_utils_get_chip_info(struct aq_hw_s *self,
+				struct aq_hw_chip_info *chip_info);
 extern const struct aq_fw_ops aq_fw_1x_ops;
 extern const struct aq_fw_ops aq_fw_2x_ops;
 

@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/* Copyright (C) 2014-2017 aQuantia Corporation. */
+
+/* File aq_filters.c: RX filters related functions. */
+
 #include "aq_filters.h"
 
 static bool __must_check
@@ -50,11 +55,11 @@ static bool __must_check
 aq_match_filter(struct ethtool_rx_flow_spec *fsp1,
 		struct ethtool_rx_flow_spec *fsp2)
 {
-	if (memcmp(&fsp1->flow_type, &fsp2->flow_type, sizeof(fsp1->flow_type))
-	   || memcmp(&fsp1->h_u, &fsp2->h_u, sizeof(fsp2->h_u))
-	   || memcmp(&fsp1->h_ext, &fsp2->h_ext, sizeof(fsp2->h_ext))
-	   || memcmp(&fsp1->m_u, &fsp2->m_u, sizeof(fsp2->m_u))
-	   || memcmp(&fsp1->m_ext, &fsp2->m_ext, sizeof(fsp2->m_ext)))
+	if (fsp1->flow_type != fsp2->flow_type ||
+	    memcmp(&fsp1->h_u, &fsp2->h_u, sizeof(fsp2->h_u)) ||
+	    memcmp(&fsp1->h_ext, &fsp2->h_ext, sizeof(fsp2->h_ext)) ||
+	    memcmp(&fsp1->m_u, &fsp2->m_u, sizeof(fsp2->m_u)) ||
+	    memcmp(&fsp1->m_ext, &fsp2->m_ext, sizeof(fsp2->m_ext)))
 		return false;
 
 	return true;
@@ -73,8 +78,8 @@ aq_rule_already_exists(struct aq_nic_s *aq_nic,
 		if (rule->aq_fsp.location == fsp->location)
 			continue;
 		if (aq_match_filter(&rule->aq_fsp, fsp)) {
-			aq_nic_print(aq_nic, err, drv,
-				     "ethtool: This filter is already set\n");
+			netdev_err(aq_nic->ndev,
+				   "ethtool: This filter is already set\n");
 			return true;
 		}
 	}
@@ -86,22 +91,30 @@ static int aq_check_approve_fl3l4(struct aq_nic_s *aq_nic,
 				  struct aq_hw_rx_fltrs_s *rx_fltrs,
 				  struct ethtool_rx_flow_spec *fsp)
 {
+	if (fsp->location < AQ_RX_FIRST_LOC_FL3L4 ||
+	    fsp->location > AQ_RX_LAST_LOC_FL3L4) {
+		netdev_err(aq_nic->ndev,
+			   "ethtool: location must be in range [%d, %d]",
+			   AQ_RX_FIRST_LOC_FL3L4,
+			   AQ_RX_LAST_LOC_FL3L4);
+		return -EINVAL;
+	}
 	if (rx_fltrs->fl3l4.is_ipv6 && rx_fltrs->fl3l4.active_ipv4) {
 		rx_fltrs->fl3l4.is_ipv6 = false;
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: mixing ipv4 and ipv6 is not allowd");
+		netdev_err(aq_nic->ndev,
+			   "ethtool: mixing ipv4 and ipv6 is not allowed");
 		return -EINVAL;
 	} else if (!rx_fltrs->fl3l4.is_ipv6 && rx_fltrs->fl3l4.active_ipv6) {
 		rx_fltrs->fl3l4.is_ipv6 = true;
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: mixing ipv4 and ipv6 is not allowd");
+		netdev_err(aq_nic->ndev,
+			   "ethtool: mixing ipv4 and ipv6 is not allowed");
 		return -EINVAL;
 	} else if (rx_fltrs->fl3l4.is_ipv6		      &&
 		   fsp->location != AQ_RX_FIRST_LOC_FL3L4 + 4 &&
 		   fsp->location != AQ_RX_FIRST_LOC_FL3L4) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: The specified location for ipv6 must be %d or %d",
-			     AQ_RX_FIRST_LOC_FL3L4, AQ_RX_FIRST_LOC_FL3L4 + 4);
+		netdev_err(aq_nic->ndev,
+			   "ethtool: The specified location for ipv6 must be %d or %d",
+			   AQ_RX_FIRST_LOC_FL3L4, AQ_RX_FIRST_LOC_FL3L4 + 4);
 		return -EINVAL;
 	}
 
@@ -113,20 +126,19 @@ aq_check_approve_fl2(struct aq_nic_s *aq_nic,
 		     struct aq_hw_rx_fltrs_s *rx_fltrs,
 		     struct ethtool_rx_flow_spec *fsp)
 {
-	if (fsp->location < AQ_RX_FIRST_LOC_FETHERT
-	   || fsp->location > AQ_RX_LAST_LOC_FETHERT) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: location must be in range [%d, %d]",
-			     AQ_RX_FIRST_LOC_FETHERT,
-			     AQ_RX_LAST_LOC_FETHERT);
+	if (fsp->location < AQ_RX_FIRST_LOC_FETHERT ||
+	    fsp->location > AQ_RX_LAST_LOC_FETHERT) {
+		netdev_err(aq_nic->ndev,
+			   "ethtool: location must be in range [%d, %d]",
+			   AQ_RX_FIRST_LOC_FETHERT,
+			   AQ_RX_LAST_LOC_FETHERT);
 		return -EINVAL;
 	}
 
-	if ((be16_to_cpu(fsp->m_ext.vlan_tci) == VLAN_PRIO_MASK) &&
-	    (fsp->m_u.ether_spec.h_proto == 0U)) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: proto (ether_type) parameter must be specfied"
-			     );
+	if (be16_to_cpu(fsp->m_ext.vlan_tci) == VLAN_PRIO_MASK &&
+	    fsp->m_u.ether_spec.h_proto == 0U) {
+		netdev_err(aq_nic->ndev,
+			   "ethtool: proto (ether_type) parameter must be specified");
 		return -EINVAL;
 	}
 
@@ -138,25 +150,27 @@ aq_check_approve_fvlan(struct aq_nic_s *aq_nic,
 		       struct aq_hw_rx_fltrs_s *rx_fltrs,
 		       struct ethtool_rx_flow_spec *fsp)
 {
-	if (fsp->location < AQ_RX_FIRST_LOC_FVLANID
-	   || fsp->location > AQ_RX_LAST_LOC_FVLANID) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: location must be in range [%d, %d]",
-			     AQ_RX_FIRST_LOC_FVLANID,
-			     AQ_RX_LAST_LOC_FVLANID);
+	if (fsp->location < AQ_RX_FIRST_LOC_FVLANID ||
+	    fsp->location > AQ_RX_LAST_LOC_FVLANID) {
+		netdev_err(aq_nic->ndev,
+			   "ethtool: location must be in range [%d, %d]",
+			   AQ_RX_FIRST_LOC_FVLANID,
+			   AQ_RX_LAST_LOC_FVLANID);
 		return -EINVAL;
 	}
 
-	if (!test_bit(be16_to_cpu(fsp->h_ext.vlan_tci), aq_nic->active_vlans)) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: unknown vlan-id specified");
+	if ((aq_nic->ndev->features & NETIF_F_HW_VLAN_CTAG_FILTER) &&
+	    (!test_bit(be16_to_cpu(fsp->h_ext.vlan_tci),
+		       aq_nic->active_vlans))) {
+		netdev_err(aq_nic->ndev,
+			   "ethtool: unknown vlan-id specified");
 		return -EINVAL;
 	}
 
 	if (fsp->ring_cookie > aq_nic->aq_nic_cfg.num_rss_queues) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: queue number must be in range [0, %d]",
-			     aq_nic->aq_nic_cfg.num_rss_queues - 1);
+		netdev_err(aq_nic->ndev,
+			   "ethtool: queue number must be in range [0, %d]",
+			   aq_nic->aq_nic_cfg.num_rss_queues - 1);
 		return -EINVAL;
 	}
 	return 0;
@@ -170,14 +184,14 @@ aq_check_filter(struct aq_nic_s *aq_nic,
 	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
 
 	if (fsp->flow_type & FLOW_EXT) {
-		if (be16_to_cpu(fsp->m_ext.vlan_tci) == VLAN_VID_MASK)
+		if (be16_to_cpu(fsp->m_ext.vlan_tci) == VLAN_VID_MASK) {
 			err = aq_check_approve_fvlan(aq_nic, rx_fltrs, fsp);
-		else if (be16_to_cpu(fsp->m_ext.vlan_tci) == VLAN_PRIO_MASK) {
+		} else if (be16_to_cpu(fsp->m_ext.vlan_tci) == VLAN_PRIO_MASK) {
 			err = aq_check_approve_fl2(aq_nic, rx_fltrs, fsp);
 		} else {
-			aq_nic_print(aq_nic, err, drv,
-				     "ethtool: invalid vlan mask 0x%x specified",
-				     be16_to_cpu(fsp->m_ext.vlan_tci));
+			netdev_err(aq_nic->ndev,
+				   "ethtool: invalid vlan mask 0x%x specified",
+				   be16_to_cpu(fsp->m_ext.vlan_tci));
 			err = -EINVAL;
 		}
 	} else {
@@ -202,8 +216,8 @@ aq_check_filter(struct aq_nic_s *aq_nic,
 			err = aq_check_approve_fl3l4(aq_nic, rx_fltrs, fsp);
 			break;
 		default:
-			aq_nic_print(aq_nic, err, drv,
-				     "ethtool: unknown flow-type specified");
+			netdev_err(aq_nic->ndev,
+				   "ethtool: unknown flow-type specified");
 			err = -EINVAL;
 		}
 	}
@@ -218,20 +232,13 @@ aq_rule_is_not_support(struct aq_nic_s *aq_nic,
 	bool rule_is_not_support = false;
 
 	if (!(aq_nic->ndev->features & NETIF_F_NTUPLE)) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: Please, to enable the RX flow control:\n"
-			     "ethtool -K %s ntuple on\n", aq_nic->ndev->name);
-		rule_is_not_support = true;
-	} else if ((fsp->h_ext.vlan_tci || fsp->h_ext.vlan_etype) &&
-		   !(aq_nic->ndev->features & NETIF_F_HW_VLAN_CTAG_FILTER)) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: Please, to enable the RX vlan filter:\n"
-			     "ethtool -K %s rx-vlan-filter on\n",
-			     aq_nic->ndev->name);
+		netdev_err(aq_nic->ndev,
+			   "ethtool: Please, to enable the RX flow control:\n"
+			   "ethtool -K %s ntuple on\n", aq_nic->ndev->name);
 		rule_is_not_support = true;
 	} else if (!aq_rule_is_approve(fsp)) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: The specified flow type is not supported\n");
+		netdev_err(aq_nic->ndev,
+			   "ethtool: The specified flow type is not supported\n");
 		rule_is_not_support = true;
 	} 
 	else if ((fsp->flow_type & ~FLOW_EXT) != ETHER_FLOW) {
@@ -241,10 +248,14 @@ aq_rule_is_not_support(struct aq_nic_s *aq_nic,
 #else
 		if (fsp->h_u.tcp_ip4_spec.tos) {
 #endif
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: The specified tos tclass are not supported\n");
+		netdev_err(aq_nic->ndev,
+			   "ethtool: The specified tos tclass are not supported\n");
 		rule_is_not_support = true;
 		}
+	} else if (fsp->flow_type & FLOW_MAC_EXT) {
+		netdev_err(aq_nic->ndev,
+			   "ethtool: MAC_EXT is not supported");
+		rule_is_not_support = true;
 	}
 
 	return rule_is_not_support;
@@ -258,23 +269,19 @@ aq_rule_is_not_correct(struct aq_nic_s *aq_nic,
 
 	if (!aq_nic) {
 		rule_is_not_correct = true;
-	} else if (fsp->flow_type & FLOW_MAC_EXT) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: MAC_EXT is not supported");
-		rule_is_not_correct = true;
 	} else if (fsp->location > AQ_RX_MAX_RXNFC_LOC) {
-		aq_nic_print(aq_nic, err, drv,
-			     "ethtool: The specified number %u rule is invalid\n",
-			     fsp->location);
+		netdev_err(aq_nic->ndev,
+			   "ethtool: The specified number %u rule is invalid\n",
+			   fsp->location);
 		rule_is_not_correct = true;
 	} else if (aq_check_filter(aq_nic, fsp)) {
 		rule_is_not_correct = true;
 	} else if (fsp->ring_cookie != RX_CLS_FLOW_DISC) {
-		if (fsp->ring_cookie >= HW_ATL_RX_MAX_QUEUE) {
-			aq_nic_print(aq_nic, err, drv,
-				     "ethtool: The specified action is invalid.\n"
-				     "Maximum allowable value action is %u.\n",
-				     HW_ATL_RX_MAX_QUEUE - 1);
+		if (fsp->ring_cookie >= aq_nic->aq_nic_cfg.num_rss_queues) {
+			netdev_err(aq_nic->ndev,
+				   "ethtool: The specified action is invalid.\n"
+				   "Maximum allowable value action is %u.\n",
+				   aq_nic->aq_nic_cfg.num_rss_queues - 1);
 			rule_is_not_correct = true;
 		}
 	}
@@ -299,8 +306,8 @@ aq_check_rule(struct aq_nic_s *aq_nic,
 }
 
 static void aq_set_data_fl2(struct aq_nic_s *aq_nic,
-			   struct aq_rx_filter *aq_rx_fltr,
-			   struct aq_rx_filter_l2 *data, bool add)
+			    struct aq_rx_filter *aq_rx_fltr,
+			    struct aq_rx_filter_l2 *data, bool add)
 {
 	const struct ethtool_rx_flow_spec *fsp = &aq_rx_fltr->aq_fsp;
 
@@ -319,13 +326,13 @@ static void aq_set_data_fl2(struct aq_nic_s *aq_nic,
 	data->user_priority = (be16_to_cpu(fsp->h_ext.vlan_tci)
 			       & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT;
 	if (netif_msg_link(aq_nic))
-		aq_nic_print(aq_nic, dbg, drv,
-			"etherfilter[%d] = {add:%d, ethertype:%x, user_priority_en:%d, user_priority:%d}",
-			 data->location,
-			 add,
-			 data->ethertype,
-			 data->user_priority_en,
-			 data->user_priority);
+		netdev_err(aq_nic->ndev,
+			   "etherfilter[%d] = {add:%d, ethertype:%x, user_priority_en:%d, user_priority:%d}",
+			   data->location,
+			   add,
+			   data->ethertype,
+			   data->user_priority_en,
+			   data->user_priority);
 }
 
 static int aq_add_del_fether(struct aq_nic_s *aq_nic,
@@ -355,54 +362,63 @@ static void aq_fvlan_print(struct aq_nic_s *aq_nic,
 
 	if (netif_msg_link(aq_nic)) {
 		for (i = 0; i < HW_ATL_VLAN_MAX_FILTERS; ++i) {
-			aq_nic_print(aq_nic, dbg, drv,
-				"vlans[%d] = {en:%d, vlan:%d, queue:%d}", i,
-				 aq_vlans[i].enable,
-				 aq_vlans[i].vlan_id,
-				 aq_vlans[i].queue);
+			netdev_dbg(aq_nic->ndev,
+				   "vlans[%d] = {en:%d, vlan:%d, queue:%d}", i,
+				    aq_vlans[i].enable,
+				    aq_vlans[i].vlan_id,
+				    aq_vlans[i].queue);
 		}
 	}
 }
 
+static bool aq_fvlan_is_busy(struct aq_rx_filter_vlan *aq_vlans, int vlan)
+{
+	int i;
+
+	for (i = 0; i < AQ_VLAN_MAX_FILTERS; ++i) {
+		if (aq_vlans[i].enable &&
+		    aq_vlans[i].queue != AQ_RX_QUEUE_NOT_ASSIGNED &&
+		    aq_vlans[i].vlan_id == vlan) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/* Function rebuilds array of vlan filters so that filters with assigned
+ * queue have a precedence over just vlans on the interface.
+ */
 static void aq_fvlan_rebuild(struct aq_nic_s *aq_nic,
-		     unsigned long *active_vlans,
-		     struct aq_rx_filter_vlan *aq_vlans)
+			     unsigned long *active_vlans,
+			     struct aq_rx_filter_vlan *aq_vlans)
 {
 	bool vlan_busy = false;
 	int vlan = -1;
-	int i, j;
+	int i;
 
-	for (i = 0; i < HW_ATL_VLAN_MAX_FILTERS; ++i) {
-		if ((!aq_vlans[i].enable)
-		    || (aq_vlans[i].queue == AQ_RX_QUEUE_INVALID)) {
-			do {
-				vlan = find_next_bit(active_vlans,
-						     VLAN_N_VID,
-						     vlan + 1);
-				if (vlan == VLAN_N_VID) {
-					aq_vlans[i].enable = 0U;
-					aq_vlans[i].queue = AQ_RX_QUEUE_INVALID;
-					aq_vlans[i].vlan_id = 0;
-					continue;
-				}
+	for (i = 0; i < AQ_VLAN_MAX_FILTERS; ++i) {
+		if (aq_vlans[i].enable &&
+		    aq_vlans[i].queue != AQ_RX_QUEUE_NOT_ASSIGNED)
+			continue;
+		do {
+			vlan = find_next_bit(active_vlans,
+					     VLAN_N_VID,
+					     vlan + 1);
+			if (vlan == VLAN_N_VID) {
+				aq_vlans[i].enable = 0U;
+				aq_vlans[i].queue = AQ_RX_QUEUE_NOT_ASSIGNED;
+				aq_vlans[i].vlan_id = 0;
+				continue;
+			}
 
-				vlan_busy = false;
-				for (j = 0; j < HW_ATL_VLAN_MAX_FILTERS; ++j) {
-					if (aq_vlans[j].enable
-					   && (aq_vlans[j].queue 
-					       != AQ_RX_QUEUE_INVALID)
-					   && (aq_vlans[j].vlan_id == vlan)) {
-						vlan_busy = true;
-						break;
-					}
-				}
-				if (!vlan_busy) {
-					aq_vlans[i].enable = 1U;
-					aq_vlans[i].queue = AQ_RX_QUEUE_INVALID;
-					aq_vlans[i].vlan_id = vlan;
-				}
-			} while (vlan_busy && vlan != VLAN_N_VID);
-		}
+			vlan_busy = aq_fvlan_is_busy(aq_vlans, vlan);
+			if (!vlan_busy) {
+				aq_vlans[i].enable = 1U;
+				aq_vlans[i].queue = AQ_RX_QUEUE_NOT_ASSIGNED;
+				aq_vlans[i].vlan_id = vlan;
+			}
+		} while (vlan_busy && vlan != VLAN_N_VID);
 	}
 
 	aq_fvlan_print(aq_nic, aq_vlans);
@@ -422,7 +438,7 @@ static int aq_set_data_fvlan(struct aq_nic_s *aq_nic,
 		return 0;
 
 	/* remove vlan if it was in table without queue assignment */
-	for (i = 0; i < HW_ATL_VLAN_MAX_FILTERS; ++i) {
+	for (i = 0; i < AQ_VLAN_MAX_FILTERS; ++i) {
 		if (aq_vlans[i].vlan_id ==
 		   (be16_to_cpu(fsp->h_ext.vlan_tci) & VLAN_VID_MASK)) {
 			aq_vlans[i].enable = false;
@@ -434,6 +450,7 @@ static int aq_set_data_fvlan(struct aq_nic_s *aq_nic,
 				     & VLAN_VID_MASK;
 	aq_vlans[location].queue = fsp->ring_cookie & 0x1FU;
 	aq_vlans[location].enable = 1U;
+
 	return 0;
 }
 
@@ -448,7 +465,8 @@ int aq_del_fvlan_by_vlan(struct aq_nic_s *aq_nic, u16 vlan_id)
 		if (be16_to_cpu(rule->aq_fsp.h_ext.vlan_tci) == vlan_id)
 			break;
 	}
-	if (rule && be16_to_cpu(rule->aq_fsp.h_ext.vlan_tci) == vlan_id) {
+	if (rule && rule->type == aq_rx_filter_vlan &&
+	    be16_to_cpu(rule->aq_fsp.h_ext.vlan_tci) == vlan_id) {
 		struct ethtool_rxnfc cmd;
 
 		cmd.fs.location = rule->aq_fsp.location;
@@ -467,9 +485,9 @@ static int aq_add_del_fvlan(struct aq_nic_s *aq_nic,
 		return -EOPNOTSUPP;
 
 	aq_set_data_fvlan(aq_nic,
-		aq_rx_fltr,
-		aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans,
-		add);
+			  aq_rx_fltr,
+			  aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans,
+			  add);
 
 	return aq_filters_vlans_update(aq_nic);
 }
@@ -484,14 +502,14 @@ static int aq_set_data_fl3l4(struct aq_nic_s *aq_nic,
 	memset(data, 0, sizeof(*data));
 
 	data->is_ipv6 = rx_fltrs->fl3l4.is_ipv6;
-	data->location =
-		HW_ATL_GET_REG_LOCATION_FL3L4(fsp->location);
+	data->location = HW_ATL_GET_REG_LOCATION_FL3L4(fsp->location);
 
 	if (!add) {
 		if (!data->is_ipv6)
 			rx_fltrs->fl3l4.active_ipv4 &= ~BIT(data->location);
 		else
-			rx_fltrs->fl3l4.active_ipv6 &= ~BIT((data->location)/4);
+			rx_fltrs->fl3l4.active_ipv6 &=
+				~BIT((data->location) / 4);
 
 		return 0;
 	}
@@ -528,14 +546,14 @@ static int aq_set_data_fl3l4(struct aq_nic_s *aq_nic,
 	 else {
 		int i;
 
-		rx_fltrs->fl3l4.active_ipv6 |= BIT((data->location)/4);
+		rx_fltrs->fl3l4.active_ipv6 |= BIT((data->location) / 4);
 		for (i = 0; i < HW_ATL_RX_CNT_REG_ADDR_IPV6; ++i) {
 			data->ip_dst[i] =
 				ntohl(fsp->h_u.tcp_ip6_spec.ip6dst[i]);
 			data->ip_src[i] =
 				ntohl(fsp->h_u.tcp_ip6_spec.ip6src[i]);
 		}
-		data->cmd |= HW_ATL_RX_ENABLE_L3_IPv6;
+		data->cmd |= HW_ATL_RX_ENABLE_L3_IPV6;
 	}
 #endif
 	if (fsp->flow_type == TCP_V4_FLOW || fsp->flow_type == UDP_V4_FLOW ||
@@ -559,12 +577,11 @@ static int aq_set_data_fl3l4(struct aq_nic_s *aq_nic,
 	if (data->p_src)
 		data->cmd |= HW_ATL_RX_ENABLE_CMP_SRC_PORT_L4;
 	if (fsp->ring_cookie != RX_CLS_FLOW_DISC) {
-		data->cmd |= HW_ATL_RX_HOST << HW_ATL_RX_BOFFSET_ACTION_FL3F4;
-		data->cmd |=
-			fsp->ring_cookie << HW_ATL_RX_BOFFSET_QUEUE_FL3L4;
+		data->cmd |= HW_ATL_RX_HOST << HW_ATL_RX_ACTION_FL3F4_SHIFT;
+		data->cmd |= fsp->ring_cookie << HW_ATL_RX_QUEUE_FL3L4_SHIFT;
 		data->cmd |= HW_ATL_RX_ENABLE_QUEUE_L3L4;
 	} else {
-		data->cmd |= HW_ATL_RX_DISCARD << HW_ATL_RX_BOFFSET_ACTION_FL3F4;
+		data->cmd |= HW_ATL_RX_DISCARD << HW_ATL_RX_ACTION_FL3F4_SHIFT;
 	}
 
 	return 0;
@@ -583,9 +600,9 @@ static int aq_set_fl3l4(struct aq_hw_s *aq_hw,
 static int aq_add_del_fl3l4(struct aq_nic_s *aq_nic,
 			    struct aq_rx_filter *aq_rx_fltr, bool add)
 {
-	struct aq_rx_filter_l3l4 data;
-	struct aq_hw_s *aq_hw = aq_nic->aq_hw;
 	const struct aq_hw_ops *aq_hw_ops = aq_nic->aq_hw_ops;
+	struct aq_hw_s *aq_hw = aq_nic->aq_hw;
+	struct aq_rx_filter_l3l4 data;
 
 	if (unlikely(aq_rx_fltr->aq_fsp.location < AQ_RX_FIRST_LOC_FL3L4 ||
 		     aq_rx_fltr->aq_fsp.location > AQ_RX_LAST_LOC_FL3L4  ||
@@ -595,26 +612,23 @@ static int aq_add_del_fl3l4(struct aq_nic_s *aq_nic,
 	return aq_set_fl3l4(aq_hw, aq_hw_ops, &data);
 }
 
-static int aq_add_del_rule(struct aq_nic_s *aq_nic,
-			   struct aq_rx_filter *aq_rx_fltr, bool add)
+static int aq_rule_set_type(struct aq_nic_s *aq_nic,
+			   struct aq_rx_filter *aq_rx_fltr)
 {
-	int err = -EINVAL;
+	int err = 0;
 
 	if (aq_rx_fltr->aq_fsp.flow_type & FLOW_EXT) {
 		if (be16_to_cpu(aq_rx_fltr->aq_fsp.m_ext.vlan_tci)
 		    == VLAN_VID_MASK) {
 			aq_rx_fltr->type = aq_rx_filter_vlan;
-			err = aq_add_del_fvlan(aq_nic, aq_rx_fltr, add);
 		} else if (be16_to_cpu(aq_rx_fltr->aq_fsp.m_ext.vlan_tci)
 			== VLAN_PRIO_MASK) {
 			aq_rx_fltr->type = aq_rx_filter_ethertype;
-			err = aq_add_del_fether(aq_nic, aq_rx_fltr, add);
 		}
 	} else {
 		switch (aq_rx_fltr->aq_fsp.flow_type & ~FLOW_EXT) {
 		case ETHER_FLOW:
 			aq_rx_fltr->type = aq_rx_filter_ethertype;
-			err = aq_add_del_fether(aq_nic, aq_rx_fltr, add);
 			break;
 		case TCP_V4_FLOW:
 		case UDP_V4_FLOW:
@@ -625,7 +639,6 @@ static int aq_add_del_rule(struct aq_nic_s *aq_nic,
 		case SCTP_V6_FLOW:
 		case IPV6_USER_FLOW:
 			aq_rx_fltr->type = aq_rx_filter_l3l4;
-			err = aq_add_del_fl3l4(aq_nic, aq_rx_fltr, add);
 			break;
 		default:
 			err = -EINVAL;
@@ -634,16 +647,37 @@ static int aq_add_del_rule(struct aq_nic_s *aq_nic,
 	}
 
 	return err;
+
+}
+
+static int aq_apply_rule(struct aq_nic_s *aq_nic,
+			   struct aq_rx_filter *aq_rx_fltr, bool add)
+{
+	int err = -EINVAL;
+
+	switch (aq_rx_fltr->type) {
+	case aq_rx_filter_vlan:
+		err = aq_add_del_fvlan(aq_nic, aq_rx_fltr, add);
+		break;
+	case aq_rx_filter_ethertype:
+		err = aq_add_del_fether(aq_nic, aq_rx_fltr, add);
+		break;
+	case aq_rx_filter_l3l4:
+		err = aq_add_del_fl3l4(aq_nic, aq_rx_fltr, add);
+		break;
+	}
+	return err;
+
 }
 
 static int aq_update_table_filters(struct aq_nic_s *aq_nic,
 				   struct aq_rx_filter *aq_rx_fltr, u16 index,
 				   struct ethtool_rxnfc *cmd)
 {
-	int err = -EINVAL;
-	struct hlist_node *aq_node2;
-	struct aq_rx_filter *rule = NULL, *parent = NULL;
 	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct aq_rx_filter *rule = NULL, *parent = NULL;
+	struct hlist_node *aq_node2;
+	int err = -EINVAL;
 
 	hlist_for_each_entry_safe(rule, aq_node2,
 				  &rx_fltrs->filter_list, aq_node) {
@@ -652,8 +686,8 @@ static int aq_update_table_filters(struct aq_nic_s *aq_nic,
 		parent = rule;
 	}
 
-	if (rule && (rule->aq_fsp.location == index)) {
-		err = aq_add_del_rule(aq_nic, rule, false);
+	if (rule && rule->aq_fsp.location == index) {
+		err = aq_apply_rule(aq_nic, rule, false);
 		hlist_del(&rule->aq_node);
 		kfree(rule);
 		--rx_fltrs->active_filters;
@@ -688,11 +722,11 @@ struct aq_hw_rx_fltrs_s *aq_get_hw_rx_fltrs(struct aq_nic_s *aq_nic)
 
 int aq_add_rxnfc_rule(struct aq_nic_s *aq_nic, const struct ethtool_rxnfc *cmd)
 {
-	int err = 0;
-	struct aq_rx_filter *aq_rx_fltr;
+	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
 	struct ethtool_rx_flow_spec *fsp =
 		(struct ethtool_rx_flow_spec *)&cmd->fs;
-	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct aq_rx_filter *aq_rx_fltr;
+	int err = 0;
 
 	err = aq_check_rule(aq_nic, fsp);
 	if (err)
@@ -710,7 +744,13 @@ int aq_add_rxnfc_rule(struct aq_nic_s *aq_nic, const struct ethtool_rxnfc *cmd)
 	if (unlikely(err))
 		goto err_free;
 
-	err = aq_add_del_rule(aq_nic, aq_rx_fltr, true);
+	err = aq_rule_set_type(aq_nic, aq_rx_fltr);
+	if (unlikely(err)) {
+		hlist_del(&aq_rx_fltr->aq_node);
+		--rx_fltrs->active_filters;
+		goto err_free;
+	}
+	err = aq_apply_rule(aq_nic, aq_rx_fltr, true);
 	if (unlikely(err)) {
 		hlist_del(&aq_rx_fltr->aq_node);
 		--rx_fltrs->active_filters;
@@ -727,10 +767,10 @@ err_exit:
 
 int aq_del_rxnfc_rule(struct aq_nic_s *aq_nic, const struct ethtool_rxnfc *cmd)
 {
-	int err = -EINVAL;
-	struct hlist_node *aq_node2;
-	struct aq_rx_filter *rule = NULL;
 	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct aq_rx_filter *rule = NULL;
+	struct hlist_node *aq_node2;
+	int err = -EINVAL;
 
 	hlist_for_each_entry_safe(rule, aq_node2,
 				  &rx_fltrs->filter_list, aq_node) {
@@ -738,8 +778,8 @@ int aq_del_rxnfc_rule(struct aq_nic_s *aq_nic, const struct ethtool_rxnfc *cmd)
 			break;
 	}
 
-	if (rule && (rule->aq_fsp.location == cmd->fs.location)) {
-		err = aq_add_del_rule(aq_nic, rule, false);
+	if (rule && rule->aq_fsp.location == cmd->fs.location) {
+		err = aq_apply_rule(aq_nic, rule, false);
 		hlist_del(&rule->aq_node);
 		kfree(rule);
 		--rx_fltrs->active_filters;
@@ -749,11 +789,11 @@ int aq_del_rxnfc_rule(struct aq_nic_s *aq_nic, const struct ethtool_rxnfc *cmd)
 
 int aq_get_rxnfc_rule(struct aq_nic_s *aq_nic, struct ethtool_rxnfc *cmd)
 {
-	struct hlist_node *aq_node2;
-	struct aq_rx_filter *rule = NULL;
+	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
 	struct ethtool_rx_flow_spec *fsp =
 			(struct ethtool_rx_flow_spec *)&cmd->fs;
-	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct aq_rx_filter *rule = NULL;
+	struct hlist_node *aq_node2;
 
 	hlist_for_each_entry_safe(rule, aq_node2,
 				  &rx_fltrs->filter_list, aq_node)
@@ -769,12 +809,12 @@ int aq_get_rxnfc_rule(struct aq_nic_s *aq_nic, struct ethtool_rxnfc *cmd)
 }
 
 int aq_get_rxnfc_all_rules(struct aq_nic_s *aq_nic, struct ethtool_rxnfc *cmd,
-			    u32 *rule_locs)
+			   u32 *rule_locs)
 {
-	int count = 0;
-	struct aq_rx_filter *rule;
-	struct hlist_node *aq_node2;
 	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct hlist_node *aq_node2;
+	struct aq_rx_filter *rule;
+	int count = 0;
 
 	cmd->data = aq_get_rxnfc_count_all_rules(aq_nic);
 
@@ -793,19 +833,37 @@ int aq_get_rxnfc_all_rules(struct aq_nic_s *aq_nic, struct ethtool_rxnfc *cmd,
 
 int aq_clear_rxnfc_all_rules(struct aq_nic_s *aq_nic)
 {
-	int err = 0;
-	struct aq_rx_filter *rule;
-	struct hlist_node *aq_node2;
 	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct hlist_node *aq_node2;
+	struct aq_rx_filter *rule;
+	int err = 0;
 
 	hlist_for_each_entry_safe(rule, aq_node2,
 				  &rx_fltrs->filter_list, aq_node) {
-		err = aq_add_del_rule(aq_nic, rule, false);
+		err = aq_apply_rule(aq_nic, rule, false);
 		if (err)
 			goto err_exit;
 		hlist_del(&rule->aq_node);
 		kfree(rule);
 		--rx_fltrs->active_filters;
+	}
+
+err_exit:
+	return err;
+}
+
+int aq_apply_all_rule(struct aq_nic_s *aq_nic)
+{
+	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
+	struct hlist_node *aq_node2;
+	struct aq_rx_filter *rule;
+	int err = 0;
+
+	hlist_for_each_entry_safe(rule, aq_node2,
+				  &rx_fltrs->filter_list, aq_node) {
+		err = aq_apply_rule(aq_nic, rule, true);
+		if (err)
+			goto err_exit;
 	}
 
 err_exit:
@@ -828,71 +886,67 @@ int aq_filters_vlans_update(struct aq_nic_s *aq_nic)
 	aq_fvlan_rebuild(aq_nic, aq_nic->active_vlans,
 			 aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans);
 
-	for (i = 0; i < BITS_TO_LONGS(VLAN_N_VID); i++)
-		hweight += hweight_long(aq_nic->active_vlans[i]);
+	if (aq_nic->ndev->features & NETIF_F_HW_VLAN_CTAG_FILTER) {
+		for (i = 0; i < BITS_TO_LONGS(VLAN_N_VID); i++)
+			hweight += hweight_long(aq_nic->active_vlans[i]);
 
-	err = aq_hw_ops->hw_filter_vlan_ctrl(aq_hw, false);
-	if (err)
-		return err;
+		err = aq_hw_ops->hw_filter_vlan_ctrl(aq_hw, false);
+		if (err)
+			return err;
+	}
+
 	err = aq_hw_ops->hw_filter_vlan_set(aq_hw,
 					    aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans
 					   );
 	if (err)
 		return err;
-	if (hweight <= HW_ATL_VLAN_MAX_FILTERS)
-		err = aq_hw_ops->hw_filter_vlan_ctrl(aq_hw, true);
-	/* otherwise left in promiscue mode */
+
+	if (aq_nic->ndev->features & NETIF_F_HW_VLAN_CTAG_FILTER) {
+		if (hweight < AQ_VLAN_MAX_FILTERS && hweight > 0) {
+			err = aq_hw_ops->hw_filter_vlan_ctrl(aq_hw,
+				!(aq_nic->packet_filter & IFF_PROMISC));
+			aq_nic->aq_nic_cfg.is_vlan_force_promisc = false;
+		} else {
+		/* otherwise left in promiscue mode */
+			aq_nic->aq_nic_cfg.is_vlan_force_promisc = true;
+		}
+	}
 
 	return err;
 }
 
 int aq_filters_vlans_on(struct aq_nic_s *aq_nic)
 {
-	const struct aq_hw_ops *aq_hw_ops = aq_nic->aq_hw_ops;
-	struct aq_hw_s *aq_hw = aq_nic->aq_hw;
 	int err = 0;
 
 	memset(aq_nic->active_vlans, 0, sizeof(aq_nic->active_vlans));
 
-	if (unlikely(!aq_hw_ops->hw_filter_vlan_ctrl))
-		return -EOPNOTSUPP;
-
 	err = aq_filters_vlans_update(aq_nic);
-	if (err)
-		return err;
 
-	return aq_hw_ops->hw_filter_vlan_ctrl(aq_hw, true);
+	return err;
 }
 
 int aq_filters_vlans_off(struct aq_nic_s *aq_nic)
 {
-	struct aq_hw_rx_fltrs_s *rx_fltrs = aq_get_hw_rx_fltrs(aq_nic);
 	const struct aq_hw_ops *aq_hw_ops = aq_nic->aq_hw_ops;
 	struct aq_hw_s *aq_hw = aq_nic->aq_hw;
-	struct hlist_node *aq_node2;
-	struct aq_rx_filter *rule;
 	int err = 0;
 
-	hlist_for_each_entry_safe(rule, aq_node2,
-				  &rx_fltrs->filter_list, aq_node) {
-		if (rule->type == aq_rx_filter_vlan) {
-			hlist_del(&rule->aq_node);
-			kfree(rule);
-			--rx_fltrs->active_filters;
-		}
-	}
-
 	memset(aq_nic->active_vlans, 0, sizeof(aq_nic->active_vlans));
-	memset(aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans,
-	       0,
-	       sizeof(aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans));
+	aq_fvlan_rebuild(aq_nic, aq_nic->active_vlans,
+			 aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans);
 
+	if (unlikely(!aq_hw_ops->hw_filter_vlan_set))
+		return -EOPNOTSUPP;
 	if (unlikely(!aq_hw_ops->hw_filter_vlan_ctrl))
 		return -EOPNOTSUPP;
 
-	err = aq_filters_vlans_update(aq_nic);
+	aq_nic->aq_nic_cfg.is_vlan_force_promisc = true;
+	err = aq_hw_ops->hw_filter_vlan_ctrl(aq_hw, false);
 	if (err)
 		return err;
-
-	return aq_hw_ops->hw_filter_vlan_ctrl(aq_hw, false);
+	err = aq_hw_ops->hw_filter_vlan_set(aq_hw,
+					    aq_nic->aq_hw_rx_fltrs.fl2.aq_vlans
+					   );
+	return err;
 }

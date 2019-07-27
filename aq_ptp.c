@@ -293,7 +293,7 @@ static void aq_ptp_tx_timeout_check(struct aq_ptp_s *self)
 
 	if (timeout_flag) {
 		aq_ptp_skb_ring_clean(&self->skb_ring);
-		aq_nic_print(self->aq_nic, err, drv, "PTP Timeout. Clearing Tx Timestamp SKBs\n");
+		netdev_err(self->aq_nic->ndev, "PTP Timeout. Clearing Tx Timestamp SKBs\n");
 	}
 }
 
@@ -458,13 +458,13 @@ static int aq_ptp_gpio_feature_enable(struct ptp_clock_info *ptp,
 		return -EINVAL;
 
 	if (on)
-		aq_nic_print(aq_nic, info, drv, "Enable GPIO %d pulsing, "
-			     "start time %llu, period %u\n", pin_index,
-			     start, (u32)period);
+		netdev_info(aq_nic->ndev, "Enable GPIO %d pulsing, "
+			    "start time %llu, period %u\n", pin_index,
+			    start, (u32)period);
 	else
-		aq_nic_print(aq_nic, info, drv, "Disable GPIO %d pulsing, "
-			     "start time %llu, period %u\n", pin_index,
-			     start, (u32)period);
+		netdev_info(aq_nic->ndev, "Disable GPIO %d pulsing, "
+			    "start time %llu, period %u\n", pin_index,
+			    start, (u32)period);
 
 
 	/* Notify hardware of request to being sending pulses.
@@ -518,7 +518,7 @@ void aq_ptp_tx_hwtstamp(struct aq_nic_s *aq_nic, u64 timestamp)
 	struct skb_shared_hwtstamps hwtstamp;
 
 	if (!skb) {
-		aq_nic_print(aq_nic, err, drv, "have timestamp but tx_queus empty\n");
+		netdev_err(aq_nic->ndev, "have timestamp but tx_queus empty\n");
 		return;
 	}
 
@@ -709,8 +709,8 @@ int aq_ptp_xmit(struct aq_nic_s *aq_nic, struct sk_buff *skb)
 
 	err = aq_ptp_skb_put(&self->skb_ring, skb);
 	if (err) {
-		aq_nic_print(aq_nic, err, drv, "SKB Ring is overflow (%u)!\n",
-			     ring->size);
+		netdev_err(aq_nic->ndev, "SKB Ring is overflow (%u)!\n",
+			   ring->size);
 		return NETDEV_TX_BUSY;
 	}
 	skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
@@ -1161,7 +1161,7 @@ int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec, unsigned int num_
 int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec)
 #endif
 {
-	struct hw_aq_atl_utils_mbox mbox;
+	struct hw_atl_utils_mbox mbox;
 	struct ptp_clock *clock;
 	struct aq_ptp_s *self;
 	int err = 0;
@@ -1199,7 +1199,7 @@ int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec)
 	self->ptp_info = aq_ptp_clock;
 	clock = ptp_clock_register(&self->ptp_info, &aq_nic->ndev->dev);
 	if (IS_ERR(clock)) {
-		aq_nic_print(aq_nic, err, drv, "ptp_clock_register failed\n");
+		netdev_err(aq_nic->ndev, "ptp_clock_register failed\n");
 		err = -EFAULT;
 		goto err_exit;
 	}

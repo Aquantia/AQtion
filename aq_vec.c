@@ -15,6 +15,8 @@
 #include "aq_nic.h"
 #include "aq_ring.h"
 #include "aq_hw.h"
+#include "aq_nic.h"
+#include "aq_main.h"
 
 #include <linux/netdevice.h>
 
@@ -47,6 +49,7 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 	} else {
 		for (i = 0U, ring = self->ring[0];
 			self->tx_rings > i; ++i, ring = self->ring[i]) {
+			ring[AQ_VEC_RX_ID].stats.rx.polls++;
 			if (self->aq_hw_ops->hw_ring_tx_head_update) {
 				err = self->aq_hw_ops->hw_ring_tx_head_update(
 							self->aq_hw,
@@ -89,6 +92,7 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 			}
 		}
 
+err_exit:
 		if (!was_tx_cleaned)
 			work_done = budget;
 
@@ -102,7 +106,7 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 					1U << self->aq_ring_param.vec_idx);
 		}
 	}
-err_exit:
+
 	return work_done;
 }
 
@@ -302,6 +306,7 @@ irqreturn_t aq_vec_isr(int irq, void *private)
 		err = -EINVAL;
 		goto err_exit;
 	}
+	self->ring[0][AQ_VEC_RX_ID].stats.rx.irqs++;
 	napi_schedule(&self->napi);
 
 err_exit:
@@ -357,14 +362,22 @@ void aq_vec_add_stats(struct aq_vec_s *self,
 		stats_rx->errors += rx->errors;
 		stats_rx->jumbo_packets += rx->jumbo_packets;
 		stats_rx->lro_packets += rx->lro_packets;
+		stats_rx->alloc_fails += rx->alloc_fails;
+		stats_rx->skb_alloc_fails += rx->skb_alloc_fails;
+		stats_rx->polls += rx->polls;
+		stats_rx->irqs += rx->irqs;
 		stats_rx->pg_losts += rx->pg_losts;
 		stats_rx->pg_flips += rx->pg_flips;
 		stats_rx->pg_reuses += rx->pg_reuses;
+		stats_rx->head = ring[AQ_VEC_RX_ID].sw_head;
+		stats_rx->tail = ring[AQ_VEC_RX_ID].sw_tail;
 
 		stats_tx->packets += tx->packets;
 		stats_tx->bytes += tx->bytes;
 		stats_tx->errors += tx->errors;
 		stats_tx->queue_restarts += tx->queue_restarts;
+		stats_tx->head = ring[AQ_VEC_TX_ID].sw_head;
+		stats_tx->tail = ring[AQ_VEC_TX_ID].sw_tail;
 	}
 }
 
@@ -386,9 +399,28 @@ int aq_vec_get_sw_stats(struct aq_vec_s *self, u64 *data, unsigned int *p_count)
 	data[++count] += stats_rx.jumbo_packets;
 	data[++count] += stats_rx.lro_packets;
 	data[++count] += stats_rx.errors;
+	data[++count] += stats_rx.alloc_fails;
+	data[++count] += stats_rx.skb_alloc_fails;
+	data[++count] += stats_rx.polls;
+	data[++count] += stats_rx.irqs;
+	data[++count] = stats_rx.head;
+	data[++count] = stats_rx.tail;
+	data[++count] = stats_tx.head;
+	data[++count] = stats_tx.tail;
 
 	if (p_count)
 		*p_count = ++count;
+
+	return 0;
+}
+
+int aq_vec_dump_rx_ring_descr(struct aq_vec_s *self, void *data, int len)
+{
+	struct aq_ring_s *ring = &self->ring[0][AQ_VEC_RX_ID];
+	int dump_size;
+
+	dump_size = min_t(int, ring->size * ring->dx_size, len);
+	memcpy(data, ring->dx_ring, dump_size);
 
 	return 0;
 }

@@ -12,6 +12,7 @@
 #include <linux/moduleparam.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/firmware.h>
 #include <linux/timer.h>
 #include <linux/cpu.h>
 #include <linux/ip.h>
@@ -28,6 +29,7 @@
 #include "aq_main.h"
 #include "aq_ptp.h"
 #include "aq_phy.h"
+#include "aq_filters.h"
 
 static unsigned int aq_itr = AQ_CFG_INTERRUPT_MODERATION_AUTO;
 module_param_named(aq_itr, aq_itr, uint, 0644);
@@ -49,13 +51,23 @@ unsigned int aq_rx_refill_thres = 32;
 module_param_named(aq_rx_refill_thres, aq_rx_refill_thres, uint, 0644);
 MODULE_PARM_DESC(aq_rx_refill_thres, "RX refill threshold");
 
+#define AQ_MODULE_PARAM_ARR(X, type, desc) \
+	static type X[AQ_NIC_MAX] = { 0 }; \
+	static unsigned int X##_count; \
+	module_param_array_named(X, X, type, &X##_count, 0644); \
+	MODULE_PARM_DESC(X, desc)
+
+AQ_MODULE_PARAM_ARR(aq_fw_did, uint, "Use FW image for this DID");
+AQ_MODULE_PARAM_ARR(aq_fw_sid, uint, "Use provisioning data for this SID");
+AQ_MODULE_PARAM_ARR(aq_force_host_boot, uint, "Force host boot");
+
 static void aq_nic_rss_init(struct aq_nic_s *self, unsigned int num_rss_queues)
 {
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 	struct aq_rss_parameters *rss_params = &cfg->aq_rss;
 	int i = 0;
 
-	static u8 rss_key[40] = {
+	static u8 rss_key[AQ_CFG_RSS_HASHKEY_SIZE] = {
 		0x1e, 0xad, 0x71, 0x87, 0x65, 0xfc, 0x26, 0x7d,
 		0x0d, 0x45, 0x67, 0x74, 0xcd, 0x06, 0x1a, 0x18,
 		0xb6, 0xc1, 0xf0, 0xc7, 0xbb, 0x18, 0xbe, 0xf8,
@@ -128,11 +140,12 @@ void aq_nic_cfg_start(struct aq_nic_s *self)
 		cfg->is_rss = 0U;
 		cfg->vecs = 1U;
 	}
+
 	/* Check if we have enough vectors allocated for
 	 * link status IRQ. If no - we'll know link state from
 	 * slower service task.
 	 */
-	if (AQ_HW_SERVICE_IRQS > 0 && cfg->vecs+1 <= self->irqvecs)
+	if (AQ_HW_SERVICE_IRQS > 0 && cfg->vecs + 1 <= self->irqvecs)
 		cfg->link_irq_vec = cfg->vecs;
 	else
 		cfg->link_irq_vec = 0;
@@ -141,6 +154,9 @@ void aq_nic_cfg_start(struct aq_nic_s *self)
 	cfg->features = cfg->aq_hw_caps->hw_features;
 	cfg->is_vlan_rx_strip = !!(cfg->features & NETIF_F_HW_VLAN_CTAG_RX);
 	cfg->is_vlan_tx_insert = !!(cfg->features & NETIF_F_HW_VLAN_CTAG_TX);
+	cfg->is_vlan_force_promisc = true;
+	/* enable downshift feature by default */
+	cfg->priv_flags = AQ_HW_DOWNSHIFT_MASK;
 }
 
 static int aq_nic_update_link_status(struct aq_nic_s *self)
@@ -152,7 +168,7 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 		return err;
 
 	if (self->link_status.mbps != self->aq_hw->aq_link_status.mbps) {
-		aq_nic_print(self, info, link, "%s: link change old %d new %d\n",
+		netdev_info(self->ndev, "%s: link change old %d new %d\n",
 			aq_ndev_driver_name, self->link_status.mbps,
 			self->aq_hw->aq_link_status.mbps);
 		aq_nic_update_interrupt_moderation_settings(self);
@@ -232,8 +248,8 @@ static void aq_nic_update_ndev_stats(struct aq_nic_s *self)
 
 static void aq_nic_service_task(struct work_struct *work)
 {
-	struct aq_nic_s *self = container_of(work,
-			struct aq_nic_s, service_task);
+	struct aq_nic_s *self = container_of(work, struct aq_nic_s,
+					     service_task);
 	int err;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
@@ -280,7 +296,7 @@ static void aq_nic_polling_timer_cb(struct timer_list *t)
 		aq_vec_isr(i, (void *)aq_vec);
 
 	mod_timer(&self->polling_timer, jiffies +
-		AQ_CFG_POLLING_TIMER_INTERVAL);
+		  AQ_CFG_POLLING_TIMER_INTERVAL);
 }
 
 int aq_nic_ndev_register(struct aq_nic_s *self)
@@ -387,7 +403,6 @@ int aq_nic_init(struct aq_nic_s *self)
 
 	err = self->aq_hw_ops->hw_init(self->aq_hw,
 				       aq_nic_get_ndev(self)->dev_addr);
-
 	if (err < 0)
 		goto err_exit;
 
@@ -419,7 +434,7 @@ int aq_nic_init(struct aq_nic_s *self)
 	if (err < 0)
 		goto err_exit;
 #endif
-	
+
 	INIT_WORK(&self->link_update_task, aq_nic_update_link_task_cb);
 
 	netif_carrier_off(self->ndev);
@@ -452,6 +467,14 @@ int aq_nic_start(struct aq_nic_s *self)
 			goto err_exit;
 	}
 
+	err = aq_apply_all_rule(self);
+	if (err < 0)
+		goto err_exit;
+
+	err = aq_filters_vlans_update(self);
+	if (err < 0)
+		goto err_exit;
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	err = aq_ptp_ring_start(self);
@@ -469,7 +492,8 @@ int aq_nic_start(struct aq_nic_s *self)
 
 	INIT_WORK(&self->service_task, aq_nic_service_task);
 	
-	aq_nic_setloopback(self, self->aq_nic_cfg.test_loopback);
+	aq_nic_set_loopback(self);
+	aq_nic_set_downshift(self);
 
 	timer_setup(&self->service_timer, aq_nic_service_timer_cb, 0);
 	aq_nic_service_timer_cb(&self->service_timer);
@@ -740,8 +764,9 @@ int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev)
 #define addr da_addr
 #endif
 	struct netdev_hw_addr *ha = NULL;
-	unsigned int packet_filter = self->packet_filter;
+	unsigned int packet_filter = ndev->flags;
 	const struct aq_hw_ops *hw_ops = self->aq_hw_ops;
+	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 	unsigned int i = 0U;
 	int err = 0;
 
@@ -751,20 +776,18 @@ int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev)
 	} else {
 		netdev_for_each_uc_addr(ha, ndev) {
 			ether_addr_copy(self->mc_list.ar[i++], ha->addr);
-
-			if (i >= AQ_HW_MULTICAST_ADDRESS_MAX)
-				break;
 		}
 	}
 
-	if (i + netdev_mc_count(ndev) > AQ_HW_MULTICAST_ADDRESS_MAX) {
-		packet_filter |= IFF_ALLMULTI;
-	} else {
-		netdev_for_each_mc_addr(ha, ndev) {
-			ether_addr_copy(self->mc_list.ar[i++], ha->addr);
-
-			if (i >= AQ_HW_MULTICAST_ADDRESS_MAX)
-				break;
+	cfg->is_mc_list_enabled = !!(packet_filter & IFF_MULTICAST);
+	if (cfg->is_mc_list_enabled) {
+		if (i + netdev_mc_count(ndev) > AQ_HW_MULTICAST_ADDRESS_MAX) {
+			packet_filter |= IFF_ALLMULTI;
+		} else {
+			netdev_for_each_mc_addr(ha, ndev) {
+				ether_addr_copy(self->mc_list.ar[i++],
+						ha->addr);
+			}
 		}
 	}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
@@ -772,7 +795,6 @@ int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev)
 #undef addr
 #endif
 	if (i > 0 && i <= AQ_HW_MULTICAST_ADDRESS_MAX) {
-		packet_filter |= IFF_MULTICAST;
 		self->mc_list.count = i;
 		err = hw_ops->hw_multicast_list_set(self->aq_hw,
 						    self->mc_list.ar,
@@ -1141,52 +1163,43 @@ struct aq_nic_cfg_s *aq_nic_get_cfg(struct aq_nic_s *self)
 
 u32 aq_nic_get_fw_version(struct aq_nic_s *self)
 {
-	u32 fw_version = 0U;
-
-	self->aq_hw_ops->hw_get_fw_version(self->aq_hw, &fw_version);
-
-	return fw_version;
+	return self->aq_hw_ops->hw_get_fw_version(self->aq_hw);
 }
 
-u32 aq_nic_getloopback(struct aq_nic_s *self)
+int aq_nic_set_loopback(struct aq_nic_s *self)
 {
-	return self->aq_nic_cfg.test_loopback;
-}
+	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 
-int aq_nic_setloopback(struct aq_nic_s *self, u32 flags)
-{
 	if (!self->aq_hw_ops->hw_set_loopback ||
 	    !self->aq_fw_ops->set_phyloopback)
 		return -ENOTSUPP;
 
 	self->aq_hw_ops->hw_set_loopback(self->aq_hw,
 					 AQ_HW_LOOPBACK_DMA_SYS,
-					 !!(flags &
+					 !!(cfg->priv_flags &
 					    BIT(AQ_HW_LOOPBACK_DMA_SYS)));
 
 	self->aq_hw_ops->hw_set_loopback(self->aq_hw,
 					 AQ_HW_LOOPBACK_PKT_SYS,
-					 !!(flags &
+					 !!(cfg->priv_flags &
 					    BIT(AQ_HW_LOOPBACK_PKT_SYS)));
 
 	self->aq_hw_ops->hw_set_loopback(self->aq_hw,
 					 AQ_HW_LOOPBACK_DMA_NET,
-					 !!(flags &
+					 !!(cfg->priv_flags &
 					    BIT(AQ_HW_LOOPBACK_DMA_NET)));
 
 	mutex_lock(&self->fwreq_mutex);
 	self->aq_fw_ops->set_phyloopback(self->aq_hw,
 					 AQ_HW_LOOPBACK_PHYINT_SYS,
-					 !!(flags &
+					 !!(cfg->priv_flags &
 					    BIT(AQ_HW_LOOPBACK_PHYINT_SYS)));
 
 	self->aq_fw_ops->set_phyloopback(self->aq_hw,
 					 AQ_HW_LOOPBACK_PHYEXT_SYS,
-					 !!(flags &
+					 !!(cfg->priv_flags &
 					    BIT(AQ_HW_LOOPBACK_PHYEXT_SYS)));
 	mutex_unlock(&self->fwreq_mutex);
-
-	self->aq_nic_cfg.test_loopback = flags & AQ_HW_LOOPBACK_MASK;
 
 	return 0;
 }
@@ -1337,4 +1350,90 @@ void aq_nic_shutdown(struct aq_nic_s *self)
 
 err_exit:
 	rtnl_unlock();
+}
+
+void aq_nic_parse_parameters(struct aq_nic_s *self, unsigned int nic_id)
+{
+	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(self);
+
+	if (nic_id >= AQ_NIC_MAX)
+		goto err_exit;
+
+	cfg->fw_did = aq_fw_did[nic_id];
+	cfg->fw_sid = aq_fw_sid[nic_id];
+	cfg->force_host_boot = !!aq_force_host_boot[nic_id];
+
+err_exit:
+	return;
+}
+
+static void aq_nic_detect_fw_image_for_legacy(struct aq_nic_s *self,
+					      const char **fw_image_name)
+{
+	struct aq_hw_chip_info chip_info = {};
+
+	self->aq_hw_ops->hw_get_chip_info(self->aq_hw, &chip_info);
+	if (chip_info.chip_id == AQ_CHIP_AQC107X ||
+	    chip_info.chip_id == AQ_CHIP_AQC108X ||
+	    chip_info.chip_id == AQ_CHIP_AQC109X) {
+		*fw_image_name = AQ_FW_AQC10XX;
+	} else if (chip_info.chip_id == AQ_CHIP_AQCC111X ||
+		   chip_info.chip_id == AQ_CHIP_AQCC112X ||
+		   chip_info.chip_id == AQ_CHIP_AQC111EX ||
+		   chip_info.chip_id == AQ_CHIP_AQC112EX) {
+		*fw_image_name = AQ_FW_AQC11XX;
+	} else if (chip_info.chip_id == AQ_CHIP_AQC100X) {
+		*fw_image_name = AQ_FW_AQC100X;
+	} else {
+		/*Host boot is not supported for unknown chip*/
+		*fw_image_name = NULL;
+	}
+}
+
+void aq_nic_request_firmware(struct aq_nic_s *self)
+{
+	const struct aq_hw_caps_s *hw_caps = self->aq_nic_cfg.aq_hw_caps;
+	const char *fw_image_name = hw_caps->fw_image_name;
+	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(self);
+
+	if (cfg->fw_did) {
+		switch (cfg->fw_did) {
+		case AQ_DEVICE_ID_AQC100S:
+			fw_image_name = AQ_FW_AQC100X;
+			break;
+		case AQ_DEVICE_ID_AQC107S:
+			fw_image_name = AQ_FW_AQC10XX;
+			break;
+		case AQ_DEVICE_ID_AQC111S:
+			fw_image_name = AQ_FW_AQC11XX;
+			break;
+		default:
+			fw_image_name = NULL;
+		}
+	} else if (self->pdev->device == AQ_DEVICE_ID_0001) {
+		aq_nic_detect_fw_image_for_legacy(self, &fw_image_name);
+	}
+
+	if (fw_image_name)
+		request_firmware(&aq_nic_get_cfg(self)->fw_image, fw_image_name,
+				 &self->pdev->dev);
+
+	self->aq_hw->ssid = ((uint32_t)self->pdev->subsystem_device << 16) |
+			    self->pdev->subsystem_vendor;
+}
+
+int aq_nic_set_downshift(struct aq_nic_s *self)
+{
+	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
+
+	if (!self->aq_fw_ops->set_downshift)
+		return -ENOTSUPP;
+
+	mutex_lock(&self->fwreq_mutex);
+	self->aq_fw_ops->set_downshift(self->aq_hw,
+				       !!(cfg->priv_flags &
+					  AQ_HW_DOWNSHIFT_MASK));
+	mutex_unlock(&self->fwreq_mutex);
+
+	return 0;
 }

@@ -47,6 +47,19 @@
 #define AQ_DEVICE_ID_AQC111S	0x91B1
 #define AQ_DEVICE_ID_AQC112S	0x92B1
 
+#define AQ_CHIP_AQC100X		0xC100
+#define AQ_CHIP_AQC107X		0xC107
+#define AQ_CHIP_AQC108X		0xC108
+#define AQ_CHIP_AQC109X		0xC109
+#define AQ_CHIP_AQCC111X	0xC111
+#define AQ_CHIP_AQCC112X	0xC112
+#define AQ_CHIP_AQC111EX	0x111E
+#define AQ_CHIP_AQC112EX	0x112E
+
+#define AQ_FW_AQC100X		"aquantia/80B1.fw"
+#define AQ_FW_AQC10XX		"aquantia/87B1.fw"
+#define AQ_FW_AQC11XX		"aquantia/91B1.fw"
+
 #define HW_ATL_NIC_NAME "aQuantia AQtion 10Gbit Network Adapter"
 
 #define AQ_HWREV_ANY	0

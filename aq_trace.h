@@ -23,7 +23,7 @@
 		(BIT(BIT_BEGIN - BIT_END + 1) - 1))
 
 TRACE_EVENT(aq_rx_descr,
-	TP_PROTO(int ring_idx, unsigned int pointer, u64 descr[2]),
+	TP_PROTO(int ring_idx, unsigned int pointer, u64 *descr),
 	TP_ARGS(ring_idx, pointer, descr),
 	TP_STRUCT__entry(
 		__field(unsigned int, ring_idx)
@@ -76,7 +76,7 @@ TRACE_EVENT(aq_rx_descr,
 );
 
 TRACE_EVENT(aq_tx_descr,
-	TP_PROTO(int ring_idx, unsigned int pointer, u64 descr[2]),
+	TP_PROTO(int ring_idx, unsigned int pointer, u64 *descr),
 	TP_ARGS(ring_idx, pointer, descr),
 	TP_STRUCT__entry(
 		__field(unsigned int, ring_idx)
@@ -119,7 +119,7 @@ TRACE_EVENT(aq_tx_descr,
 
 
 TRACE_EVENT(aq_tx_context_descr,
-	TP_PROTO(int ring_idx, unsigned int pointer, u64 descr[2]),
+	TP_PROTO(int ring_idx, unsigned int pointer, u64 *descr),
 	TP_ARGS(ring_idx, pointer, descr),
 	TP_STRUCT__entry(
 		__field(unsigned int, ring_idx)

@@ -8,14 +8,15 @@
 #include "aq_phy.h"
 
 /* Semaphore for synchronizing access to MDIO */
-#define HW_ATL_FW_SM_MDIO 0
 #define HW_ATL_PTP_DISABLE_MSK (1U << 0xa)
 
 bool aq_mdio_busy_wait(struct aq_hw_s *aq_hw)
 {
 	int err = 0;
+	u32 val;
 
-	AQ_HW_WAIT_FOR(hw_atl_mdio_busy_get(aq_hw) == 0U, 1000U, 1000U);
+	err = readx_poll_timeout_atomic(hw_atl_mdio_busy_get, aq_hw,
+					val, val == 0U, 10U, 100000U);
 
 	if (err < 0)
 		return false;
@@ -78,10 +79,10 @@ void aq_mdio_write_word(struct aq_hw_s *aq_hw, u16 mmd, u16 addr, u16 data)
 u16 aq_phy_read_reg(struct aq_hw_s *aq_hw, u16 mmd, u16 address)
 {
 	int err = 0;
+	u32 val;
 
-	AQ_HW_WAIT_FOR(hw_atl_reg_glb_cpu_sem_get(aq_hw,
-						  HW_ATL_FW_SM_MDIO) == 1U,
-						  1000U, 1000U);
+	err = readx_poll_timeout_atomic(hw_atl_sem_mdio_get, aq_hw,
+					val, val == 1U, 10U, 100000U);
 
 	if (err < 0) {
 		err = 0xffff;
@@ -101,10 +102,10 @@ err_exit:
 void aq_phy_write_reg(struct aq_hw_s *aq_hw, u16 mmd, u16 address, u16 data)
 {
 	int err = 0;
+	u32 val;
 
-	AQ_HW_WAIT_FOR(hw_atl_reg_glb_cpu_sem_get(aq_hw,
-						  HW_ATL_FW_SM_MDIO) == 1U,
-						  1000U, 1000U);
+	err = readx_poll_timeout_atomic(hw_atl_sem_mdio_get, aq_hw,
+					val, val == 1U, 10U, 100000U);
 	if (err < 0)
 		return;
 

@@ -60,44 +60,24 @@ u32 hw_atl_rpb_rx_dma_drop_pkt_cnt_get(struct aq_hw_s *aq_hw)
 	return aq_hw_read_reg(aq_hw, HW_ATL_RPB_RX_DMA_DROP_PKT_CNT_ADR);
 }
 
-u32 hw_atl_stats_rx_dma_good_octet_counterlsw_get(struct aq_hw_s *aq_hw)
+u64 hw_atl_stats_rx_dma_good_octet_counter_get(struct aq_hw_s *aq_hw)
 {
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_RX_DMA_GOOD_OCTET_COUNTERLSW);
+	return aq_hw_read_reg64(aq_hw, HW_ATL_STATS_RX_DMA_GOOD_OCTET_COUNTERLSW);
 }
 
-u32 hw_atl_stats_rx_dma_good_pkt_counterlsw_get(struct aq_hw_s *aq_hw)
+u64 hw_atl_stats_rx_dma_good_pkt_counter_get(struct aq_hw_s *aq_hw)
 {
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_RX_DMA_GOOD_PKT_COUNTERLSW);
+	return aq_hw_read_reg64(aq_hw, HW_ATL_STATS_RX_DMA_GOOD_PKT_COUNTERLSW);
 }
 
-u32 hw_atl_stats_tx_dma_good_octet_counterlsw_get(struct aq_hw_s *aq_hw)
+u64 hw_atl_stats_tx_dma_good_octet_counter_get(struct aq_hw_s *aq_hw)
 {
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_TX_DMA_GOOD_OCTET_COUNTERLSW);
+	return aq_hw_read_reg64(aq_hw, HW_ATL_STATS_TX_DMA_GOOD_OCTET_COUNTERLSW);
 }
 
-u32 hw_atl_stats_tx_dma_good_pkt_counterlsw_get(struct aq_hw_s *aq_hw)
+u64 hw_atl_stats_tx_dma_good_pkt_counter_get(struct aq_hw_s *aq_hw)
 {
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_TX_DMA_GOOD_PKT_COUNTERLSW);
-}
-
-u32 hw_atl_stats_rx_dma_good_octet_countermsw_get(struct aq_hw_s *aq_hw)
-{
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_RX_DMA_GOOD_OCTET_COUNTERMSW);
-}
-
-u32 hw_atl_stats_rx_dma_good_pkt_countermsw_get(struct aq_hw_s *aq_hw)
-{
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_RX_DMA_GOOD_PKT_COUNTERMSW);
-}
-
-u32 hw_atl_stats_tx_dma_good_octet_countermsw_get(struct aq_hw_s *aq_hw)
-{
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_TX_DMA_GOOD_OCTET_COUNTERMSW);
-}
-
-u32 hw_atl_stats_tx_dma_good_pkt_countermsw_get(struct aq_hw_s *aq_hw)
-{
-	return aq_hw_read_reg(aq_hw, HW_ATL_STATS_TX_DMA_GOOD_PKT_COUNTERMSW);
+	return aq_hw_read_reg64(aq_hw, HW_ATL_STATS_TX_DMA_GOOD_PKT_COUNTERLSW);
 }
 
 /* interrupt */
@@ -646,12 +626,25 @@ void hw_atl_rpb_rx_flow_ctl_mode_set(struct aq_hw_s *aq_hw,
 			    HW_ATL_RPB_RX_FC_MODE_SHIFT, rx_flow_ctl_mode);
 }
 
-void hw_atl_rdm_rx_dma_desc_cache_init_set(struct aq_hw_s *aq_hw, u32 init)
+void hw_atl_rdm_rx_dma_desc_cache_init_tgl(struct aq_hw_s *aq_hw)
 {
+	u32 val;
+
+	val = aq_hw_read_reg_bit(aq_hw, HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_ADR,
+				 HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_MSK,
+				 HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_SHIFT);
+
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_ADR,
 			    HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_MSK,
 			    HW_ATL_RDM_RX_DMA_DESC_CACHE_INIT_SHIFT,
-			    init);
+			    val ^ 1);
+}
+
+u32 hw_atl_rdm_rx_dma_desc_cache_init_done_get(struct aq_hw_s *aq_hw)
+{
+	return aq_hw_read_reg_bit(aq_hw, RDM_RX_DMA_DESC_CACHE_INIT_DONE_ADR,
+				  RDM_RX_DMA_DESC_CACHE_INIT_DONE_MSK,
+				  RDM_RX_DMA_DESC_CACHE_INIT_DONE_SHIFT);
 }
 
 void hw_atl_rpb_rx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
@@ -928,7 +921,7 @@ void hw_atl_rpf_vlan_id_flr_set(struct aq_hw_s *aq_hw, u32 vlan_id_flr,
 }
 
 void hw_atl_rpf_vlan_rxq_en_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq_en,
-				u32 filter)
+				    u32 filter)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_VL_RXQ_EN_F_ADR(filter),
 			    HW_ATL_RPF_VL_RXQ_EN_F_MSK,
@@ -937,7 +930,7 @@ void hw_atl_rpf_vlan_rxq_en_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq_en,
 }
 
 void hw_atl_rpf_vlan_rxq_flr_set(struct aq_hw_s *aq_hw, u32 vlan_rxq,
-				u32 filter)
+				 u32 filter)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_VL_RXQ_F_ADR(filter),
 			    HW_ATL_RPF_VL_RXQ_F_MSK,
@@ -1106,15 +1099,15 @@ void hw_atl_rpf_l4_protf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
 void hw_atl_rpf_l4_spd_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L4_SPD_ADR(filter),
-			HW_ATL_RPF_L4_SPD_MSK,
-			HW_ATL_RPF_L4_SPD_SHIFT, val);
+			    HW_ATL_RPF_L4_SPD_MSK,
+			    HW_ATL_RPF_L4_SPD_SHIFT, val);
 }
 
 void hw_atl_rpf_l4_dpd_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L4_DPD_ADR(filter),
-			HW_ATL_RPF_L4_DPD_MSK,
-			HW_ATL_RPF_L4_DPD_SHIFT, val);
+			    HW_ATL_RPF_L4_DPD_MSK,
+			    HW_ATL_RPF_L4_DPD_SHIFT, val);
 }
 
 /* RPO: rx packet offload */
@@ -1655,14 +1648,35 @@ void hw_atl_pci_pci_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 pci_reg_res_dis)
 			    pci_reg_res_dis);
 }
 
-void hw_atl_reg_glb_cpu_scratch_scp_set(struct aq_hw_s *aq_hw,
-					u32 glb_cpu_scratch_scp,
-					u32 scratch_scp)
+u32 hw_atl_reg_glb_cpu_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_pad)
 {
-	aq_hw_write_reg(aq_hw, HW_ATL_GLB_CPU_SCRATCH_SCP_ADR(scratch_scp),
-			glb_cpu_scratch_scp);
+	return aq_hw_read_reg(aq_hw, HW_ATL_GLB_CPU_SCRPAD_ADR(scratch_pad));
 }
 
+void hw_atl_reg_glb_cpu_scrpad_set(struct aq_hw_s *aq_hw,
+				   u32 glb_cpu_scratch_pad, u32 scratch_pad)
+{
+	aq_hw_write_reg(aq_hw, HW_ATL_GLB_CPU_SCRPAD_ADR(scratch_pad),
+			glb_cpu_scratch_pad);
+}
+
+u32 hw_atl_reg_glb_cpu_scrpad_nr_get(struct aq_hw_s *aq_hw, u32 scratch_pad)
+{
+	return aq_hw_read_reg(aq_hw, HW_ATL_GLB_CPU_SCRPAD_NR_ADR(scratch_pad));
+}
+
+void hw_atl_reg_glb_cpu_scrpad_nr_set(struct aq_hw_s *aq_hw,
+				      u32 glb_cpu_scratch_pad,
+				      u32 scratch_pad)
+{
+	aq_hw_write_reg(aq_hw, HW_ATL_GLB_CPU_SCRPAD_NR_ADR(scratch_pad),
+			glb_cpu_scratch_pad);
+}
+
+void hw_atl_reg_glb_cpu_ctrl2_set(struct aq_hw_s *aq_hw, u32 glb_cpu_ctrl)
+{
+	aq_hw_write_reg(aq_hw, mcp_up_force_interrupt_adr, glb_cpu_ctrl);
+}
 
 void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw, u32 ptp_clock_read_enable)
 {
@@ -1687,17 +1701,17 @@ void mcp_up_force_intr_set(struct aq_hw_s *aq_hw, u32 up_force_intr)
 
 void hw_atl_rpfl3l4_ipv4_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location)
 {
-	aq_hw_write_reg(aq_hw, HW_ATL_RX_GET_ADDR_DESTA_FL3L4(location), 0U);
+	aq_hw_write_reg(aq_hw, HW_ATL_RPF_L3_DSTA_ADR(location), 0U);
 }
 
 void hw_atl_rpfl3l4_ipv4_src_addr_clear(struct aq_hw_s *aq_hw, u8 location)
 {
-	aq_hw_write_reg(aq_hw, HW_ATL_RX_GET_ADDR_SRCA_FL3L4(location), 0U);
+	aq_hw_write_reg(aq_hw, HW_ATL_RPF_L3_SRCA_ADR(location), 0U);
 }
 
 void hw_atl_rpfl3l4_cmd_clear(struct aq_hw_s *aq_hw, u8 location)
 {
-	aq_hw_write_reg(aq_hw, HW_ATL_RX_GET_ADDR_CTRL_FL3L4(location), 0U);
+	aq_hw_write_reg(aq_hw, HW_ATL_RPF_L3_REG_CTRL_ADR(location), 0U);
 }
 
 void hw_atl_rpfl3l4_ipv6_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location)
@@ -1706,7 +1720,7 @@ void hw_atl_rpfl3l4_ipv6_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location)
 
 	for (i = 0; i < 4; ++i)
 		aq_hw_write_reg(aq_hw,
-				HW_ATL_RX_GET_ADDR_DESTA_FL3L4(location + i),
+				HW_ATL_RPF_L3_DSTA_ADR(location + i),
 				0U);
 }
 
@@ -1716,14 +1730,14 @@ void hw_atl_rpfl3l4_ipv6_src_addr_clear(struct aq_hw_s *aq_hw, u8 location)
 
 	for (i = 0; i < 4; ++i)
 		aq_hw_write_reg(aq_hw,
-				HW_ATL_RX_GET_ADDR_SRCA_FL3L4(location + i),
+				HW_ATL_RPF_L3_SRCA_ADR(location + i),
 				0U);
 }
 
 void hw_atl_rpfl3l4_ipv4_dest_addr_set(struct aq_hw_s *aq_hw, u8 location,
 				       u32 ipv4_dest)
 {
-	aq_hw_write_reg(aq_hw, HW_ATL_RX_GET_ADDR_DESTA_FL3L4(location),
+	aq_hw_write_reg(aq_hw, HW_ATL_RPF_L3_DSTA_ADR(location),
 			ipv4_dest);
 }
 
@@ -1731,13 +1745,13 @@ void hw_atl_rpfl3l4_ipv4_src_addr_set(struct aq_hw_s *aq_hw, u8 location,
 				      u32 ipv4_src)
 {
 	aq_hw_write_reg(aq_hw,
-			HW_ATL_RX_GET_ADDR_SRCA_FL3L4(location),
+			HW_ATL_RPF_L3_SRCA_ADR(location),
 			ipv4_src);
 }
 
 void hw_atl_rpfl3l4_cmd_set(struct aq_hw_s *aq_hw, u8 location, u32 cmd)
 {
-	aq_hw_write_reg(aq_hw, HW_ATL_RX_GET_ADDR_CTRL_FL3L4(location), cmd);
+	aq_hw_write_reg(aq_hw, HW_ATL_RPF_L3_REG_CTRL_ADR(location), cmd);
 }
 
 void hw_atl_rpfl3l4_ipv6_src_addr_set(struct aq_hw_s *aq_hw, u8 location,
@@ -1747,7 +1761,7 @@ void hw_atl_rpfl3l4_ipv6_src_addr_set(struct aq_hw_s *aq_hw, u8 location,
 
 	for (i = 0; i < 4; ++i)
 		aq_hw_write_reg(aq_hw,
-				HW_ATL_RX_GET_ADDR_SRCA_FL3L4(location + i),
+				HW_ATL_RPF_L3_SRCA_ADR(location + i),
 				ipv6_src[i]);
 }
 
@@ -1758,8 +1772,38 @@ void hw_atl_rpfl3l4_ipv6_dest_addr_set(struct aq_hw_s *aq_hw, u8 location,
 
 	for (i = 0; i < 4; ++i)
 		aq_hw_write_reg(aq_hw,
-				HW_ATL_RX_GET_ADDR_DESTA_FL3L4(location + i),
+				HW_ATL_RPF_L3_DSTA_ADR(location + i),
 				ipv6_dest[i]);
+}
+
+u32 hw_atl_sem_ram_get(struct aq_hw_s *self)
+{
+	return hw_atl_reg_glb_cpu_sem_get(self, HW_ATL_FW_SM_RAM);
+}
+
+u32 hw_atl_sem_mdio_get(struct aq_hw_s *self)
+{
+	return hw_atl_reg_glb_cpu_sem_get(self, HW_ATL_FW_SM_MDIO);
+}
+
+u32 hw_atl_sem_msm_get(struct aq_hw_s *self)
+{
+	return hw_atl_reg_glb_cpu_sem_get(self, HW_ATL_FW_SM_MSM);
+}
+
+u32 hw_atl_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_pad)
+{
+	return aq_hw_read_reg(aq_hw, HW_ATL_GLB_CPU_SCRPAD_ADR(scratch_pad));
+}
+
+u32 hw_atl_scrpad12_get(struct aq_hw_s *self)
+{
+	return  hw_atl_scrpad_get(self, 0xB);
+}
+
+u32 hw_atl_scrpad25_get(struct aq_hw_s *self)
+{
+	return hw_atl_scrpad_get(self, 0x18);
 }
 
 void hw_atl_glb_mdio_iface1_set(struct aq_hw_s *aq_hw, u32 value)
