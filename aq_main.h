@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File aq_main.h: Main file for aQuantia Linux driver. */
@@ -17,7 +14,7 @@
 
 extern const char aq_ndev_driver_name[];
 
-void aq_ndev_service_event_schedule(struct aq_nic_s *aq_nic);
+void aq_ndev_schedule_work(struct work_struct *work);
 struct net_device *aq_ndev_alloc(void);
 
 #endif /* AQ_MAIN_H */

@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_b0.c: Definition of Atlantic hardware specific functions. */
@@ -14,6 +11,7 @@
 #include "../aq_ring.h"
 #include "../aq_nic.h"
 #include "../aq_trace.h"
+#include "../aq_phy.h"
 #include "hw_atl_b0.h"
 #include "hw_atl_utils.h"
 #include "hw_atl_llh.h"
@@ -46,11 +44,13 @@
 			NETIF_F_NTUPLE |  \
 			NETIF_F_HW_VLAN_CTAG_FILTER | \
 			NETIF_F_HW_VLAN_CTAG_RX |     \
-			NETIF_F_HW_VLAN_CTAG_TX,      \
-	.hw_priv_flags = IFF_UNICAST_FLT,	     \
-	.flow_control = true,			     \
-	.mtu = HW_ATL_B0_MTU_JUMBO,		     \
-	.mac_regs_count = 88,			     \
+			NETIF_F_HW_VLAN_CTAG_TX |     \
+			NETIF_F_GSO_UDP_L4      |     \
+			NETIF_F_GSO_PARTIAL,          \
+	.hw_priv_flags = IFF_UNICAST_FLT, \
+	.flow_control = true,		  \
+	.mtu = HW_ATL_B0_MTU_JUMBO,	  \
+	.mac_regs_count = 88,		  \
 	.hw_alive_check_addr = 0x10U
 
 const struct aq_hw_caps_s hw_atl_b0_caps_aqc100 = {
@@ -562,8 +562,8 @@ static int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self,
 	unsigned int buff_pa_len = 0U;
 	unsigned int pkt_len = 0U;
 	unsigned int frag_count = 0U;
-	bool is_gso = false;
 	bool is_vlan = false;
+	bool is_gso = false;
 
 	buff = &ring->buff_ring[ring->sw_tail];
 	pkt_len = (buff->is_eop && buff->is_sop) ? buff->len : buff->len_pkt;
@@ -577,11 +577,12 @@ static int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self,
 
 		buff = &ring->buff_ring[ring->sw_tail];
 
-		if (buff->is_gso) {
-			txd->ctl |= HW_ATL_B0_TXD_CTL_CMD_TCP;
+		if (buff->is_gso_tcp || buff->is_gso_udp) {
+			if (buff->is_gso_tcp)
+				txd->ctl |= HW_ATL_B0_TXD_CTL_CMD_TCP;
 			txd->ctl |= HW_ATL_B0_TXD_CTL_DESC_TYPE_TXC;
 			txd->ctl |= (buff->len_l3 << 31) |
-						(buff->len_l2 << 24);
+				    (buff->len_l2 << 24);
 			txd->ctl2 |= (buff->mss << 16);
 			is_gso = true;
 
@@ -598,7 +599,7 @@ static int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self,
 			txd->ctl |= buff->vlan_tx_tag << 4;
 			is_vlan = true;
 		}
-		if (!buff->is_gso && !buff->is_vlan) {
+		if (!buff->is_gso_tcp && !buff->is_gso_udp && !buff->is_vlan) {
 			buff_pa_len = buff->len;
 
 			txd->buf_addr = buff->pa;
@@ -652,6 +653,8 @@ static int hw_atl_b0_hw_ring_rx_init(struct aq_hw_s *self,
 	u32 vlan_rx_stripping = self->aq_nic_cfg->is_vlan_rx_strip;
 
 	hw_atl_rdm_rx_desc_en_set(self, false, aq_ring->idx);
+
+	hw_atl_rdm_rx_desc_head_splitting_set(self, 0U, aq_ring->idx);
 
 	hw_atl_reg_rx_dma_desc_base_addresslswset(self, dma_desc_addr_lsw,
 						  aq_ring->idx);
@@ -845,10 +848,10 @@ static int hw_atl_b0_hw_ring_rx_receive(struct aq_hw_s *self,
 		}
 
 		if (self->aq_nic_cfg->is_vlan_rx_strip &&
-			((pkt_type & HW_ATL_B0_RXD_WB_PKTTYPE_VLAN) ||
-			 (pkt_type & HW_ATL_B0_RXD_WB_PKTTYPE_VLAN_DOUBLE))) {
+		    ((pkt_type & HW_ATL_B0_RXD_WB_PKTTYPE_VLAN) ||
+		     (pkt_type & HW_ATL_B0_RXD_WB_PKTTYPE_VLAN_DOUBLE))) {
 			buff->is_vlan = 1;
-			buff->vlan_rx_tag = le16_to_cpu(rxd_wb->vlan);;
+			buff->vlan_rx_tag = le16_to_cpu(rxd_wb->vlan);
 		}
 
 		if ((rx_stat & BIT(0)) || rxd_wb->type & 0x1000U) {
@@ -1248,6 +1251,19 @@ static int hw_atl_b0_adj_sys_clock(struct aq_hw_s *self, s64 delta)
 	return 0;
 }
 
+static int hw_atl_b0_set_sys_clock(struct aq_hw_s *self, u64 time, u64 ts)
+{
+	s64 delta = time - (ptp_clk_offset + ts);
+
+	return hw_atl_b0_adj_sys_clock(self, delta);
+}
+
+int hw_atl_b0_ts_to_sys_clock(struct aq_hw_s *self, u64 ts, u64 *time)
+{
+	*time = ptp_clk_offset + ts;
+	return 0;
+}
+
 static int hw_atl_b0_adj_clock_freq(struct aq_hw_s *self, s32 ppb)
 {
 	struct hw_fw_request_iface fwreq;
@@ -1265,13 +1281,7 @@ static int hw_atl_b0_adj_clock_freq(struct aq_hw_s *self, s32 ppb)
 	hw_atl_b0_mac_adj_param_calc(&fwreq.ptp_adj_freq,
 				     AQ_HW_PHY_COUNTER_HZ,
 				     AQ_HW_MAC_COUNTER_HZ);
-	
-	aq_pr_trace("PTP Adj Freq %d. MAC %d ns %08x fns. PHY %d "
-		    "ns %08x fns. ADJ %d ns %08x fns.\n", ppb,
-		    fwreq.ptp_adj_freq.ns_mac, fwreq.ptp_adj_freq.fns_mac,
-		    fwreq.ptp_adj_freq.ns_phy, fwreq.ptp_adj_freq.fns_phy,
-		    fwreq.ptp_adj_freq.mac_ns_adj,
-		    fwreq.ptp_adj_freq.mac_fns_adj);
+
 	size = sizeof(fwreq.msg_id) + sizeof(fwreq.ptp_adj_freq);
 	return self->aq_fw_ops->send_fw_request(self, &fwreq, size);
 }
@@ -1292,6 +1302,39 @@ static int hw_atl_b0_gpio_pulse(struct aq_hw_s *self, u32 index,
 
 	size = sizeof(fwreq.msg_id) + sizeof(fwreq.ptp_gpio_ctrl);
 	return self->aq_fw_ops->send_fw_request(self, &fwreq, size);
+}
+
+static int hw_atl_b0_extts_gpio_enable(struct aq_hw_s *self, u32 index,
+				       u32 enable)
+{
+	/* Enable/disable Sync1588 GPIO Timestamping */
+	aq_phy_write_reg(self, MDIO_MMD_PCS, 0xc611, enable ? 0x71 : 0);
+
+	return 0;
+}
+
+static int hw_atl_b0_get_sync_ts(struct aq_hw_s *self, u64 *ts)
+{
+	uint64_t sec_l;
+	uint64_t sec_h;
+	uint64_t nsec_l;
+	uint64_t nsec_h;
+
+	if (!ts)
+		return -1;
+
+	/* PTP external GPIO clock seconds count 15:0 */
+	sec_l = aq_phy_read_reg(self, MDIO_MMD_PCS, 0xc914);
+	/* PTP external GPIO clock seconds count 31:16 */
+	sec_h = aq_phy_read_reg(self, MDIO_MMD_PCS, 0xc915);
+	/* PTP external GPIO clock nanoseconds count 15:0 */
+	nsec_l = aq_phy_read_reg(self, MDIO_MMD_PCS, 0xc916);
+	/* PTP external GPIO clock nanoseconds count 31:16 */
+	nsec_h = aq_phy_read_reg(self, MDIO_MMD_PCS, 0xc917);
+
+	*ts = (nsec_h << 16) + nsec_l + ((sec_h << 16) + sec_l) * NSEC_PER_SEC;
+
+	return 0;
 }
 
 static u16 hw_atl_b0_rx_extract_ts(u8 *p, unsigned int len, u64 *timestamp)
@@ -1552,8 +1595,12 @@ const struct aq_hw_ops hw_atl_ops_b0 = {
 	.hw_ptp_dpath_enable     = hw_atl_b0_ptp_dpath_enable,
 	.hw_get_ptp_ts           = hw_atl_b0_get_ptp_ts,
 	.hw_adj_sys_clock        = hw_atl_b0_adj_sys_clock,
+	.hw_set_sys_clock        = hw_atl_b0_set_sys_clock,
+	.hw_ts_to_sys_clock      = hw_atl_b0_ts_to_sys_clock,
 	.hw_adj_clock_freq       = hw_atl_b0_adj_clock_freq,
 	.hw_gpio_pulse           = hw_atl_b0_gpio_pulse,
+	.hw_extts_gpio_enable    = hw_atl_b0_extts_gpio_enable,
+	.hw_get_sync_ts          = hw_atl_b0_get_sync_ts,
 
 	.enable_ptp              = NULL,
 	.hw_ring_tx_ptp_get_ts   = NULL,

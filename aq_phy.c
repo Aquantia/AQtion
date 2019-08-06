@@ -3,8 +3,6 @@
  * Copyright (C) 2018 aQuantia Corporation. All rights reserved
  */
 
-#include <linux/mdio.h>
-
 #include "aq_phy.h"
 
 /* Semaphore for synchronizing access to MDIO */
@@ -121,6 +119,7 @@ bool aq_phy_init_phy_id(struct aq_hw_s *aq_hw)
 	     ++aq_hw->phy_id) {
 		/* PMA Standard Device Identifier 2: Address 1.3 */
 		val = aq_phy_read_reg(aq_hw, MDIO_MMD_PMAPMD, 3);
+
 		if (val != 0xffff)
 			return true;
 	}

@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_utils.c: Definition of common functions for Atlantic hardware
@@ -64,10 +61,6 @@ static u32 aq_fw1x_rpc_get(struct aq_hw_s *self);
 int hw_atl_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 {
 	int err = 0;
-
-	err = hw_atl_utils_soft_reset(self);
-	if (err)
-		return err;
 
 	hw_atl_utils_hw_chip_features_init(self,
 					   &self->chip_features);
@@ -224,10 +217,15 @@ static int hw_atl_utils_soft_reset_rbl(struct aq_hw_s *self)
 		aq_hw_write_reg(self, 0x534, 0xA0);
 
 	if (rbl_status == 0xF1A7) {
-		int res = hw_atl_hostboot(self);
+		if (self->aq_nic_cfg->fw_image) {
+			int res = hw_atl_hostboot(self);
 
-		if (res)
-			return res;
+			if (res)
+				return res;
+		} else {
+			self->image_required = 1;
+			return -EINVAL;
+		}
 	}
 
 	for (k = 0; k < 1000; k++) {
@@ -296,7 +294,7 @@ int hw_atl_utils_soft_reset(struct aq_hw_s *self)
 		err = readx_poll_timeout_atomic(hw_atl_utils_mpi_get_state,
 						self, val,
 						(val & HW_ATL_MPI_STATE_MSK) ==
-						MPI_DEINIT,
+						 MPI_DEINIT,
 						10, 100000U);
 		if (err)
 			return err;
@@ -373,7 +371,7 @@ int hw_atl_utils_fw_upload_dwords(struct aq_hw_s *self, u32 a, u32 *p,
 			aq_hw_write_reg(self, 0x328, p[offset]);
 			aq_hw_write_reg(self, 0x32C,
 				(0x80000000 | (0xFFFF & (offset * 4))));
-			mcp_up_force_intr_set(self, 1);
+			hw_atl_mcp_up_force_intr_set(self, 1);
 			/* 1000 times by 10us = 10ms */
 			err = readx_poll_timeout_atomic(hw_atl_scrpad12_get,
 							self, val,
@@ -876,7 +874,8 @@ u32 hw_atl_utils_get_fw_version(struct aq_hw_s *self)
 	return aq_hw_read_reg(self, HW_ATL_MPI_FW_VERSION);
 }
 
-static int aq_fw1x_set_wol(struct aq_hw_s *self, bool wol_enabled, u8 *mac)
+static int aq_fw1x_set_wake_magic(struct aq_hw_s *self, bool wol_enabled,
+				  u8 *mac)
 {
 	struct hw_atl_utils_fw_rpc *prpc = NULL;
 	unsigned int rpc_size = 0U;
@@ -921,8 +920,8 @@ static int aq_fw1x_set_power(struct aq_hw_s *self, unsigned int power_state,
 	unsigned int rpc_size = 0U;
 	int err = 0;
 
-	if (self->aq_nic_cfg->wol & AQ_NIC_WOL_ENABLED) {
-		err = aq_fw1x_set_wol(self, 1, mac);
+	if (self->aq_nic_cfg->wol & WAKE_MAGIC) {
+		err = aq_fw1x_set_wake_magic(self, 1, mac);
 
 		if (err < 0)
 			goto err_exit;

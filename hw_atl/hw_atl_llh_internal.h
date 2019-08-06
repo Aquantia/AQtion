@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_llh_internal.h: Preprocessor definitions
@@ -1674,8 +1671,8 @@
 #define HW_ATL_RPOL4CHK_EN_DEFAULT 0x0
 
 /* RX outer_vl_ins_mode Bitfield Definitions
- *   Preprocessor definitions for the bitfield "outer_vl_ins_mode".
- *   PORT="pif_rpo_outer_vl_mode_i"
+ * Preprocessor definitions for the bitfield "outer_vl_ins_mode".
+ * PORT="pif_rpo_outer_vl_mode_i"
  */
 
 /* Register address for bitfield outer_vl_ins_mode */
@@ -2829,17 +2826,17 @@
 	(0x00000380u + (scratch_pad) * 0x4)
 
 /* register address for bitfield uP Force Interrupt */
-#define mcp_up_force_interrupt_adr 0x00000404
+#define HW_ATL_MCP_UP_FORCE_INTERRUPT_ADR 0x00000404
 /* bitmask for bitfield uP Force Interrupt */
-#define mcp_up_force_interrupt_msk 0x00000002
+#define HW_ATL_MCP_UP_FORCE_INTERRUPT_MSK 0x00000002
 /* inverted bitmask for bitfield uP Force Interrupt */
-#define mcp_up_force_interrupt_mskn 0xFFFFFFFD
+#define HW_ATL_MCP_UP_FORCE_INTERRUPT_MSKN 0xFFFFFFFD
 /* lower bit position of bitfield uP Force Interrupt */
-#define mcp_up_force_interrupt_shift 1
+#define HW_ATL_MCP_UP_FORCE_INTERRUPT_SHIFT 1
 /* width of bitfield uP Force Interrupt */
-#define mcp_up_force_interrupt_width 1
+#define HW_ATL_MCP_UP_FORCE_INTERRUPT_WIDTH 1
 /* default value of bitfield uP Force Interrupt */
-#define mcp_up_force_interrupt_default 0x0
+#define HW_ATL_MCP_UP_FORCE_INTERRUPT_DEFAULT 0x0
 
 #define HW_ATL_RX_CTRL_ADDR_BEGIN_FL3L4   0x00005380
 #define HW_ATL_RX_SRCA_ADDR_BEGIN_FL3L4   0x000053B0

@@ -1,6 +1,6 @@
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -13,6 +13,7 @@
 #define AQ_COMPAT_H
 
 #include <linux/version.h>
+#include <linux/netdevice.h>
 
 #ifndef RHEL_RELEASE_VERSION
 #define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
@@ -161,6 +162,23 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 	} \
 	(cond) ? 0 : -ETIMEDOUT; \
 })
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+#define NETIF_F_GSO_UDP_L4 0
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#define NETIF_F_GSO_PARTIAL 0
+#endif
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
+	(RHEL_RELEASE_CODE && (RHEL_RELEASE_CODE <= RHEL_RELEASE_VERSION(7, 4)))
+#define pci_irq_vector_compat(self, nr) \
+( \
+	(self->pdev->msix_enabled) ? \
+		self->msix_entry[nr].vector \
+		: \
+		self->pdev->irq + nr \
+)
 #endif
 
 #endif /* AQ_COMMON_H */

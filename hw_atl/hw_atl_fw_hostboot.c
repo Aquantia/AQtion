@@ -295,7 +295,6 @@ int hw_atl_hostboot(struct aq_hw_s *aq_hw)
 	u32 tmp = 0;
 
 	if (!fw_image) {
-		aq_pr_err("No loaded FW image found");
 		status = -EINVAL;
 		goto err_exit;
 	}

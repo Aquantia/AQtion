@@ -1,7 +1,7 @@
 ################################################################################
 #
 # aQuantia Ethernet Controller AQtion Linux Driver
-# Copyright(c) 2014-2018 aQuantia Corporation.
+# Copyright(c) 2014-2019 aQuantia Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms and conditions of the GNU General Public License,
@@ -29,10 +29,6 @@
 
 
 TARGET := atlantic
-
-ifndef CC
-CC = gcc
-endif
 
 export DEBIAN=`/usr/bin/dpkg --search /usr/bin/dpkg >/dev/null 2>&1 && echo 1 || echo 0`
 
@@ -69,7 +65,7 @@ else
 	PWD:=$(shell pwd)
 
 all:
-	$(MAKE) -j4 CC=$(CC) -C $(BUILD_DIR) M=$(PWD) modules
+	$(MAKE) -j4 -C $(BUILD_DIR) M=$(PWD) modules
 
 dox:	.doxygen
 	@doxygen $<

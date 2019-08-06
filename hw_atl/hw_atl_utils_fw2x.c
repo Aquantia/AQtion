@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_utils_fw2x.c: Definition of firmware 2.x functions for
@@ -37,6 +34,7 @@
 #define HW_ATL_FW2X_CAP_SLEEP_PROXY      BIT(CAPS_HI_SLEEP_PROXY)
 #define HW_ATL_FW2X_CAP_WOL              BIT(CAPS_HI_WOL)
 
+#define HW_ATL_FW2X_CTRL_WAKE_ON_LINK     BIT(CTRL_WAKE_ON_LINK)
 #define HW_ATL_FW2X_CTRL_SLEEP_PROXY      BIT(CTRL_SLEEP_PROXY)
 #define HW_ATL_FW2X_CTRL_WOL              BIT(CTRL_WOL)
 #define HW_ATL_FW2X_CTRL_LINK_DROP        BIT(CTRL_LINK_DROP)
@@ -358,7 +356,7 @@ static int aq_fw2x_get_phy_temp(struct aq_hw_s *self, int *temp)
 	/* Convert PHY temperature from 1/256 degree Celsius
 	 * to 1/1000 degree Celsius.
 	 */
-	*temp = temp_res  * 1000 / 256;
+	*temp = (temp_res & 0xFFFF)  * 1000 / 256;
 
 	return 0;
 }
@@ -427,7 +425,7 @@ err_exit:
 	return err;
 }
 
-static int aq_fw2x_set_wol_params(struct aq_hw_s *self, u8 *mac)
+static int aq_fw2x_set_wake_magic(struct aq_hw_s *self, u8 *mac)
 {
 	struct hw_atl_utils_fw_rpc *rpc = NULL;
 	struct fw2x_msg_wol *msg = NULL;
@@ -448,7 +446,7 @@ static int aq_fw2x_set_wol_params(struct aq_hw_s *self, u8 *mac)
 	memcpy(msg->hw_addr, mac, ETH_ALEN);
 
 	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	mpi_opts &= ~(HW_ATL_FW2X_CTRL_SLEEP_PROXY | HW_ATL_FW2X_CTRL_WOL);
+	mpi_opts &= ~HW_ATL_FW2X_CTRL_WOL;
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 
 	err = hw_atl_utils_fw_rpc_call(self, sizeof(*msg));
@@ -467,17 +465,43 @@ err_exit:
 	return err;
 }
 
+static void aq_fw2x_set_wake_phy(struct aq_hw_s *self)
+{
+	u32 mpi_opts;
+
+	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
+	/* Set LINK_DROP bit, NIC stores the actual ethernet link status
+	 * Link is being dropped
+	 */
+	mpi_opts |= HW_ATL_FW2X_CTRL_LINK_DROP;
+	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
+
+	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
+	/* Set WAKE_ON_LINK bit and clear LINK_DROP bit
+	 * NIC attempts to link up
+	 */
+	mpi_opts |= HW_ATL_FW2X_CTRL_WAKE_ON_LINK;
+	mpi_opts &= ~HW_ATL_FW2X_CTRL_LINK_DROP;
+	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
+}
+
 static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state,
 			     u8 *mac)
 {
 	int err = 0;
 
-	if (self->aq_nic_cfg->wol & AQ_NIC_WOL_ENABLED) {
+	if (self->aq_nic_cfg->wol & WAKE_MAGIC) {
 		err = aq_fw2x_set_sleep_proxy(self, mac);
 		if (err < 0)
 			goto err_exit;
-		err = aq_fw2x_set_wol_params(self, mac);
+
+		err = aq_fw2x_set_wake_magic(self, mac);
+		if (err < 0)
+			goto err_exit;
 	}
+
+	if (self->aq_nic_cfg->wol & WAKE_PHY)
+		aq_fw2x_set_wake_phy(self);
 
 err_exit:
 	return err;
@@ -667,6 +691,92 @@ static void aq_fw2x_set_downshift(struct aq_hw_s *self, bool enable)
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 }
 
+
+static int aq_fw2x_run_tdr_diag(struct aq_hw_s *self)
+{
+	u32 val;
+	u32 caps_hi;
+	int err = 0;
+
+	/* Check if capability is available */
+	err = hw_atl_utils_fw_downld_dwords(self,
+				self->mbox_addr +
+				offsetof(struct hw_atl_utils_mbox, info) +
+				offsetof(struct hw_aq_info, caps_hi),
+				&caps_hi,
+				sizeof(caps_hi) / sizeof(u32));
+	if (err)
+		return err;
+
+	if (!(caps_hi & BIT(CAPS_HI_CABLE_DIAG)))
+		return -EOPNOTSUPP;
+
+	/* Trigger cable diag mode */
+	val = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR) ^
+			BIT(CTRL_CABLE_DIAG);
+	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, val);
+
+	return err;
+}
+
+static int aq_fw2x_get_diag_data(struct aq_hw_s *self, struct aq_diag_s *diag)
+{
+	u32 caps_lo;
+	int err = 0;
+	u32 val;
+
+	if (!diag)
+		return -EINVAL;
+
+	memset(diag, 0, sizeof(*diag));
+
+	/* Check if FW reported back ready TDR diag */
+	val = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR) &
+		BIT(CTRL_CABLE_DIAG);
+	if (val != (aq_fw2x_state2_get(self) & BIT(CTRL_CABLE_DIAG)))
+		return -EBUSY;
+
+	/* Check if capability is available */
+	err = hw_atl_utils_fw_downld_dwords(self,
+				self->mbox_addr +
+				offsetof(struct hw_atl_utils_mbox, info) +
+				offsetof(struct hw_aq_info, caps_lo),
+				&caps_lo,
+				sizeof(caps_lo) / sizeof(u32));
+	if (err)
+		return err;
+
+	/** Reads SNR margins
+	 */
+	if (caps_lo & BIT(CAPS_LO_SNR_OPERATING_MARGIN)) {
+		err = hw_atl_utils_fw_downld_dwords(self,
+				self->mbox_addr +
+				offsetof(struct hw_atl_utils_mbox, info) +
+				offsetof(struct hw_aq_info, snr_margin),
+				(u32 *)&diag->snr_margin,
+				sizeof(diag->snr_margin)/sizeof(u32));
+	}
+
+	/** Reads Cable diag data
+	 */
+	err = hw_atl_utils_fw_downld_dwords(self,
+				self->mbox_addr +
+				offsetof(struct hw_atl_utils_mbox, info) +
+				offsetof(struct hw_aq_info, cable_diag_data),
+				(u32 *)&diag->cable_diag,
+				sizeof(struct hw_aq_cable_diag)*4/sizeof(u32));
+	if (err)
+		return err;
+
+	(void)aq_fw2x_get_cable_len(self, &diag->cable_len);
+
+	(void)aq_fw2x_get_phy_temp(self, &diag->phy_temp);
+
+	diag->phy_temp = diag->phy_temp / 1000;
+
+	return err;
+}
+
 const struct aq_fw_ops aq_fw_2x_ops = {
 	.init               = aq_fw2x_init,
 	.deinit             = aq_fw2x_deinit,
@@ -689,4 +799,6 @@ const struct aq_fw_ops aq_fw_2x_ops = {
 	.led_control        = aq_fw2x_led_control,
 	.set_phyloopback    = aq_fw2x_set_phyloopback,
 	.set_downshift      = aq_fw2x_set_downshift,
+	.run_tdr_diag       = aq_fw2x_run_tdr_diag,
+	.get_diag_data      = aq_fw2x_get_diag_data,
 };

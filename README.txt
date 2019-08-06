@@ -619,6 +619,21 @@ Supported ethtool options
  Example:
  ethtool -N eth0 flow-type udp4 action 0 loc 32
 
+ UDP GSO hardware offload
+ ---------------------------------
+ UDP GSO allows to boost UDP tx rates by offloading UDP headers allocation
+ into hardware. A special userspace socket option is required for this,
+ could be validated with /kernel/tools/testing/selftests/net/
+
+    udpgso_bench_tx -u -4 -D 10.0.1.1 -s 6300 -S 100
+
+ Will cause sending out of 100 byte sized UDP packets formed from single
+ 6300 bytes user buffer.
+
+ UDP GSO is configured by:
+
+    ethtool -K eth0 udp-fragmentation-offload on
+
  Private flags (testing)
  ---------------------------------
 
@@ -632,6 +647,7 @@ Supported ethtool options
 	DMANetworkLoopback : off
 	PHYInternalLoopback: off
 	PHYExternalLoopback: off
+	Downshift          : on
 
  Example:
 
@@ -642,7 +658,46 @@ Supported ethtool options
  DMANetworkLoopback:  Network side loopback on DMA block.
  PHYInternalLoopback: Internal loopback on Phy.
  PHYExternalLoopback: External loopback on Phy (with loopback ethernet cable).
+ Downshift:           When `on`, enables link speed downgrade in case PHY sees
+                      currently selected speed is constantly failing
 
+Self test
+------------------------------------
+
+Self test could be initiated with command
+
+    sudo ethtool -t enp3s0 offline|online
+
+`online` mode will not run TDR diagnostics and will only return SNR data.
+`offline` mode will also run TDR diagnostics with temporary link drop.
+
+Its result values are coded, as below:
+
+    TDR status values:
+
+111 = Open Circuit (> 300Ω)
+110 = High Mismatch (> 115Ω)
+101 = Low Mismatch (< 85Ω)
+100 = Short Circuit (< 30Ω)
+011 = Connected to Pair D
+010 = Connected to Pair C
+001 = Connected to Pair B
+000 = OK
+
+    TDR distance:
+
+The distance in meters, accurate to +-1m, of the first of the four worst reflections
+
+    TDR far distance:
+
+Length estimate of pair distance, in meters
+
+    SNR margin
+
+The excess SNR that is enjoyed by the channel, over and above the minimum
+SNR required to operate at a BER of 10e-12. It is reported with 0.1 dB of
+resolution to an accuracy of 0.5 dB within the range of -12.7 dB to 12.7 dB.
+The number is in offset binary, with 0.0 dB represented by 0x8000.
 
 Support
 =======

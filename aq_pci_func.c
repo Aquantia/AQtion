@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File aq_pci_func.c: Definition of PCI functions. */
@@ -119,7 +116,7 @@ static int aq_pci_func_init(struct pci_dev *pdev)
 		goto err_exit;
 	}
 
-	err = pci_request_regions(pdev, aq_ndev_driver_name);
+	err = pci_request_regions(pdev, AQ_CFG_DRV_NAME "_mmio");
 	if (err < 0)
 		goto err_exit;
 
@@ -138,12 +135,13 @@ int aq_pci_func_alloc_irq(struct aq_nic_s *self, unsigned int i,
 	struct pci_dev *pdev = self->pdev;
 	int err;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
+	(RHEL_RELEASE_CODE && (RHEL_RELEASE_CODE <= RHEL_RELEASE_VERSION(7, 4)))
 	if (pdev->msix_enabled)
 		err = request_irq(self->msix_entry[i].vector, irq_handler, 0,
 				  name, irq_arg);
 	else if (pdev->msi_enabled)
-		err = request_irq(pdev->irq, irq_handler, 0, name, irq_arg);
+		err = request_irq(pdev->irq+i, irq_handler, 0, name, irq_arg);
 	else
 		err = request_irq(pdev->irq, aq_vec_isr_legacy,
 				  IRQF_SHARED, name, irq_arg);
@@ -389,7 +387,6 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	aq_nic_ndev_init(self);
 
 	aq_nic_parse_parameters(self, nic_count);
-	aq_nic_request_firmware(self);
 
 	err = aq_nic_ndev_register(self);
 	if (err < 0)
@@ -411,11 +408,11 @@ static int aq_pci_probe(struct pci_dev *pdev,
 err_register:
 	aq_nic_free_vectors(self);
 	aq_pci_free_irq_vectors(self);
+	if (aq_nic_get_cfg(self)->fw_image)
+		release_firmware(aq_nic_get_cfg(self)->fw_image);
 err_hwinit:
 	iounmap(self->aq_hw->mmio);
 err_free_aq_hw:
-	if (aq_nic_get_cfg(self)->fw_image)
-		release_firmware(aq_nic_get_cfg(self)->fw_image);
 	kfree(self->aq_hw);
 err_ioremap:
 	free_netdev(ndev);

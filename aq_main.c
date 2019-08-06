@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File aq_main.c: Main file for aQuantia Linux driver. */
@@ -40,9 +37,9 @@ static const struct net_device_ops aq_ndev_ops;
 
 static struct workqueue_struct *aq_ndev_wq;
 
-void aq_ndev_service_event_schedule(struct aq_nic_s *aq_nic)
+void aq_ndev_schedule_work(struct work_struct *work)
 {
-	queue_work(aq_ndev_wq, &aq_nic->service_task);
+	queue_work(aq_ndev_wq, work);
 }
 
 struct net_device *aq_ndev_alloc(void)
@@ -318,6 +315,16 @@ static int aq_ndev_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 		case SIOCGHWTSTAMP:
 			return aq_ndev_hwtstamp_get(aq_nic, ifr);
 
+		case AQ_PTP_SYNC_CFG:
+		{
+			struct aq_ptp_sync1588 sync = {0};
+
+			if (copy_from_user(&sync, ifr->ifr_data,
+					   sizeof(struct aq_ptp_sync1588)))
+				return -EFAULT;
+
+			return aq_ptp_configure_sync1588(aq_nic, &sync);
+		}
 #endif
 	}
 

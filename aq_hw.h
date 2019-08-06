@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File aq_hw.h: Declaration of abstract interface for NIC hardware specific
@@ -104,6 +101,17 @@ struct aq_stats_s {
 	u64 dma_oct_tc;
 };
 
+/** Generic hardware diagnostic information.
+ * Interface between user frontend and firmware layer.
+ * Not all the information could be available.
+ */
+struct aq_diag_s {
+	u32 cable_len;
+	u32 phy_temp;
+	struct hw_aq_cable_diag cable_diag[4];
+	u16 snr_margin[4];
+};
+
 #define AQ_HW_IRQ_INVALID 0U
 #define AQ_HW_IRQ_LEGACY  1U
 #define AQ_HW_IRQ_MSI     2U
@@ -184,6 +192,7 @@ struct aq_hw_s {
 	struct hw_atl_utils_fw_rpc rpc;
 	u16 phy_id;
 	u32 ssid;
+	u8 image_required;
 };
 
 struct aq_ring_s;
@@ -299,12 +308,22 @@ struct aq_hw_ops {
 	int (*hw_ptp_dpath_enable)(struct aq_hw_s *self, unsigned int enable, u16 rx_queue);
 
 	void (*hw_get_ptp_ts)(struct aq_hw_s *self, u64 *stamp);
-	
+
 	int (*hw_adj_clock_freq)(struct aq_hw_s *self, s32 delta);
 	
 	int (*hw_adj_sys_clock)(struct aq_hw_s *self, s64 delta);
 
+	int (*hw_set_sys_clock)(struct aq_hw_s *self, u64 time, u64 ts);
+
+	int (*hw_ts_to_sys_clock)(struct aq_hw_s *self, u64 ts, u64 *time);
+
 	int (*hw_gpio_pulse)(struct aq_hw_s *self, u32 index, u64 start, u32 period);
+
+	int (*hw_extts_gpio_enable)(struct aq_hw_s *self, u32 index,
+				    u32 enable);
+
+	int (*hw_get_sync_ts)(struct aq_hw_s *self, u64 *ts);
+
 
 	void (*enable_ptp)(struct aq_hw_s *self, unsigned int param,
 			   int enable);
@@ -373,6 +392,10 @@ struct aq_fw_ops {
 	int (*set_phyloopback)(struct aq_hw_s *self, u32 mode, bool enable);
 
 	void (*set_downshift)(struct aq_hw_s *self, bool enable);
+
+	int (*run_tdr_diag)(struct aq_hw_s *self);
+
+	int (*get_diag_data)(struct aq_hw_s *self, struct aq_diag_s *diag);
 };
 
 #endif /* AQ_HW_H */

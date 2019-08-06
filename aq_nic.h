@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File aq_nic.h: Declaration of common code for NIC. */
@@ -42,8 +39,8 @@ struct aq_nic_cfg_s {
 	u32 flow_control;
 	u32 link_speed_msk;
 	u32 wol;
-	bool is_vlan_rx_strip;
-	bool is_vlan_tx_insert;
+	u8 is_vlan_rx_strip;
+	u8 is_vlan_tx_insert;
 	bool is_vlan_force_promisc;
 	u16 is_mc_list_enabled;
 	u16 mc_list_count;
@@ -76,7 +73,8 @@ struct aq_nic_cfg_s {
 #ifdef PCI_DEBUG
 #define AQ_NIC_PCI_RESOURCE_BUSY 0x00800000U
 #endif
-#define AQ_NIC_WOL_ENABLED           BIT(0)
+#define AQ_NIC_WOL_MODES        (WAKE_MAGIC |\
+				 WAKE_PHY)
 
 #define AQ_NIC_TCVEC2RING(_NIC_, _TC_, _VEC_) \
 	((_TC_) * AQ_CFG_TCS_MAX + (_VEC_))
@@ -88,9 +86,9 @@ struct aq_hw_rx_fl2 {
 };
 
 struct aq_hw_rx_fl3l4 {
-	u8   active_ipv4;
-	u8   active_ipv6:2;
-	bool is_ipv6;
+	u8 active_ipv4;
+	u8 active_ipv6:2;
+	u8 is_ipv6;
 };
 
 struct aq_hw_rx_fltrs_s {
@@ -114,6 +112,8 @@ struct aq_nic_s {
 	const struct aq_hw_ops *aq_hw_ops;
 	const struct aq_fw_ops *aq_fw_ops;
 	struct aq_nic_cfg_s aq_nic_cfg;
+	struct timer_list service_timer;
+	struct work_struct service_task;
 	struct timer_list polling_timer;
 	struct aq_hw_link_status_s link_status;
 	struct {
@@ -131,14 +131,9 @@ struct aq_nic_s {
 	struct msix_entry msix_entry[AQ_CFG_PCI_FUNC_MSIX_IRQS];
 #endif
 	struct mutex fwreq_mutex;
-
-	struct timer_list service_timer;
-	struct work_struct service_task;
-
 	/* PTP support */
 	struct aq_ptp_s *aq_ptp;
 	struct aq_hw_rx_fltrs_s aq_hw_rx_fltrs;
-	struct work_struct link_update_task;
 	u32 dump_flag;
 };
 

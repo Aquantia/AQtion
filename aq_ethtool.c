@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File aq_ethtool.c: Definition of ethertool related functions. */
@@ -141,6 +138,38 @@ static const char aq_ethtool_priv_flag_names[][ETH_GSTRING_LEN] = {
 	"Downshift",
 };
 
+/** Self test indices, should match aq_ethtool_selftest_names
+ */
+enum {
+	AQ_ST_CABLE_LEN		= 0,
+	AQ_ST_PHY_TEMP		= 1,
+	AQ_ST_SNR_M		= 2,
+	AQ_ST_TDR_S		= 6,
+	AQ_ST_TDR_DIST		= 10,
+	AQ_ST_TDR_F_DIST	= 14,
+};
+
+static const char aq_ethtool_selftest_names[][ETH_GSTRING_LEN] = {
+	"DSP Cable Len (online)",
+	"PHY Temp      (online)",
+	"SNR margin A  (online)",
+	"SNR margin B  (online)",
+	"SNR margin C  (online)",
+	"SNR margin D  (online)",
+	"TDR status A  (offline)",
+	"TDR status B  (offline)",
+	"TDR status C  (offline)",
+	"TDR status D  (offline)",
+	"TDR distance A      (offline)",
+	"TDR distance B      (offline)",
+	"TDR distance C      (offline)",
+	"TDR distance D      (offline)",
+	"TDR far distance A  (offline)",
+	"TDR far distance B  (offline)",
+	"TDR far distance C  (offline)",
+	"TDR far distance D  (offline)",
+};
+
 static void aq_ethtool_stats(struct net_device *ndev,
 			     struct ethtool_stats *stats, u64 *data)
 {
@@ -172,7 +201,7 @@ static void aq_ethtool_get_drvinfo(struct net_device *ndev,
 	strlcpy(drvinfo->bus_info, pdev ? pci_name(pdev) : "",
 		sizeof(drvinfo->bus_info));
 	drvinfo->n_stats = ARRAY_SIZE(aq_ethtool_stat_names) +
-			   cfg->vecs * ARRAY_SIZE(aq_ethtool_queue_stat_names);
+		cfg->vecs * ARRAY_SIZE(aq_ethtool_queue_stat_names);
 	drvinfo->testinfo_len = 0;
 	drvinfo->regdump_len = regs_count;
 	drvinfo->eedump_len = 0;
@@ -204,6 +233,10 @@ static void aq_ethtool_get_strings(struct net_device *ndev,
 	case  ETH_SS_PRIV_FLAGS:
 		memcpy(p, aq_ethtool_priv_flag_names,
 		       sizeof(aq_ethtool_priv_flag_names));
+		break;
+	case ETH_SS_TEST:
+		memcpy(p, aq_ethtool_selftest_names,
+		       sizeof(aq_ethtool_selftest_names));
 		break;
 	}
 }
@@ -244,8 +277,11 @@ static int aq_ethtool_get_sset_count(struct net_device *ndev, int stringset)
 		ret = ARRAY_SIZE(aq_ethtool_stat_names) +
 		      cfg->vecs * ARRAY_SIZE(aq_ethtool_queue_stat_names);
 		break;
-	case  ETH_SS_PRIV_FLAGS:
+	case ETH_SS_PRIV_FLAGS:
 		ret = ARRAY_SIZE(aq_ethtool_priv_flag_names);
+		break;
+	case ETH_SS_TEST:
+		ret = ARRAY_SIZE(aq_ethtool_selftest_names);
 		break;
 	default:
 		ret = -EOPNOTSUPP;
@@ -460,18 +496,14 @@ static int aq_ethtool_set_coalesce(struct net_device *ndev,
 	return aq_nic_update_interrupt_moderation_settings(aq_nic);
 }
 
-
 static void aq_ethtool_get_wol(struct net_device *ndev,
 			       struct ethtool_wolinfo *wol)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
 
-	wol->supported = WAKE_MAGIC;
-	wol->wolopts = 0;
-
-	if (cfg->wol)
-		wol->wolopts |= WAKE_MAGIC;
+	wol->supported = AQ_NIC_WOL_MODES;
+	wol->wolopts = cfg->wol;
 }
 
 static int aq_ethtool_set_wol(struct net_device *ndev,
@@ -482,15 +514,15 @@ static int aq_ethtool_set_wol(struct net_device *ndev,
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
 	int err = 0;
 
-	if (wol->wolopts & WAKE_MAGIC)
-		cfg->wol |= AQ_NIC_WOL_ENABLED;
-	else
-		cfg->wol &= ~AQ_NIC_WOL_ENABLED;
+	if (wol->wolopts & ~AQ_NIC_WOL_MODES)
+		return -EOPNOTSUPP;
+
+	cfg->wol = wol->wolopts;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
-	err = device_set_wakeup_enable(&pdev->dev, wol->wolopts);
+	err = device_set_wakeup_enable(&pdev->dev, !!cfg->wol);
 #else
-	device_set_wakeup_enable(&pdev->dev, wol->wolopts);
+	device_set_wakeup_enable(&pdev->dev, !!cfg->wol);
 #endif
 
 	return err;
@@ -546,7 +578,6 @@ static int aq_ethtool_get_eee(struct net_device *ndev, struct ethtool_eee *eee)
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	u32 rate, supported_rates;
 	int err = 0;
-
 
 	if (!aq_nic->aq_fw_ops->get_eee_rate)
 		return -EOPNOTSUPP;
@@ -843,6 +874,58 @@ int aq_ethtool_set_dump(struct net_device *ndev, struct ethtool_dump *dump)
 	return ret;
 }
 
+static void
+aq_ethtool_selftest(struct net_device *ndev,
+		    struct ethtool_test *etest, u64 *buf)
+{
+	int i, res = 0;
+	struct aq_diag_s dd;
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	if (etest->len < ARRAY_SIZE(aq_ethtool_selftest_names)) {
+		netdev_info(ndev, "Invalid selftest size: %d\n", etest->len);
+		return;
+	}
+	memset(buf, 0, sizeof(u64) * ARRAY_SIZE(aq_ethtool_selftest_names));
+
+	if (etest->flags & ETH_TEST_FL_OFFLINE) {
+		if (!aq_nic->aq_fw_ops->run_tdr_diag) {
+			etest->len = 0;
+			return;
+		}
+
+		res = aq_nic->aq_fw_ops->run_tdr_diag(aq_nic->aq_hw);
+		if (res)
+			return;
+	}
+
+	for (i = 0; i < 100; i++) { /* 10 secs timeout */
+		res = aq_nic->aq_fw_ops->get_diag_data(aq_nic->aq_hw, &dd);
+		if (res != -EBUSY)
+			break;
+		if (msleep_interruptible(100)) {
+			res = -ERESTARTSYS;
+			break;
+		}
+	}
+
+	if (res) {
+		netdev_err(ndev, "Can't fetch diag data: %d\n", res);
+		return;
+	}
+
+	buf[AQ_ST_CABLE_LEN] = dd.cable_len;
+	buf[AQ_ST_PHY_TEMP] = dd.phy_temp;
+	for (i = 0; i < 4; i++) {
+		buf[AQ_ST_SNR_M + i] = dd.snr_margin[i];
+		if (etest->flags & ETH_TEST_FL_OFFLINE) {
+			buf[AQ_ST_TDR_S + i] = dd.cable_diag[i].fault;
+			buf[AQ_ST_TDR_DIST + i] = dd.cable_diag[i].distance;
+			buf[AQ_ST_TDR_F_DIST + i] = dd.cable_diag[i].far_distance;
+		}
+	}
+}
+
 const struct ethtool_ops aq_ethtool_ops = {
 	.get_link            = aq_ethtool_get_link,
 	.get_regs_len        = aq_ethtool_get_regs_len,
@@ -892,4 +975,5 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.get_dump_flag       = aq_ethtool_get_dump_flag,
 	.get_dump_data       = aq_ethtool_get_dump_data,
 	.set_dump            = aq_ethtool_set_dump,
+	.self_test           = aq_ethtool_selftest,
 };

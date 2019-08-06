@@ -16,7 +16,8 @@
 #include <linux/tracepoint.h>
 #include <linux/skbuff.h>
 #include <linux/version.h>
-
+#include <linux/netdevice.h>
+#include "aq_compat.h"
 
 #define DESCR_FIELD(DESCR, BIT_BEGIN, BIT_END) \
 	((DESCR >> BIT_END) &\
@@ -198,6 +199,27 @@ TRACE_EVENT(aq_produce_skb,
 );
 #undef SKB_CSUM_LEVEL
 #undef SKB_HASH
+
+TRACE_EVENT(aq_dump_skb,
+	TP_PROTO(struct sk_buff *skb),
+	TP_ARGS(skb),
+	TP_STRUCT__entry(
+		__field(unsigned int, len)
+		__field(u8, ip_summed)
+		__field(u16, vlan_tci)
+		__field(u16, gso_size)
+	),
+	TP_fast_assign(
+		__entry->len = skb->len;
+		__entry->ip_summed = skb->ip_summed;
+		__entry->vlan_tci = skb->vlan_tci;
+		__entry->gso_size = skb_shinfo(skb)->gso_size;
+	),
+	TP_printk("len=%d ip_summed=%d vlan_tci=0x%x gso_size=%d",
+		  __entry->len, __entry->ip_summed,
+		  __entry->vlan_tci,
+		  __entry->gso_size)
+);
 
 #endif /* _AQ_TRACE_H */
 

@@ -1,11 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Aquantia Corporation Network Driver
- * Copyright (C) 2014-2016 Aquantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Copyright (C) 2014-2019 Aquantia Corporation. All rights reserved
  */
 
 /*
@@ -18,6 +14,22 @@
 #include <linux/version.h>
 
 #include "aq_compat.h"
+
+#define AQ_PTP_SYNC_CFG (SIOCDEVPRIVATE + 1)
+
+enum aq_sync_cntr_action {
+	aq_sync_cntr_nop = 0, /* no action */
+	aq_sync_cntr_set, /* set new counter value */
+	aq_sync_cntr_add, /* add value to counter value */
+	aq_sync_cntr_sub, /* subtract value from counter value */
+};
+
+struct aq_ptp_sync1588 {
+	uint64_t time_ns; /* new/adjusted PTP clock value in ns*/
+	enum aq_sync_cntr_action action;
+	uint16_t sync_pulse_ms;
+	uint8_t clock_sync_en; /* Enabling sync clock */
+} __packed;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
@@ -59,5 +71,12 @@ void aq_ptp_hwtstamp_config_get(struct aq_ptp_s *self, struct hwtstamp_config *c
 
 struct ptp_clock *aq_ptp_get_ptp_clock(struct aq_ptp_s *self);
 
+int aq_ptp_configure_sync1588(struct aq_nic_s *aq_nic,
+			      struct aq_ptp_sync1588 *sync1588);
+
+int aq_ptp_link_change(struct aq_nic_s *aq_nic);
+
+extern int aq_configure_sync1588(struct net_device *ndev,
+				 struct aq_ptp_sync1588 *sync1588);
 #endif
 #endif /* aq_ptp_h */

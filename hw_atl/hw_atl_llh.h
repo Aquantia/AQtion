@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_llh.h: Declarations of bitfield and register access functions for
@@ -562,9 +559,9 @@ void hw_atl_rpo_rx_desc_vlan_stripping_set(struct aq_hw_s *aq_hw,
 					   u32 descriptor);
 
 void hw_atl_rpo_outer_vlan_tag_mode_set(void *context,
-					uint32_t outervlantagmode);
+					u32 outervlantagmode);
 
-uint32_t hw_atl_rpo_outer_vlan_tag_mode_get(void *context);
+u32 hw_atl_rpo_outer_vlan_tag_mode_get(void *context);
 
 /* set tcp/udp checksum offload enable */
 void hw_atl_rpo_tcp_udp_crc_offload_en_set(struct aq_hw_s *aq_hw,
@@ -801,7 +798,7 @@ void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw, u32 ptp_clock_read_
 u32 hw_atl_pcs_ptp_clock_get(struct aq_hw_s *aq_hw, u32 index);
 
 /* set uP Force Interrupt */
-void mcp_up_force_intr_set(struct aq_hw_s *aq_hw, u32 up_force_intr);
+void hw_atl_mcp_up_force_intr_set(struct aq_hw_s *aq_hw, u32 up_force_intr);
 
 /* clear ipv4 filter destination address */
 void hw_atl_rpfl3l4_ipv4_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location);

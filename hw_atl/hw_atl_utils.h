@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_utils.h: Declaration of common functions for Atlantic hardware
@@ -213,6 +210,13 @@ struct __packed hw_aq_ptp_offset {
 	u16 egress_10000;
 };
 
+struct __packed hw_aq_cable_diag {
+	u8 fault;
+	u8 distance;
+	u8 far_distance;
+	u8 reserved;
+};
+
 enum gpio_pin_function {
 	GPIO_PIN_FUNCTION_NC,
 	GPIO_PIN_FUNCTION_VAUX_ENABLE,
@@ -234,7 +238,7 @@ struct __packed hw_aq_info {
 	u16 phy_temperature;
 	u8 cable_len;
 	u8 reserved1;
-	u32 cable_diag_data[4];
+	struct hw_aq_cable_diag cable_diag_data[4];
 	struct hw_aq_ptp_offset ptp_offset;
 	u8 reserved2[12];
 	u32 caps_lo;
@@ -250,6 +254,8 @@ struct __packed hw_aq_info {
 	u32 setting_length;
 	u32 caps_ex;
 	enum gpio_pin_function gpio_pin[3];
+	u32 pcie_aer_dump[18];
+	u16 snr_margin[4];
 };
 
 struct __packed hw_atl_utils_mbox {
@@ -411,7 +417,7 @@ struct aq_rx_filter_l3l4 {
 	u32 ip_src[4];
 	u16 p_dst;
 	u16 p_src;
-	bool is_ipv6;
+	u8 is_ipv6;
 };
 
 enum hw_atl_rx_protocol_value_l3l4 {
@@ -507,6 +513,7 @@ enum hw_atl_fw2x_caps_lo {
 	CAPS_LO_2P5GBASET_FD,
 	CAPS_LO_5GBASET_FD        = 10,
 	CAPS_LO_10GBASET_FD,
+	CAPS_LO_SNR_OPERATING_MARGIN = 16,
 };
 
 /* 0x374
@@ -608,7 +615,7 @@ enum hw_atl_caps_ex {
 	CAPS_EX_SCHED_DMA_EN, // 19 (0x13)
 	CAPS_EX_PTP_GPIO_EN, // 20 (0x14)
 	CAPS_EX_UPDATE_SETTINGS, // 21 (0x15)
-	CAPS_EX_RESERVED22, // 22 (0x16)
+	CAPS_EX_PHY_CTRL_TS_PIN, // 22 (0x16)
 	CAPS_EX_RESERVED23, // 23 (0x17)
 	CAPS_EX_RESERVED24, // 24 (0x18)
 	CAPS_EX_RESERVED25, // 25 (0x19)

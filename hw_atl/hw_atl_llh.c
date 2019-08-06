@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
+ * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
  */
 
 /* File hw_atl_llh.c: Definitions of bitfield and register access functions for
@@ -1130,7 +1127,8 @@ void hw_atl_rpo_rx_desc_vlan_stripping_set(struct aq_hw_s *aq_hw,
 			    rx_desc_vlan_stripping);
 }
 
-void hw_atl_rpo_outer_vlan_tag_mode_set(void *context, uint32_t outervlantagmode)
+void hw_atl_rpo_outer_vlan_tag_mode_set(void *context,
+					u32 outervlantagmode)
 {
 	aq_hw_write_reg_bit(context, HW_ATL_RPO_OUTER_VL_INS_MODE_ADR,
 			    HW_ATL_RPO_OUTER_VL_INS_MODE_MSK,
@@ -1409,7 +1407,8 @@ u32 hw_atl_rpb_tps_tx_tc_mode_get(struct aq_hw_s *aq_hw)
 			HW_ATL_TPB_TX_TC_MODE_SHIFT);
 }
 
-void hw_atl_rpb_tps_tx_tc_mode_set(struct aq_hw_s *aq_hw, u32 tx_traf_class_mode)
+void hw_atl_rpb_tps_tx_tc_mode_set(struct aq_hw_s *aq_hw,
+				   u32 tx_traf_class_mode)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_TPB_TX_TC_MODE_ADDR,
 			HW_ATL_TPB_TX_TC_MODE_MSK,
@@ -1675,7 +1674,7 @@ void hw_atl_reg_glb_cpu_scrpad_nr_set(struct aq_hw_s *aq_hw,
 
 void hw_atl_reg_glb_cpu_ctrl2_set(struct aq_hw_s *aq_hw, u32 glb_cpu_ctrl)
 {
-	aq_hw_write_reg(aq_hw, mcp_up_force_interrupt_adr, glb_cpu_ctrl);
+	aq_hw_write_reg(aq_hw, HW_ATL_MCP_UP_FORCE_INTERRUPT_ADR, glb_cpu_ctrl);
 }
 
 void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw, u32 ptp_clock_read_enable)
@@ -1691,12 +1690,12 @@ u32 hw_atl_pcs_ptp_clock_get(struct aq_hw_s *aq_hw, u32 index)
 	return aq_hw_read_reg(aq_hw, HW_ATL_PCS_PTP_TS_VAL_ADDR(index));
 }
 
-void mcp_up_force_intr_set(struct aq_hw_s *aq_hw, u32 up_force_intr)
+void hw_atl_mcp_up_force_intr_set(struct aq_hw_s *aq_hw, u32 up_force_intr)
 {
-
-	aq_hw_write_reg_bit(aq_hw, mcp_up_force_interrupt_adr,
-			mcp_up_force_interrupt_msk,
-			mcp_up_force_interrupt_shift, up_force_intr);
+	aq_hw_write_reg_bit(aq_hw, HW_ATL_MCP_UP_FORCE_INTERRUPT_ADR,
+			    HW_ATL_MCP_UP_FORCE_INTERRUPT_MSK,
+			    HW_ATL_MCP_UP_FORCE_INTERRUPT_SHIFT,
+			    up_force_intr);
 }
 
 void hw_atl_rpfl3l4_ipv4_dest_addr_clear(struct aq_hw_s *aq_hw, u8 location)
