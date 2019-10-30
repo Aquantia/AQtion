@@ -136,6 +136,7 @@ static const char aq_ethtool_priv_flag_names[][ETH_GSTRING_LEN] = {
 	"PHYInternalLoopback",
 	"PHYExternalLoopback",
 	"Downshift",
+	"MediaDetect"
 };
 
 /** Self test indices, should match aq_ethtool_selftest_names
@@ -584,8 +585,7 @@ static int aq_ethtool_get_eee(struct net_device *ndev, struct ethtool_eee *eee)
 
 	mutex_lock(&aq_nic->fwreq_mutex);
 	err = aq_nic->aq_fw_ops->get_eee_rate(aq_nic->aq_hw, &rate,
-					      &supported_rates,
-					      &eee->tx_lpi_timer);
+					      &supported_rates);
 	mutex_unlock(&aq_nic->fwreq_mutex);
 	if (err < 0)
 		return err;
@@ -610,7 +610,7 @@ static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(aq_nic);
-	u32 rate, supported_rates, lpi_timer;
+	u32 rate, supported_rates;
 	int err = 0;
 
 	if (unlikely(!aq_nic->aq_fw_ops->get_eee_rate ||
@@ -619,7 +619,7 @@ static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 
 	mutex_lock(&aq_nic->fwreq_mutex);
 	err = aq_nic->aq_fw_ops->get_eee_rate(aq_nic->aq_hw, &rate,
-					      &supported_rates, &lpi_timer);
+					      &supported_rates);
 	mutex_unlock(&aq_nic->fwreq_mutex);
 	if (err < 0)
 		return err;
@@ -660,7 +660,7 @@ static void aq_ethtool_get_pauseparam(struct net_device *ndev,
 				      struct ethtool_pauseparam *pause)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
-	int fc = aq_nic->aq_nic_cfg.flow_control;
+	int fc = aq_nic->aq_nic_cfg.fc.req;
 
 	pause->autoneg = 0;
 
@@ -681,14 +681,14 @@ static int aq_ethtool_set_pauseparam(struct net_device *ndev,
 		return -EOPNOTSUPP;
 
 	if (pause->rx_pause)
-		aq_nic->aq_hw->aq_nic_cfg->flow_control |= AQ_NIC_FC_RX;
+		aq_nic->aq_hw->aq_nic_cfg->fc.req |= AQ_NIC_FC_RX;
 	else
-		aq_nic->aq_hw->aq_nic_cfg->flow_control &= ~AQ_NIC_FC_RX;
+		aq_nic->aq_hw->aq_nic_cfg->fc.req &= ~AQ_NIC_FC_RX;
 
 	if (pause->tx_pause)
-		aq_nic->aq_hw->aq_nic_cfg->flow_control |= AQ_NIC_FC_TX;
+		aq_nic->aq_hw->aq_nic_cfg->fc.req |= AQ_NIC_FC_TX;
 	else
-		aq_nic->aq_hw->aq_nic_cfg->flow_control &= ~AQ_NIC_FC_TX;
+		aq_nic->aq_hw->aq_nic_cfg->fc.req &= ~AQ_NIC_FC_TX;
 
 	mutex_lock(&aq_nic->fwreq_mutex);
 	err = aq_nic->aq_fw_ops->set_flow_control(aq_nic->aq_hw);
@@ -747,7 +747,8 @@ static int aq_set_ringparam(struct net_device *ndev,
 		}
 	}
 	if (ndev_running)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0) || \
+	(RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 1))
 		err = dev_open(ndev, NULL);
 #else
 		err = dev_open(ndev);
@@ -787,12 +788,34 @@ int aq_ethtool_set_priv_flags(struct net_device *ndev, u32 flags)
 	if (flags & ~AQ_PRIV_FLAGS_MASK)
 		return -EOPNOTSUPP;
 
+	if (hweight32((flags | priv_flags) & AQ_HW_LOOPBACK_MASK) > 1) {
+		netdev_info(ndev, "Can't enable more than one loopback simultaneously\n");
+		return -EINVAL;
+	}
+
 	cfg->priv_flags = flags;
+
+	if ((priv_flags ^ flags) & AQ_HW_MEDIA_DETECT_MASK) {
+		aq_nic_set_media_detect(aq_nic);
+		/* Restart aneg to make FW apply the new settings */
+		aq_nic->aq_fw_ops->renegotiate(aq_nic->aq_hw);
+	}
 
 	if ((priv_flags ^ flags) & AQ_HW_DOWNSHIFT_MASK)
 		aq_nic_set_downshift(aq_nic);
 
-	if ((priv_flags ^ flags) & AQ_HW_LOOPBACK_MASK)
+	if ((priv_flags ^ flags) & BIT(AQ_HW_LOOPBACK_DMA_NET)) {
+		if (netif_running(ndev)) {
+			dev_close(ndev);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0) || \
+	(RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 1))
+			dev_open(ndev, NULL);
+#else
+			dev_open(ndev);
+#endif
+		}
+	} else if ((priv_flags ^ flags) & AQ_HW_LOOPBACK_MASK)
 		aq_nic_set_loopback(aq_nic);
 
 	return 0;
@@ -887,6 +910,17 @@ aq_ethtool_selftest(struct net_device *ndev,
 		return;
 	}
 	memset(buf, 0, sizeof(u64) * ARRAY_SIZE(aq_ethtool_selftest_names));
+
+	if (!aq_nic->aq_fw_ops->get_cable_len ||
+	    !aq_nic->aq_fw_ops->get_phy_temp) {
+		etest->len = 0;
+		return;
+	}
+
+	aq_nic->aq_fw_ops->get_cable_len(aq_nic->aq_hw, &dd.cable_len);
+
+	aq_nic->aq_fw_ops->get_phy_temp(aq_nic->aq_hw, &dd.phy_temp);
+	dd.phy_temp = dd.phy_temp / 1000;
 
 	if (etest->flags & ETH_TEST_FL_OFFLINE) {
 		if (!aq_nic->aq_fw_ops->run_tdr_diag) {

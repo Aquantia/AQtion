@@ -42,7 +42,7 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 	data_size = fw_image->size;
 
 	if (data_size < sizeof(struct hw_atl_fw_image_header)) {
-		aq_pr_err("Incorrect size: data_size: %lx, header size: %lx\n",
+		aq_pr_err("Incorrect size: data_size: %zx, header size: %zx\n",
 			  data_size, sizeof(struct hw_atl_fw_image_header));
 		goto err_exit;
 	}
@@ -61,12 +61,12 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 		goto err_exit;
 	}
 	if (data_size < offset) {
-		aq_pr_err("Incorrect size: data_size: %lx, "
+		aq_pr_err("Incorrect size: data_size: %zx, "
 			  "mac_iram_offset: %x\n", data_size, offset);
 		goto err_exit;
 	}
 	if (data_size < offset + size) {
-		aq_pr_err("Incorrect size: data_size: %lx, mac_iram_end: %x\n",
+		aq_pr_err("Incorrect size: data_size: %zx, mac_iram_end: %x\n",
 			  data_size, offset + size);
 		goto err_exit;
 	}
@@ -87,12 +87,12 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 		goto err_exit;
 	}
 	if (data_size < h->mac_dram_offset) {
-		aq_pr_err("Incorrect size: data_size: %lx, "
+		aq_pr_err("Incorrect size: data_size: %zx, "
 			  "mac_dram_offset: %x\n", data_size, offset);
 		goto err_exit;
 	}
 	if (data_size < offset + size) {
-		aq_pr_err("Incorrect size: data_size: %lx, mac_dram_end: %x\n",
+		aq_pr_err("Incorrect size: data_size: %zx, mac_dram_end: %x\n",
 			  data_size, offset + size);
 		goto err_exit;
 	}
@@ -116,12 +116,12 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 		goto err_exit;
 	}
 	if (data_size < offset) {
-		aq_pr_err("Incorrect size: data_size: %lx, "
+		aq_pr_err("Incorrect size: data_size: %zx, "
 			  "phy_iram_offset: %x\n", data_size, offset);
 		goto err_exit;
 	}
 	if (data_size < offset + size) {
-		aq_pr_err("Incorrect size: data_size: %lx, phy_iram_end: %x\n",
+		aq_pr_err("Incorrect size: data_size: %zx, phy_iram_end: %x\n",
 			  data_size, offset + size);
 		goto err_exit;
 	}
@@ -138,12 +138,12 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 		goto err_exit;
 	}
 	if (data_size < offset) {
-		aq_pr_err("Incorrect size: data_size: %lx, "
+		aq_pr_err("Incorrect size: data_size: %zx, "
 			  "phy_dram_offset: %x\n", data_size, offset);
 		goto err_exit;
 	}
 	if (data_size < offset + size) {
-		aq_pr_err("Incorrect size: data_size: %lx, phy_dram_end: %x\n",
+		aq_pr_err("Incorrect size: data_size: %zx, phy_dram_end: %x\n",
 			  data_size, offset + size);
 		goto err_exit;
 	}
@@ -162,14 +162,14 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 	offset = le32_to_cpu(h->configuration_offset);
 	conf_cnt = le32_to_cpu(h->conf_record_cnt);
 	if (data_size < offset) {
-		aq_pr_err("Incorrect size: data_size: %lx, conf_offset: %x\n",
+		aq_pr_err("Incorrect size: data_size: %zx, conf_offset: %x\n",
 			  data_size, offset);
 		goto err_exit;
 	}
 
 	if (data_size <
 	    offset + conf_cnt * sizeof(struct hw_atl_conf_header)) {
-		aq_pr_err("Incorrect size: data_size: %lx, conf_end: %lx\n",
+		aq_pr_err("Incorrect size: data_size: %zx, conf_end: %zx\n",
 			  data_size, offset + conf_cnt *
 			  sizeof(struct hw_atl_conf_header));
 		goto err_exit;
@@ -189,13 +189,13 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 		offset = le32_to_cpu(ch->mac_bdp_offset);
 		size = le32_to_cpu(ch->mac_bdp_size);
 		if (data_size < offset) {
-			aq_pr_err("Incorrect size: data_size: %lx, "
+			aq_pr_err("Incorrect size: data_size: %zx, "
 				  "mac_bdp_offset: %x\n",
 				  data_size, offset);
 			goto err_exit;
 		}
 		if (data_size < offset + size) {
-			aq_pr_err("Incorrect size: data_size: %lx, "
+			aq_pr_err("Incorrect size: data_size: %zx, "
 				  "mac_bdp_end: %x\n", data_size,
 				  offset + size);
 			goto err_exit;
@@ -210,12 +210,12 @@ int hw_atl_fw_image_parse(struct aq_hw_s *aq_hw,
 		offset = le32_to_cpu(ch->phy_bdp_offset);
 		size = le32_to_cpu(ch->phy_bdp_size);
 		if (data_size < offset) {
-			aq_pr_err("Incorrect size: data_size: %lx, "
+			aq_pr_err("Incorrect size: data_size: %zx, "
 				  "phy_bdp_offset: %x\n", data_size, offset);
 			goto err_exit;
 		}
 		if (data_size < offset + size) {
-			aq_pr_err("Incorrect size: data_size: %lx, "
+			aq_pr_err("Incorrect size: data_size: %zx, "
 				  "phy_bdp_end: %x\n", data_size,
 				  offset + size);
 			goto err_exit;

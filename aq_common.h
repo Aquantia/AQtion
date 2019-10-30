@@ -20,8 +20,6 @@
 #include "aq_compat.h"
 #endif
 
-#define PTP_EVENT_MESSAGE_PORT      319
-
 #define PCI_VENDOR_ID_AQUANTIA  0x1D6A
 
 #define AQ_DEVICE_ID_0001	0x0001

@@ -13,7 +13,8 @@
 
 extern const struct ethtool_ops aq_ethtool_ops;
 #define AQ_PRIV_FLAGS_MASK   ((AQ_HW_LOOPBACK_MASK) |\
-			      (AQ_HW_DOWNSHIFT_MASK))
+			      (AQ_HW_DOWNSHIFT_MASK) |\
+			      (AQ_HW_MEDIA_DETECT_MASK))
 
 struct aq_dump_flag_s {
 	union {

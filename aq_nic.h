@@ -21,6 +21,19 @@ struct aq_hw_ops;
 struct aq_fw_s;
 struct aq_vec_s;
 struct aq_ptp_s;
+enum aq_rx_filter_type;
+
+enum aq_fc_mode {
+	AQ_NIC_FC_OFF = 0,
+	AQ_NIC_FC_TX,
+	AQ_NIC_FC_RX,
+	AQ_NIC_FC_FULL,
+};
+
+struct aq_fc_info {
+	enum aq_fc_mode req;
+	enum aq_fc_mode cur;
+};
 
 struct aq_nic_cfg_s {
 	const struct aq_hw_caps_s *aq_hw_caps;
@@ -36,7 +49,7 @@ struct aq_nic_cfg_s {
 	u32 rxpageorder;
 	u32 num_rss_queues;
 	u32 mtu;
-	u32 flow_control;
+	struct aq_fc_info fc;
 	u32 link_speed_msk;
 	u32 wol;
 	u8 is_vlan_rx_strip;
@@ -62,7 +75,6 @@ struct aq_nic_cfg_s {
 #define AQ_NIC_FLAG_STOPPING    0x00000008U
 #define AQ_NIC_FLAG_RESETTING   0x00000010U
 #define AQ_NIC_FLAG_CLOSING     0x00000020U
-#define AQ_NIC_PTP_AVAILABLE    0x01000000U
 #define AQ_NIC_PTP_DPATH_UP     0x02000000U
 #define AQ_NIC_LINK_DOWN        0x04000000U
 #define AQ_NIC_FLAG_ERR_UNPLUG  0x40000000U
@@ -89,6 +101,7 @@ struct aq_hw_rx_fl3l4 {
 	u8 active_ipv4;
 	u8 active_ipv6:2;
 	u8 is_ipv6;
+	u8 reserved_count;
 };
 
 struct aq_hw_rx_fltrs_s {
@@ -96,6 +109,8 @@ struct aq_hw_rx_fltrs_s {
 	u16                   active_filters;
 	struct aq_hw_rx_fl2   fl2;
 	struct aq_hw_rx_fl3l4 fl3l4;
+	/* filter ether type */
+	u8 fet_reserved_count;
 };
 
 struct aq_nic_s {
@@ -134,6 +149,7 @@ struct aq_nic_s {
 	/* PTP support */
 	struct aq_ptp_s *aq_ptp;
 	struct aq_hw_rx_fltrs_s aq_hw_rx_fltrs;
+	struct aq_rx_filter_l3l4 udp_filter;
 	u32 dump_flag;
 };
 
@@ -159,7 +175,8 @@ int aq_nic_get_regs(struct aq_nic_s *self, struct ethtool_regs *regs, void *p);
 int aq_nic_get_regs_count(struct aq_nic_s *self);
 void aq_nic_get_stats(struct aq_nic_s *self, u64 *data);
 int aq_nic_stop(struct aq_nic_s *self);
-void aq_nic_deinit(struct aq_nic_s *self);
+void aq_nic_deinit(struct aq_nic_s *self, bool link_down);
+void aq_nic_set_power(struct aq_nic_s *self);
 void aq_nic_free_hot_resources(struct aq_nic_s *self);
 void aq_nic_free_vectors(struct aq_nic_s *self);
 int aq_nic_set_mtu(struct aq_nic_s *self, int new_mtu);
@@ -183,9 +200,12 @@ struct aq_nic_cfg_s *aq_nic_get_cfg(struct aq_nic_s *self);
 u32 aq_nic_get_fw_version(struct aq_nic_s *self);
 int aq_nic_set_loopback(struct aq_nic_s *self);
 int aq_nic_set_downshift(struct aq_nic_s *self);
-int aq_nic_change_pm_state(struct aq_nic_s *self, pm_message_t *pm_msg);
+int aq_nic_set_media_detect(struct aq_nic_s *self);
 int aq_nic_update_interrupt_moderation_settings(struct aq_nic_s *self);
 void aq_nic_shutdown(struct aq_nic_s *self);
 void aq_nic_parse_parameters(struct aq_nic_s *self, unsigned int nic_id);
 void aq_nic_request_firmware(struct aq_nic_s *self);
+u8 aq_nic_reserve_filter(struct aq_nic_s *self, enum aq_rx_filter_type type);
+void aq_nic_release_filter(struct aq_nic_s *self, enum aq_rx_filter_type type,
+			   u32 location);
 #endif /* AQ_NIC_H */

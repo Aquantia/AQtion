@@ -5,6 +5,7 @@
 config AQTION
 	tristate "aQuantia AQtion(tm) Support"
 	depends on PCI
-	select CRC_ITU_T
+	imply CRC_ITU_T
+	imply PTP_1588_CLOCK
 	---help---
 	  This enables the support for the aQuantia AQtion(tm) Ethernet card.

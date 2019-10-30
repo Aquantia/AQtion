@@ -53,6 +53,7 @@ ifneq ($(KERNELRELEASE),)
 	hw_atl/hw_atl_llh.o \
 	hw_atl/hw_atl_fw_hostboot.o \
 	hw_atl/hw_atl_fw_image.o \
+	aq_compat.o \
 
 	obj-m:=$(TARGET).o
 else

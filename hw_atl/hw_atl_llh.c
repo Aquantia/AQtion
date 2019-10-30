@@ -655,8 +655,7 @@ void hw_atl_rpb_rx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
 }
 
 void hw_atl_rpb_rx_xoff_en_per_tc_set(struct aq_hw_s *aq_hw,
-				      u32 rx_xoff_en_per_tc,
-				      u32 buffer)
+				      u32 rx_xoff_en_per_tc, u32 buffer)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPB_RXBXOFF_EN_ADR(buffer),
 			    HW_ATL_RPB_RXBXOFF_EN_MSK,
@@ -1000,97 +999,6 @@ void hw_atl_rpf_etht_flr_set(struct aq_hw_s *aq_hw, u32 etht_flr, u32 filter)
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_ET_VALF_ADR(filter),
 			    HW_ATL_RPF_ET_VALF_MSK,
 			    HW_ATL_RPF_ET_VALF_SHIFT, etht_flr);
-}
-
-void hw_atl_rpf_l3_l4_enf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_L4_ENF_ADR(filter),
-			HW_ATL_RPF_L3_L4_ENF_MSK,
-			HW_ATL_RPF_L3_L4_ENF_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_v6_enf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_V6_ENF_ADR(filter),
-			HW_ATL_RPF_L3_V6_ENF_MSK,
-			HW_ATL_RPF_L3_V6_ENF_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_saf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_SAF_EN_ADR(filter),
-			HW_ATL_RPF_L3_SAF_EN_MSK,
-			HW_ATL_RPF_L3_SAF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_daf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_DAF_EN_ADR(filter),
-			HW_ATL_RPF_L3_DAF_EN_MSK,
-			HW_ATL_RPF_L3_DAF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l4_spf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L4_SPF_EN_ADR(filter),
-			HW_ATL_RPF_L4_SPF_EN_MSK,
-			HW_ATL_RPF_L4_SPF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l4_dpf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L4_DPF_EN_ADR(filter),
-			HW_ATL_RPF_L4_DPF_EN_MSK,
-			HW_ATL_RPF_L4_DPF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l4_protf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L4_PROTF_EN_ADR(filter),
-			HW_ATL_RPF_L4_PROTF_EN_MSK,
-			HW_ATL_RPF_L4_PROTF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_arpf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_ARPF_EN_ADR(filter),
-			HW_ATL_RPF_L3_ARPF_EN_MSK,
-			HW_ATL_RPF_L3_ARPF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_l4_rxqf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_L4_RXQF_EN_ADR(filter),
-			HW_ATL_RPF_L3_L4_RXQF_EN_MSK,
-			HW_ATL_RPF_L3_L4_RXQF_EN_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_l4_mng_rxqf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_L4_MNG_RXQF_ADR(filter),
-			HW_ATL_RPF_L3_L4_MNG_RXQF_MSK,
-			HW_ATL_RPF_L3_L4_MNG_RXQF_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_l4_actf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_L4_ACTF_ADR(filter),
-			HW_ATL_RPF_L3_L4_ACTF_MSK,
-			HW_ATL_RPF_L3_L4_ACTF_SHIFT, val);
-}
-
-void hw_atl_rpf_l3_l4_rxqf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L3_L4_RXQF_ADR(filter),
-			HW_ATL_RPF_L3_L4_RXQF_MSK,
-			HW_ATL_RPF_L3_L4_RXQF_SHIFT, val);
-}
-
-void hw_atl_rpf_l4_protf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
-{
-	aq_hw_write_reg_bit(aq_hw, HW_ATL_RPF_L4_PROTF_ADR(filter),
-			HW_ATL_RPF_L4_PROTF_MSK,
-			HW_ATL_RPF_L4_PROTF_SHIFT, val);
 }
 
 void hw_atl_rpf_l4_spd_set(struct aq_hw_s *aq_hw, u32 val, u32 filter)
@@ -1454,6 +1362,15 @@ void hw_atl_tpb_tx_dma_net_lbk_en_set(struct aq_hw_s *aq_hw,
 			    tx_dma_net_lbk_en);
 }
 
+void hw_atl_tpb_tx_tx_clk_gate_en_set(struct aq_hw_s *aq_hw,
+				      u32 tx_clk_gate_en)
+{
+	aq_hw_write_reg_bit(aq_hw, HW_ATL_TPB_TX_CLK_GATE_EN_ADR,
+			    HW_ATL_TPB_TX_CLK_GATE_EN_MSK,
+			    HW_ATL_TPB_TX_CLK_GATE_EN_SHIFT,
+			    tx_clk_gate_en);
+}
+
 void hw_atl_tpb_tx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
 					    u32 tx_pkt_buff_size_per_tc,
 					    u32 buffer)
@@ -1677,12 +1594,13 @@ void hw_atl_reg_glb_cpu_ctrl2_set(struct aq_hw_s *aq_hw, u32 glb_cpu_ctrl)
 	aq_hw_write_reg(aq_hw, HW_ATL_MCP_UP_FORCE_INTERRUPT_ADR, glb_cpu_ctrl);
 }
 
-void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw, u32 ptp_clock_read_enable)
+void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw,
+				      u32 ptp_clock_read_enable)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_PCS_PTP_CLOCK_READ_ENABLE_ADR,
-			HW_ATL_PCS_PTP_CLOCK_READ_ENABLE_MSK,
-			HW_ATL_PCS_PTP_CLOCK_READ_ENABLE_SHIFT,
-			ptp_clock_read_enable);
+			    HW_ATL_PCS_PTP_CLOCK_READ_ENABLE_MSK,
+			    HW_ATL_PCS_PTP_CLOCK_READ_ENABLE_SHIFT,
+			    ptp_clock_read_enable);
 }
 
 u32 hw_atl_pcs_ptp_clock_get(struct aq_hw_s *aq_hw, u32 index)
@@ -1783,11 +1701,6 @@ u32 hw_atl_sem_ram_get(struct aq_hw_s *self)
 u32 hw_atl_sem_mdio_get(struct aq_hw_s *self)
 {
 	return hw_atl_reg_glb_cpu_sem_get(self, HW_ATL_FW_SM_MDIO);
-}
-
-u32 hw_atl_sem_msm_get(struct aq_hw_s *self)
-{
-	return hw_atl_reg_glb_cpu_sem_get(self, HW_ATL_FW_SM_MSM);
 }
 
 u32 hw_atl_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_pad)

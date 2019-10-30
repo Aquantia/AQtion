@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /* aQuantia Corporation Network Driver
- * Copyright (C) 2018 aQuantia Corporation. All rights reserved
+ * Copyright (C) 2018-2019 aQuantia Corporation. All rights reserved
  */
 
 #ifndef AQ_PHY_H

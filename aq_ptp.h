@@ -1,14 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * Aquantia Corporation Network Driver
+/* Aquantia Corporation Network Driver
  * Copyright (C) 2014-2019 Aquantia Corporation. All rights reserved
  */
 
-/*
- * File aq_ptp.c: Declaration of PTP functions.
+/* File aq_ptp.h: Declaration of PTP functions.
  */
-#ifndef aq_ptp_h
-#define aq_ptp_h
+#ifndef AQ_PTP_H
+#define AQ_PTP_H
 
 #include <linux/net_tstamp.h>
 #include <linux/version.h>
@@ -36,7 +34,8 @@ struct aq_ptp_sync1588 {
 
 /* Common functions */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec, unsigned int num_vec);
+int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec,
+		unsigned int num_vec);
 #else
 int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec);
 #endif
@@ -66,8 +65,16 @@ int aq_ptp_xmit(struct aq_nic_s *aq_nic, struct sk_buff *skb);
 void aq_ptp_tx_hwtstamp(struct aq_nic_s *aq_nic, u64 timestamp);
 
 /* Must be to check available of PTP before call */
-int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *self, struct hwtstamp_config *config);
-void aq_ptp_hwtstamp_config_get(struct aq_ptp_s *self, struct hwtstamp_config *config);
+void aq_ptp_hwtstamp_config_get(struct aq_ptp_s *self,
+				struct hwtstamp_config *config);
+int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *self,
+			       struct hwtstamp_config *config);
+
+/* Return either ring is belong to PTP or not*/
+bool aq_ptp_ring(struct aq_nic_s *aq_nic, struct aq_ring_s *ring);
+
+u16 aq_ptp_extract_ts(struct aq_nic_s *aq_nic, struct sk_buff *skb, u8 *p,
+		      unsigned int len);
 
 struct ptp_clock *aq_ptp_get_ptp_clock(struct aq_ptp_s *self);
 
@@ -78,5 +85,19 @@ int aq_ptp_link_change(struct aq_nic_s *aq_nic);
 
 extern int aq_configure_sync1588(struct net_device *ndev,
 				 struct aq_ptp_sync1588 *sync1588);
+#else
+/* Return either ring is belong to PTP or not*/
+static inline bool aq_ptp_ring(struct aq_nic_s *aq_nic, struct aq_ring_s *ring)
+{
+	return false;
+}
+
+static inline u16 aq_ptp_extract_ts(struct aq_nic_s *aq_nic,
+				    struct sk_buff *skb, u8 *p,
+				    unsigned int len)
+{
+	return 0;
+}
 #endif
-#endif /* aq_ptp_h */
+
+#endif /* AQ_PTP_H */

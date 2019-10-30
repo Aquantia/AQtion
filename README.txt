@@ -358,7 +358,7 @@ Supported ethtool options
         Supported link modes:   100baseT/Full
                                 1000baseT/Full
                                 10000baseT/Full
-        Supported pause frame use: Symmetric
+        Supported pause frame use: Symmetric Receive-only
         Supports auto-negotiation: Yes
         Advertised link modes:  100baseT/Full
                                 1000baseT/Full
@@ -376,8 +376,12 @@ Supported ethtool options
  ---
  Note: AQrate speeds (2.5/5 Gb/s) will be displayed only with linux kernels > 4.10.
     But you can still use these speeds:
-	ethtool -s eth0 autoneg off speed 2500
-		
+    `ethtool -s eth0 autoneg off speed 2500`
+ Note: AQC FW provides only information on actual negotiated pause frame usage.
+    Link partner pause settings are not directly available.
+    Thus, `Advertised pause frame use` actually shows negotiated settings.
+    To check on real advertised settings, `ethtool -a eth0` could be used.
+
  Viewing adapter information
  ---------------------
  ethtool -i <ethX>
@@ -632,12 +636,12 @@ Supported ethtool options
 
  UDP GSO is configured by:
 
-    ethtool -K eth0 udp-fragmentation-offload on
+    ethtool -K eth0 tx-udp-segmentation on
 
  Private flags (testing)
  ---------------------------------
 
- Atlantic driver supports private flags for hardware loopback testing:
+ Atlantic driver supports private flags for hardware custom features:
 
 	$ ethtool --show-priv-flags ethX
 
@@ -648,11 +652,12 @@ Supported ethtool options
 	PHYInternalLoopback: off
 	PHYExternalLoopback: off
 	Downshift          : on
+	MediaDetect        : off
 
  Example:
 
  	$ ethtool --set-priv-flags ethX DMASystemLoopback on
- 
+
  DMASystemLoopback:   DMA Host loopback.
  PKTSystemLoopback:   Packet buffer host loopback.
  DMANetworkLoopback:  Network side loopback on DMA block.
@@ -660,6 +665,7 @@ Supported ethtool options
  PHYExternalLoopback: External loopback on Phy (with loopback ethernet cable).
  Downshift:           When `on`, enables link speed downgrade in case PHY sees
                       currently selected speed is constantly failing
+ MediaDetect:         When `on`, enables low-power autoneg in PHY
 
 Self test
 ------------------------------------

@@ -127,7 +127,6 @@ struct aq_diag_s {
 #define AQ_HW_FLAG_RESETTING   0x00000010U
 #define AQ_HW_FLAG_CLOSING     0x00000020U
 #define AQ_HW_PTP_AVAILABLE    0x01000000U
-#define AQ_HW_PTP_DPATH_UP     0x02000000U
 #define AQ_HW_LINK_DOWN        0x04000000U
 #define AQ_HW_FLAG_ERR_UNPLUG  0x40000000U
 #define AQ_HW_FLAG_ERR_HW      0x80000000U
@@ -152,22 +151,23 @@ struct aq_diag_s {
 #define AQ_HW_LED_BLINK    0x2U
 #define AQ_HW_LED_DEFAULT  0x0U
 
-enum {
+enum aq_priv_flags {
 	AQ_HW_LOOPBACK_DMA_SYS,
 	AQ_HW_LOOPBACK_PKT_SYS,
 	AQ_HW_LOOPBACK_DMA_NET,
 	AQ_HW_LOOPBACK_PHYINT_SYS,
 	AQ_HW_LOOPBACK_PHYEXT_SYS,
-	AQ_HW_LOOPBACK_MAX,
+	AQ_HW_DOWNSHIFT,
+	AQ_HW_MEDIA_DETECT,
 };
 
-#define AQ_HW_DOWNSHIFT AQ_HW_LOOPBACK_MAX
 #define AQ_HW_LOOPBACK_MASK	(BIT(AQ_HW_LOOPBACK_DMA_SYS) |\
 				 BIT(AQ_HW_LOOPBACK_PKT_SYS) |\
 				 BIT(AQ_HW_LOOPBACK_DMA_NET) |\
 				 BIT(AQ_HW_LOOPBACK_PHYINT_SYS) |\
 				 BIT(AQ_HW_LOOPBACK_PHYEXT_SYS))
 #define AQ_HW_DOWNSHIFT_MASK    (BIT(AQ_HW_DOWNSHIFT))
+#define AQ_HW_MEDIA_DETECT_MASK (BIT(AQ_HW_MEDIA_DETECT))
 
 struct aq_hw_s {
 	atomic_t flags;
@@ -188,6 +188,7 @@ struct aq_hw_s {
 	atomic_t dpc;
 	u32 mbox_addr;
 	u32 rpc_addr;
+	u32 settings_addr;
 	u32 rpc_tid;
 	struct hw_atl_utils_fw_rpc rpc;
 	u16 phy_id;
@@ -298,45 +299,37 @@ struct aq_hw_ops {
 					struct aq_nic_cfg_s *aq_nic_cfg);
 
 	int (*hw_tx_tc_mode_get)(struct aq_hw_s *self, u32 *tc_mode);
-	
+
 	int (*hw_rx_tc_mode_get)(struct aq_hw_s *self, u32 *tc_mode);
 
-	int (*hw_ring_hwts_rx_fill)(struct aq_hw_s *self, struct aq_ring_s *aq_ring);
+	int (*hw_ring_hwts_rx_fill)(struct aq_hw_s *self,
+				    struct aq_ring_s *aq_ring);
 
-	int (*hw_ring_hwts_rx_receive)(struct aq_hw_s *self, struct aq_ring_s *ring);
-
-	int (*hw_ptp_dpath_enable)(struct aq_hw_s *self, unsigned int enable, u16 rx_queue);
+	int (*hw_ring_hwts_rx_receive)(struct aq_hw_s *self,
+				       struct aq_ring_s *ring);
 
 	void (*hw_get_ptp_ts)(struct aq_hw_s *self, u64 *stamp);
 
 	int (*hw_adj_clock_freq)(struct aq_hw_s *self, s32 delta);
-	
+
 	int (*hw_adj_sys_clock)(struct aq_hw_s *self, s64 delta);
 
 	int (*hw_set_sys_clock)(struct aq_hw_s *self, u64 time, u64 ts);
 
 	int (*hw_ts_to_sys_clock)(struct aq_hw_s *self, u64 ts, u64 *time);
 
-	int (*hw_gpio_pulse)(struct aq_hw_s *self, u32 index, u64 start, u32 period);
+	int (*hw_gpio_pulse)(struct aq_hw_s *self, u32 index, u64 start,
+			     u32 period);
 
 	int (*hw_extts_gpio_enable)(struct aq_hw_s *self, u32 index,
 				    u32 enable);
 
 	int (*hw_get_sync_ts)(struct aq_hw_s *self, u64 *ts);
 
-
-	void (*enable_ptp)(struct aq_hw_s *self, unsigned int param,
-			   int enable);
-
 	u16 (*rx_extract_ts)(u8 *p, unsigned int len, u64 *timestamp);
+
 	int (*extract_hwts)(u8 *p, unsigned int len, u64 *timestamp);
 
-	u64 (*hw_ring_tx_ptp_get_ts)(struct aq_ring_s *ring);
-
-	int (*hw_tx_ptp_ring_init)(struct aq_hw_s *self,
-				     struct aq_ring_s *aq_ring);
-	int (*hw_rx_ptp_ring_init)(struct aq_hw_s *self,
-				     struct aq_ring_s *aq_ring);
 	u32 (*hw_get_clk_sel)(struct aq_hw_s *self);
 
 	int (*hw_set_loopback)(struct aq_hw_s *self, u32 mode, bool enable);
@@ -381,7 +374,7 @@ struct aq_fw_ops {
 	int (*set_eee_rate)(struct aq_hw_s *self, u32 speed);
 
 	int (*get_eee_rate)(struct aq_hw_s *self, u32 *rate,
-			u32 *supported_rates, u32 *lpi_timer);
+			    u32 *supported_rates);
 
 	int (*set_flow_control)(struct aq_hw_s *self);
 
@@ -392,6 +385,8 @@ struct aq_fw_ops {
 	int (*set_phyloopback)(struct aq_hw_s *self, u32 mode, bool enable);
 
 	void (*set_downshift)(struct aq_hw_s *self, bool enable);
+
+	int (*set_media_detect)(struct aq_hw_s *self, bool enable);
 
 	int (*run_tdr_diag)(struct aq_hw_s *self);
 

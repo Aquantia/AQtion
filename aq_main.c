@@ -75,7 +75,7 @@ static int aq_ndev_open(struct net_device *ndev)
 
 err_exit:
 	if (err < 0)
-		aq_nic_deinit(aq_nic);
+		aq_nic_deinit(aq_nic, true);
 	return err;
 }
 
@@ -86,11 +86,10 @@ static int aq_ndev_close(struct net_device *ndev)
 
 	aq_drvinfo_exit(ndev);
 
-
 	err = aq_nic_stop(aq_nic);
 	if (err < 0)
 		goto err_exit;
-	aq_nic_deinit(aq_nic);
+	aq_nic_deinit(aq_nic, true);
 
 err_exit:
 	return err;
@@ -103,15 +102,20 @@ static int aq_ndev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	if (unlikely(aq_utils_obj_test(&aq_nic->flags, AQ_NIC_PTP_DPATH_UP))) {
-		/* Hardware adds the Timestamp for PTPv2 802.AS1 and PTPv2 IPv4 UDP. */
-		if (unlikely((ip_hdr(skb)->version == 4) &&
-					(ip_hdr(skb)->protocol == IPPROTO_UDP) &&
-					((udp_hdr(skb)->dest == htons(319)) || (udp_hdr(skb)->dest == htons(320))))) {
+		/* Hardware adds the Timestamp for PTPv2 802.AS1
+		 * and PTPv2 IPv4 UDP.
+		 * We have to push even general 320 port messages to the ptp
+		 * queue explicitly. This is a limitation of current firmware
+		 * and hardware PTP design of the chip. Otherwise ptp stream
+		 * will fail to sync
+		 */
+		if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) ||
+		    unlikely((ip_hdr(skb)->version == 4) &&
+			     (ip_hdr(skb)->protocol == IPPROTO_UDP) &&
+			     ((udp_hdr(skb)->dest == htons(319)) ||
+			      (udp_hdr(skb)->dest == htons(320)))) ||
+		    unlikely(eth_hdr(skb)->h_proto == htons(ETH_P_1588)))
 			return aq_ptp_xmit(aq_nic, skb);
-		}
-		if (unlikely(eth_hdr(skb)->h_proto == htons(ETH_P_1588))) {
-			return aq_ptp_xmit(aq_nic, skb);
-		}
 	}
 #endif
 
@@ -231,37 +235,39 @@ static void aq_ndev_set_multicast_settings(struct net_device *ndev)
 	if (err < 0)
 		return;
 }
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
-static int aq_ndev_config_hwtstamp(struct aq_nic_s *aq_nic, struct hwtstamp_config *config)
+static int aq_ndev_config_hwtstamp(struct aq_nic_s *aq_nic,
+				   struct hwtstamp_config *config)
 {
 	if (config->flags)
 		return -EINVAL;
 
 	switch (config->tx_type) {
-		case HWTSTAMP_TX_OFF:
-		case HWTSTAMP_TX_ON:
-			break;
-		default:
-			return -ERANGE;
+	case HWTSTAMP_TX_OFF:
+	case HWTSTAMP_TX_ON:
+		break;
+	default:
+		return -ERANGE;
 	}
 
 	switch (config->rx_filter) {
-		case HWTSTAMP_FILTER_PTP_V2_L4_EVENT:
-		case HWTSTAMP_FILTER_PTP_V2_L4_SYNC:
-		case HWTSTAMP_FILTER_PTP_V2_L4_DELAY_REQ:
-		case HWTSTAMP_FILTER_PTP_V2_L2_EVENT:
-		case HWTSTAMP_FILTER_PTP_V2_L2_SYNC:
-		case HWTSTAMP_FILTER_PTP_V2_L2_DELAY_REQ:
-		case HWTSTAMP_FILTER_PTP_V2_SYNC:
-		case HWTSTAMP_FILTER_PTP_V2_DELAY_REQ:
-			config->rx_filter = HWTSTAMP_FILTER_PTP_V2_EVENT;
-			break;
-		case HWTSTAMP_FILTER_PTP_V2_EVENT:
-		case HWTSTAMP_FILTER_NONE:
-			break;
-		default:
-			return -ERANGE;
+	case HWTSTAMP_FILTER_PTP_V2_L4_EVENT:
+	case HWTSTAMP_FILTER_PTP_V2_L4_SYNC:
+	case HWTSTAMP_FILTER_PTP_V2_L4_DELAY_REQ:
+	case HWTSTAMP_FILTER_PTP_V2_L2_EVENT:
+	case HWTSTAMP_FILTER_PTP_V2_L2_SYNC:
+	case HWTSTAMP_FILTER_PTP_V2_L2_DELAY_REQ:
+	case HWTSTAMP_FILTER_PTP_V2_SYNC:
+	case HWTSTAMP_FILTER_PTP_V2_DELAY_REQ:
+		config->rx_filter = HWTSTAMP_FILTER_PTP_V2_EVENT;
+		break;
+	case HWTSTAMP_FILTER_PTP_V2_EVENT:
+	case HWTSTAMP_FILTER_NONE:
+		break;
+	default:
+		return -ERANGE;
 	}
 
 	return aq_ptp_hwtstamp_config_set(aq_nic->aq_ptp, config);
@@ -285,7 +291,8 @@ static int aq_ndev_hwtstamp_set(struct aq_nic_s *aq_nic, struct ifreq *ifr)
 		return ret_val;
 #endif
 
-	return copy_to_user(ifr->ifr_data, &config, sizeof(config)) ? -EFAULT : 0;
+	return copy_to_user(ifr->ifr_data, &config, sizeof(config)) ?
+	       -EFAULT : 0;
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
@@ -298,7 +305,8 @@ static int aq_ndev_hwtstamp_get(struct aq_nic_s *aq_nic, struct ifreq *ifr)
 		return -EOPNOTSUPP;
 
 	aq_ptp_hwtstamp_config_get(aq_nic->aq_ptp, &config);
-	return copy_to_user(ifr->ifr_data, &config, sizeof(config)) ? -EFAULT : 0;
+	return copy_to_user(ifr->ifr_data, &config, sizeof(config)) ?
+	       -EFAULT : 0;
 }
 #endif
 
@@ -307,16 +315,15 @@ static int aq_ndev_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 	struct aq_nic_s *aq_nic = netdev_priv(netdev);
 
 	switch (cmd) {
-		case SIOCSHWTSTAMP:
-			return aq_ndev_hwtstamp_set(aq_nic, ifr);
+	case SIOCSHWTSTAMP:
+		return aq_ndev_hwtstamp_set(aq_nic, ifr);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+	case SIOCGHWTSTAMP:
+		return aq_ndev_hwtstamp_get(aq_nic, ifr);
 
-		case SIOCGHWTSTAMP:
-			return aq_ndev_hwtstamp_get(aq_nic, ifr);
-
-		case AQ_PTP_SYNC_CFG:
-		{
+	case AQ_PTP_SYNC_CFG: {
 			struct aq_ptp_sync1588 sync = {0};
 
 			if (copy_from_user(&sync, ifr->ifr_data,
@@ -324,7 +331,7 @@ static int aq_ndev_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 				return -EFAULT;
 
 			return aq_ptp_configure_sync1588(aq_nic, &sync);
-		}
+	}
 #endif
 	}
 

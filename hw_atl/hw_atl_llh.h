@@ -496,51 +496,6 @@ void hw_atl_rpf_etht_flr_act_set(struct aq_hw_s *aq_hw, u32 etht_flr_act,
 /* set ethertype filter */
 void hw_atl_rpf_etht_flr_set(struct aq_hw_s *aq_hw, u32 etht_flr, u32 filter);
 
-/* set L3/L4 filter enable */
-void hw_atl_rpf_l3_l4_enf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3 IPv6 enable */
-void hw_atl_rpf_l3_v6_enf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3 source address enable */
-void hw_atl_rpf_l3_saf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3 destination address enable */
-void hw_atl_rpf_l3_daf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L4 source port enable */
-void hw_atl_rpf_l4_spf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L4 destination port enable */
-void hw_atl_rpf_l4_dpf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L4 protocol enable */
-void hw_atl_rpf_l4_protf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3 ARP filter enable */
-void hw_atl_rpf_l3_arpf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3/L4 rx queue enable */
-void hw_atl_rpf_l3_l4_rxqf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3/L4 management queue */
-void hw_atl_rpf_l3_l4_mng_rxqf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L4 protocol enable */
-void hw_atl_rpf_l4_protf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3/L4 rx queue enable */
-void hw_atl_rpf_l3_l4_rxqf_en_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3/L4 filter action */
-void hw_atl_rpf_l3_l4_actf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L3/L4 rx queue */
-void hw_atl_rpf_l3_l4_rxqf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
-/* set L4 protocol value */
-void hw_atl_rpf_l4_protf_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
-
 /* set L4 source port */
 void hw_atl_rpf_l4_spd_set(struct aq_hw_s *aq_hw, u32 val, u32 filter);
 
@@ -695,6 +650,10 @@ void hw_atl_tpb_tx_dma_sys_lbk_en_set(struct aq_hw_s *aq_hw,
 void hw_atl_tpb_tx_dma_net_lbk_en_set(struct aq_hw_s *aq_hw,
 				      u32 tx_dma_net_lbk_en);
 
+/* set tx clock gating enable */
+void hw_atl_tpb_tx_tx_clk_gate_en_set(struct aq_hw_s *aq_hw,
+				      u32 tx_clk_gate_en);
+
 /* set tx packet buffer size (per tc) */
 void hw_atl_tpb_tx_pkt_buff_size_per_tc_set(struct aq_hw_s *aq_hw,
 					    u32 tx_pkt_buff_size_per_tc,
@@ -792,8 +751,8 @@ void hw_atl_msm_reg_wr_strobe_set(struct aq_hw_s *aq_hw, u32 reg_wr_strobe);
 void hw_atl_pci_pci_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 pci_reg_res_dis);
 
 /* pcs */
-
-void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw, u32 ptp_clock_read_enable);
+void hw_atl_pcs_ptp_clock_read_enable(struct aq_hw_s *aq_hw,
+				      u32 ptp_clock_read_enable);
 
 u32 hw_atl_pcs_ptp_clock_get(struct aq_hw_s *aq_hw, u32 index);
 
@@ -871,9 +830,6 @@ u32 hw_atl_sem_ram_get(struct aq_hw_s *self);
 
 /* get global microprocessor mdio semaphore */
 u32 hw_atl_sem_mdio_get(struct aq_hw_s *self);
-
-/* get global microprocessor msm semaphore */
-u32 hw_atl_sem_msm_get(struct aq_hw_s *self);
 
 /* get global microprocessor scratch pad register */
 u32 hw_atl_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_scp);

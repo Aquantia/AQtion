@@ -13,7 +13,6 @@
 #include "aq_nic.h"
 #include "aq_vec.h"
 #include "aq_hw.h"
-#include "aq_ptp.h"
 #include "aq_pci_func.h"
 #include "hw_atl/hw_atl_a0.h"
 #include "hw_atl/hw_atl_b0.h"
@@ -391,16 +390,6 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	err = aq_nic_ndev_register(self);
 	if (err < 0)
 		goto err_register;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-	err = aq_ptp_init(self, numvecs - 1, self->msix_entry[numvecs - 1].vector);
-#else
-	err = aq_ptp_init(self, numvecs - 1);
-#endif
-#endif
-	if (err < 0)
-		goto err_register;
 
 	nic_count++;
 	return 0;
@@ -430,19 +419,10 @@ static void aq_pci_remove(struct pci_dev *pdev)
 	if (self->ndev) {
 		if (aq_nic_get_cfg(self)->fw_image)
 			release_firmware(aq_nic_get_cfg(self)->fw_image);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
-		aq_ptp_unregister(self);
-#endif
+
 		aq_clear_rxnfc_all_rules(self);
 		if (self->ndev->reg_state == NETREG_REGISTERED)
 			unregister_netdev(self->ndev);
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
-		aq_ptp_ring_free(self);
-		aq_ptp_free(self);
-#endif
 		
 		aq_nic_free_vectors(self);
 		aq_pci_free_irq_vectors(self);
@@ -493,29 +473,97 @@ static void aq_pci_shutdown(struct pci_dev *pdev)
 	}
 }
 
-static int aq_pci_suspend(struct pci_dev *pdev, pm_message_t pm_msg)
+static int aq_suspend_common(struct device *dev, bool deep)
 {
-	struct aq_nic_s *self = pci_get_drvdata(pdev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct aq_nic_s *nic = pci_get_drvdata(pdev);
 
-	return aq_nic_change_pm_state(self, &pm_msg);
+	rtnl_lock();
+
+	nic->power_state = AQ_HW_POWER_STATE_D3;
+	netif_device_detach(nic->ndev);
+	netif_tx_stop_all_queues(nic->ndev);
+
+	aq_nic_stop(nic);
+
+	if (deep) {
+		aq_nic_deinit(nic, !nic->aq_hw->aq_nic_cfg->wol);
+		aq_nic_set_power(nic);
+	}
+
+	rtnl_unlock();
+
+	return 0;
 }
 
-static int aq_pci_resume(struct pci_dev *pdev)
+static int atl_resume_common(struct device *dev, bool deep)
 {
-	struct aq_nic_s *self = pci_get_drvdata(pdev);
-	pm_message_t pm_msg = PMSG_RESTORE;
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct aq_nic_s *nic = pci_get_drvdata(pdev);
+	int ret;
 
-	return aq_nic_change_pm_state(self, &pm_msg);
+	rtnl_lock();
+
+	pci_set_power_state(pdev, PCI_D0);
+	pci_restore_state(pdev);
+
+	if (deep) {
+		ret = aq_nic_init(nic);
+		if (ret)
+			goto err_exit;
+	}
+
+	ret = aq_nic_start(nic);
+	if (ret)
+		goto err_exit;
+
+	netif_device_attach(nic->ndev);
+	netif_tx_start_all_queues(nic->ndev);
+
+err_exit:
+	rtnl_unlock();
+
+	return ret;
 }
+
+static int aq_pm_freeze(struct device *dev)
+{
+	return aq_suspend_common(dev, false);
+}
+
+static int aq_pm_suspend_poweroff(struct device *dev)
+{
+	return aq_suspend_common(dev, true);
+}
+
+static int aq_pm_thaw(struct device *dev)
+{
+	return atl_resume_common(dev, false);
+}
+
+static int aq_pm_resume_restore(struct device *dev)
+{
+	return atl_resume_common(dev, true);
+}
+
+const struct dev_pm_ops aq_pm_ops = {
+	.suspend = aq_pm_suspend_poweroff,
+	.poweroff = aq_pm_suspend_poweroff,
+	.freeze = aq_pm_freeze,
+	.resume = aq_pm_resume_restore,
+	.restore = aq_pm_resume_restore,
+	.thaw = aq_pm_thaw,
+};
 
 static struct pci_driver aq_pci_ops = {
 	.name = aq_ndev_driver_name,
 	.id_table = aq_pci_tbl,
 	.probe = aq_pci_probe,
 	.remove = aq_pci_remove,
-	.suspend = aq_pci_suspend,
-	.resume = aq_pci_resume,
 	.shutdown = aq_pci_shutdown,
+#ifdef CONFIG_PM
+	.driver.pm = &aq_pm_ops,
+#endif
 };
 
 int aq_pci_func_register_driver(void)

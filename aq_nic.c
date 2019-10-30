@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * aQuantia Corporation Network Driver
  * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
  */
 
 /* File aq_nic.c: Definition of common code for NIC. */
@@ -103,7 +100,7 @@ void aq_nic_cfg_start(struct aq_nic_s *self)
 	cfg->is_rss = AQ_CFG_IS_RSS_DEF;
 	cfg->num_rss_queues = AQ_CFG_NUM_RSS_QUEUES_DEF;
 	cfg->aq_rss.base_cpu_number = AQ_CFG_RSS_BASE_CPU_NUM_DEF;
-	cfg->flow_control = AQ_CFG_FC_MODE;
+	cfg->fc.req = AQ_CFG_FC_MODE;
 	cfg->wol = AQ_CFG_WOL_MODES;
 
 	cfg->mtu = AQ_CFG_MTU_DEF;
@@ -170,6 +167,10 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 	if (err)
 		return err;
 
+	if (self->aq_fw_ops->get_flow_control)
+		self->aq_fw_ops->get_flow_control(self->aq_hw, &fc);
+	self->aq_nic_cfg.fc.cur = fc;
+
 	if (self->link_status.mbps != self->aq_hw->aq_link_status.mbps) {
 		netdev_info(self->ndev, "%s: link change old %d new %d\n",
 			aq_ndev_driver_name, self->link_status.mbps,
@@ -179,7 +180,8 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 		if (self->aq_ptp) {
 			aq_ptp_clock_init(self);
-			aq_ptp_tm_offset_set(self, self->aq_hw->aq_link_status.mbps);
+			aq_ptp_tm_offset_set(self,
+					     self->aq_hw->aq_link_status.mbps);
 			aq_ptp_link_change(self);
 		}
 #endif
@@ -188,8 +190,6 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 		 * on any link event.
 		 * We should query FW whether it negotiated FC.
 		 */
-		if (self->aq_fw_ops->get_flow_control)
-			self->aq_fw_ops->get_flow_control(self->aq_hw, &fc);
 		if (self->aq_hw_ops->hw_set_fc)
 			self->aq_hw_ops->hw_set_fc(self->aq_hw, fc, 0);
 	}
@@ -402,6 +402,7 @@ int aq_nic_init(struct aq_nic_s *self)
 	mutex_unlock(&self->fwreq_mutex);
 	if (err < 0)
 		goto err_exit;
+	aq_nic_set_media_detect(self);
 
 	err = self->aq_hw_ops->hw_init(self->aq_hw,
 				       aq_nic_get_ndev(self)->dev_addr);
@@ -430,10 +431,19 @@ int aq_nic_init(struct aq_nic_s *self)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+	err = aq_ptp_init(self, self->irqvecs - 1,
+			  self->msix_entry[self->irqvecs - 1].vector);
+#else
+	err = aq_ptp_init(self, self->irqvecs - 1);
+#endif
+	if (err < 0)
+		goto err_exit;
+
 	err = aq_ptp_ring_alloc(self);
 	if (err < 0)
 		goto err_exit;
-	
+
 	err = aq_ptp_ring_init(self);
 	if (err < 0)
 		goto err_exit;
@@ -447,18 +457,19 @@ err_exit:
 
 int aq_nic_start(struct aq_nic_s *self)
 {
+	const struct aq_hw_ops *hw_ops;
 	struct aq_vec_s *aq_vec = NULL;
 	unsigned int i = 0U;
 	int err = 0;
 
-	err = self->aq_hw_ops->hw_multicast_list_set(self->aq_hw,
-						     self->mc_list.ar,
-						     self->mc_list.count);
+	hw_ops = self->aq_hw_ops;
+
+	err = hw_ops->hw_multicast_list_set(self->aq_hw, self->mc_list.ar,
+					    self->mc_list.count);
 	if (err < 0)
 		goto err_exit;
 
-	err = self->aq_hw_ops->hw_packet_filter_set(self->aq_hw,
-						    self->packet_filter);
+	err = hw_ops->hw_packet_filter_set(self->aq_hw, self->packet_filter);
 	if (err < 0)
 		goto err_exit;
 
@@ -467,6 +478,25 @@ int aq_nic_start(struct aq_nic_s *self)
 		err = aq_vec_start(aq_vec);
 		if (err < 0)
 			goto err_exit;
+	}
+
+	if (AQ_CFG_UDP_RSS_DISABLE) {
+		/* HW bug workaround:
+		 * Disable RSS for UDP using rx flow filter.
+		 * HW does not track RSS stream for fragmented UDP,
+		 * 0x5040 control reg does not work.
+		 */
+		self->udp_filter.location =
+				aq_nic_reserve_filter(self, aq_rx_filter_l3l4);
+		self->udp_filter.cmd = HW_ATL_RX_ENABLE_FLTR_L3L4 |
+				HW_ATL_RX_ENABLE_CMP_PROT_L4 |
+				HW_ATL_RX_ENABLE_QUEUE_L3L4 |
+				HW_ATL_RX_HOST << HW_ATL_RX_ACTION_FL3F4_SHIFT |
+				HW_ATL_RX_UDP;
+		if (hw_ops->hw_filter_l3l4_set) {
+			err = hw_ops->hw_filter_l3l4_set(self->aq_hw,
+							 &self->udp_filter);
+		}
 	}
 
 	err = aq_apply_all_rule(self);
@@ -483,8 +513,9 @@ int aq_nic_start(struct aq_nic_s *self)
 	if (err < 0)
 		goto err_exit;
 #endif
-	
-	err = self->aq_hw_ops->hw_start(self->aq_hw);
+	aq_nic_set_loopback(self);
+
+	err = hw_ops->hw_start(self->aq_hw);
 	if (err < 0)
 		goto err_exit;
 
@@ -493,8 +524,7 @@ int aq_nic_start(struct aq_nic_s *self)
 		goto err_exit;
 
 	INIT_WORK(&self->service_task, aq_nic_service_task);
-	
-	aq_nic_set_loopback(self);
+
 	aq_nic_set_downshift(self);
 
 	timer_setup(&self->service_timer, aq_nic_service_timer_cb, 0);
@@ -531,15 +561,14 @@ int aq_nic_start(struct aq_nic_s *self)
 #endif
 			err = request_threaded_irq(irqvec, NULL,
 						   aq_linkstate_threaded_isr,
-						   IRQF_SHARED,
+						   IRQF_SHARED | IRQF_ONESHOT,
 						   self->ndev->name, self);
 			if (err < 0)
 				goto err_exit;
 			self->msix_entry_mask |= (1 << self->aq_nic_cfg.link_irq_vec);
 		}
 
-		err = self->aq_hw_ops->hw_irq_enable(self->aq_hw,
-						     AQ_CFG_IRQ_MASK);
+		err = hw_ops->hw_irq_enable(self->aq_hw, AQ_CFG_IRQ_MASK);
 		if (err < 0)
 			goto err_exit;
 	}
@@ -734,6 +763,11 @@ int aq_nic_xmit(struct aq_nic_s *self, struct sk_buff *skb)
 	}
 
 	aq_ring_update_queue_state(ring);
+
+	if (self->aq_nic_cfg.priv_flags & BIT(AQ_HW_LOOPBACK_DMA_NET)) {
+		err = NETDEV_TX_BUSY;
+		goto err_exit;
+	}
 
 	/* Above status update may stop the queue. Check this. */
 	if (__netif_subqueue_stopped(self->ndev, ring->idx)) {
@@ -972,9 +1006,12 @@ void aq_nic_get_link_ksettings(struct aq_nic_s *self,
 		ethtool_link_ksettings_add_link_mode(cmd, supported,
 						     100baseT_Full);
 
-	if (self->aq_nic_cfg.aq_hw_caps->flow_control)
+	if (self->aq_nic_cfg.aq_hw_caps->flow_control) {
 		ethtool_link_ksettings_add_link_mode(cmd, supported,
 						     Pause);
+		ethtool_link_ksettings_add_link_mode(cmd, supported,
+						     Asym_Pause);
+	}
 
 	ethtool_link_ksettings_add_link_mode(cmd, supported, Autoneg);
 
@@ -1008,13 +1045,13 @@ void aq_nic_get_link_ksettings(struct aq_nic_s *self,
 		ethtool_link_ksettings_add_link_mode(cmd, advertising,
 						     100baseT_Full);
 
-	if (self->aq_nic_cfg.flow_control & AQ_NIC_FC_RX)
+	if (self->aq_nic_cfg.fc.cur & AQ_NIC_FC_RX)
 		ethtool_link_ksettings_add_link_mode(cmd, advertising,
 						     Pause);
 
 	/* Asym is when either RX or TX, but not both */
-	if (!!(self->aq_nic_cfg.flow_control & AQ_NIC_FC_TX) ^
-	    !!(self->aq_nic_cfg.flow_control & AQ_NIC_FC_RX))
+	if (!!(self->aq_nic_cfg.fc.cur & AQ_NIC_FC_TX) ^
+	    !!(self->aq_nic_cfg.fc.cur & AQ_NIC_FC_RX))
 		ethtool_link_ksettings_add_link_mode(cmd, advertising,
 						     Asym_Pause);
 
@@ -1063,6 +1100,7 @@ int aq_nic_set_link_ksettings(struct aq_nic_s *self,
 			goto err_exit;
 		break;
 		}
+
 		if (!(self->aq_nic_cfg.aq_hw_caps->link_speed_msk & rate)) {
 			err = -1;
 			goto err_exit;
@@ -1096,7 +1134,6 @@ void aq_nic_get_link_settings(struct aq_nic_s *self, struct ethtool_cmd *cmd)
 	cmd->duplex = DUPLEX_FULL;
 	cmd->autoneg = self->aq_nic_cfg.is_autoneg;
 
-
 	cmd->supported |= (hw_caps->link_speed_msk & AQ_NIC_RATE_10G) ?
 				ADVERTISED_10000baseT_Full : 0U;
 	cmd->supported |= (hw_caps->link_speed_msk & AQ_NIC_RATE_1G) ?
@@ -1123,7 +1160,7 @@ void aq_nic_get_link_settings(struct aq_nic_s *self, struct ethtool_cmd *cmd)
 	cmd->advertising |=
 			(self->aq_nic_cfg.link_speed_msk & AQ_NIC_RATE_100M) ?
 			ADVERTISED_100baseT_Full : 0U;
-	cmd->advertising |= (self->aq_nic_cfg.flow_control) ?
+	cmd->advertising |= (self->aq_nic_cfg.fc.cur) ?
 				ADVERTISED_Pause : 0U;
 
 	if (hw_caps->media_type == AQ_HW_MEDIA_TYPE_FIBRE)
@@ -1273,10 +1310,27 @@ int aq_nic_stop(struct aq_nic_s *self)
 	aq_ptp_ring_stop(self);
 #endif
 
+	if (AQ_CFG_UDP_RSS_DISABLE)
+		aq_nic_release_filter(self, aq_rx_filter_l3l4,
+				      self->udp_filter.location);
+
 	return self->aq_hw_ops->hw_stop(self->aq_hw);
 }
 
-void aq_nic_deinit(struct aq_nic_s *self)
+void aq_nic_set_power(struct aq_nic_s *self)
+{
+	if (self->power_state != AQ_HW_POWER_STATE_D0 ||
+	    self->aq_hw->aq_nic_cfg->wol)
+		if (likely(self->aq_fw_ops->set_power)) {
+			mutex_lock(&self->fwreq_mutex);
+			self->aq_fw_ops->set_power(self->aq_hw,
+						   self->power_state,
+						   self->ndev->dev_addr);
+			mutex_unlock(&self->fwreq_mutex);
+		}
+}
+
+void aq_nic_deinit(struct aq_nic_s *self, bool link_down)
 {
 	struct aq_vec_s *aq_vec = NULL;
 	unsigned int i = 0U;
@@ -1291,24 +1345,16 @@ void aq_nic_deinit(struct aq_nic_s *self)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	aq_ptp_ring_deinit(self);
+	aq_ptp_unregister(self);
+	aq_ptp_ring_free(self);
+	aq_ptp_free(self);
 #endif
 
-	if (likely(self->aq_fw_ops->deinit)) {
+	if (likely(self->aq_fw_ops->deinit) && link_down) {
 		mutex_lock(&self->fwreq_mutex);
 		self->aq_fw_ops->deinit(self->aq_hw);
 		mutex_unlock(&self->fwreq_mutex);
 	}
-
-	if (self->power_state != AQ_HW_POWER_STATE_D0 ||
-	    self->aq_hw->aq_nic_cfg->wol)
-		if (likely(self->aq_fw_ops->set_power)) {
-			mutex_lock(&self->fwreq_mutex);
-			self->aq_fw_ops->set_power(self->aq_hw,
-						   self->power_state,
-						   self->ndev->dev_addr);
-			mutex_unlock(&self->fwreq_mutex);
-		}
-
 
 err_exit:;
 }
@@ -1330,44 +1376,6 @@ void aq_nic_free_vectors(struct aq_nic_s *self)
 err_exit:;
 }
 
-int aq_nic_change_pm_state(struct aq_nic_s *self, pm_message_t *pm_msg)
-{
-	int err = 0;
-
-	if (!netif_running(self->ndev)) {
-		err = 0;
-		goto out;
-	}
-	rtnl_lock();
-	if (pm_msg->event & PM_EVENT_SLEEP || pm_msg->event & PM_EVENT_FREEZE) {
-		self->power_state = AQ_HW_POWER_STATE_D3;
-		netif_device_detach(self->ndev);
-		netif_tx_stop_all_queues(self->ndev);
-
-		err = aq_nic_stop(self);
-		if (err < 0)
-			goto err_exit;
-
-		aq_nic_deinit(self);
-	} else {
-		err = aq_nic_init(self);
-		if (err < 0)
-			goto err_exit;
-
-		err = aq_nic_start(self);
-		if (err < 0)
-			goto err_exit;
-
-		netif_device_attach(self->ndev);
-		netif_tx_start_all_queues(self->ndev);
-	}
-
-err_exit:
-	rtnl_unlock();
-out:
-	return err;
-}
-
 void aq_nic_shutdown(struct aq_nic_s *self)
 {
 	int err = 0;
@@ -1384,7 +1392,8 @@ void aq_nic_shutdown(struct aq_nic_s *self)
 		if (err < 0)
 			goto err_exit;
 	}
-	aq_nic_deinit(self);
+	aq_nic_deinit(self, !self->aq_hw->aq_nic_cfg->wol);
+	aq_nic_set_power(self);
 
 err_exit:
 	rtnl_unlock();
@@ -1460,6 +1469,49 @@ void aq_nic_request_firmware(struct aq_nic_s *self)
 			    self->pdev->subsystem_vendor;
 }
 
+u8 aq_nic_reserve_filter(struct aq_nic_s *self, enum aq_rx_filter_type type)
+{
+	u8 location = 0xFF;
+	u32 fltr_cnt;
+	u32 n_bit;
+
+	switch (type) {
+	case aq_rx_filter_ethertype:
+		location = AQ_RX_LAST_LOC_FETHERT - AQ_RX_FIRST_LOC_FETHERT -
+			   self->aq_hw_rx_fltrs.fet_reserved_count;
+		self->aq_hw_rx_fltrs.fet_reserved_count++;
+		break;
+	case aq_rx_filter_l3l4:
+		fltr_cnt = AQ_RX_LAST_LOC_FL3L4 - AQ_RX_FIRST_LOC_FL3L4;
+		n_bit = fltr_cnt - self->aq_hw_rx_fltrs.fl3l4.reserved_count;
+
+		self->aq_hw_rx_fltrs.fl3l4.active_ipv4 |= BIT(n_bit);
+		self->aq_hw_rx_fltrs.fl3l4.reserved_count++;
+		location = n_bit;
+		break;
+	default:
+		break;
+	}
+
+	return location;
+}
+
+void aq_nic_release_filter(struct aq_nic_s *self, enum aq_rx_filter_type type,
+			   u32 location)
+{
+	switch (type) {
+	case aq_rx_filter_ethertype:
+		self->aq_hw_rx_fltrs.fet_reserved_count--;
+		break;
+	case aq_rx_filter_l3l4:
+		self->aq_hw_rx_fltrs.fl3l4.reserved_count--;
+		self->aq_hw_rx_fltrs.fl3l4.active_ipv4 &= ~BIT(location);
+		break;
+	default:
+		break;
+	}
+}
+
 int aq_nic_set_downshift(struct aq_nic_s *self)
 {
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
@@ -1474,4 +1526,22 @@ int aq_nic_set_downshift(struct aq_nic_s *self)
 	mutex_unlock(&self->fwreq_mutex);
 
 	return 0;
+}
+
+int aq_nic_set_media_detect(struct aq_nic_s *self)
+{
+	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
+	int err = 0;
+
+	if (!self->aq_fw_ops->set_media_detect)
+		return -ENOTSUPP;
+
+	mutex_lock(&self->fwreq_mutex);
+	err = self->aq_fw_ops->set_media_detect(self->aq_hw,
+						!!(cfg->priv_flags &
+						   AQ_HW_MEDIA_DETECT_MASK));
+
+	mutex_unlock(&self->fwreq_mutex);
+
+	return err;
 }

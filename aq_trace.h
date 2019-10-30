@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
  * Copyright (C) 2018 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
  */
 
 #undef TRACE_SYSTEM
@@ -19,9 +16,14 @@
 #include <linux/netdevice.h>
 #include "aq_compat.h"
 
+#if BITS_PER_LONG == 32
+/* Sorry, we won't show any tracing data on 32bit systems for now */
+#define DESCR_FIELD(DESCR, BIT_BEGIN, BIT_END) 0
+#else
 #define DESCR_FIELD(DESCR, BIT_BEGIN, BIT_END) \
 	((DESCR >> BIT_END) &\
 		(BIT(BIT_BEGIN - BIT_END + 1) - 1))
+#endif
 
 TRACE_EVENT(aq_rx_descr,
 	TP_PROTO(int ring_idx, unsigned int pointer, u64 *descr),

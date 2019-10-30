@@ -58,9 +58,7 @@
 #define HAL_ATLANTIC_UTILS_FW2X_MSG_WOL  0x0E
 
 #define HW_ATL_FW_VER_LED                0x03010026U
-
-/* clock is 3.2 ns*/
-#define HW_ATL_CLOCK_TO_US(clk)  ((clk) * 32 / 10000)
+#define HW_ATL_FW_VER_MEDIA_CONTROL      0x0301005aU
 
 struct __packed fw2x_msg_wol_pattern {
 	u8 mask[16];
@@ -86,6 +84,7 @@ static int aq_fw2x_set_state(struct aq_hw_s *self,
 
 static u32 aq_fw2x_mbox_get(struct aq_hw_s *self);
 static u32 aq_fw2x_rpc_get(struct aq_hw_s *self);
+static int aq_fw2x_settings_get(struct aq_hw_s *self, u32 *addr);
 static u32 aq_fw2x_state2_get(struct aq_hw_s *self);
 
 static int aq_fw2x_init(struct aq_hw_s *self)
@@ -102,6 +101,8 @@ static int aq_fw2x_init(struct aq_hw_s *self)
 					self, self->rpc_addr,
 					self->rpc_addr != 0U,
 					1000U, 100000U);
+
+	err = aq_fw2x_settings_get(self, &self->settings_addr);
 
 	return err;
 }
@@ -185,15 +186,23 @@ static int aq_fw2x_set_link_speed(struct aq_hw_s *self, u32 speed)
 static void aq_fw2x_upd_flow_control_bits(struct aq_hw_s *self,
 					  u32 *mpi_state, u32 fc)
 {
-	if (fc & AQ_NIC_FC_RX)
-		*mpi_state |= HW_ATL_FW2X_CTRL_PAUSE;
-	else
-		*mpi_state &= ~HW_ATL_FW2X_CTRL_PAUSE;
+	*mpi_state &= ~(HW_ATL_FW2X_CTRL_PAUSE |
+			HW_ATL_FW2X_CTRL_ASYMMETRIC_PAUSE);
 
-	if (fc & AQ_NIC_FC_TX)
+	switch (fc) {
+	/* There is not explicit mode of RX only pause frames,
+	 * thus, we join this mode with FC full.
+	 * FC full is either Rx, either Tx, or both.
+	 */
+	case AQ_NIC_FC_FULL:
+	case AQ_NIC_FC_RX:
+		*mpi_state |= HW_ATL_FW2X_CTRL_PAUSE |
+			      HW_ATL_FW2X_CTRL_ASYMMETRIC_PAUSE;
+		break;
+	case AQ_NIC_FC_TX:
 		*mpi_state |= HW_ATL_FW2X_CTRL_ASYMMETRIC_PAUSE;
-	else
-		*mpi_state &= ~HW_ATL_FW2X_CTRL_ASYMMETRIC_PAUSE;
+		break;
+	}
 }
 
 static void aq_fw2x_upd_eee_rate_bits(struct aq_hw_s *self,
@@ -219,7 +228,7 @@ static int aq_fw2x_set_state(struct aq_hw_s *self,
 		aq_fw2x_upd_eee_rate_bits(self, &mpi_state,
 					  self->aq_nic_cfg->eee_speeds);
 		aq_fw2x_upd_flow_control_bits(self, &mpi_state,
-					      self->aq_nic_cfg->flow_control);
+					      self->aq_nic_cfg->fc.req);
 		break;
 	case MPI_DEINIT:
 		mpi_state |= HW_ATL_FW2X_CTRL_LINK_DROP;
@@ -269,9 +278,8 @@ static int aq_fw2x_get_mac_permanent(struct aq_hw_s *self, u8 *mac)
 	u32 efuse_addr = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_EFUSE_ADDR);
 
 	if (efuse_addr != 0) {
-		err = hw_atl_utils_fw_downld_dwords(self,
-						    efuse_addr + (40U * 4U),
-						    mac_addr,
+		err = hw_atl_utils_fw_downld_dwords(self, efuse_addr +
+						    (40U * 4U), mac_addr,
 						    ARRAY_SIZE(mac_addr));
 		if (err)
 			return err;
@@ -330,14 +338,14 @@ static int aq_fw2x_get_phy_temp(struct aq_hw_s *self, int *temp)
 {
 	u32 mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
 	u32 temp_val = mpi_opts & HW_ATL_FW2X_CTRL_TEMPERATURE;
-	u32 phy_temp_offset;
 	u32 temp_res;
 	int err = 0;
+	u32 offset;
 	u32 val;
 
-	phy_temp_offset = self->mbox_addr +
-			  offsetof(struct hw_atl_utils_mbox, info) +
-			  offsetof(struct hw_aq_info, phy_temperature);
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.phy_temperature);
+
 	/* Toggle statistics bit for FW to 0x36C.18 (CTRL_TEMPERATURE) */
 	mpi_opts = mpi_opts ^ HW_ATL_FW2X_CTRL_TEMPERATURE;
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
@@ -347,8 +355,7 @@ static int aq_fw2x_get_phy_temp(struct aq_hw_s *self, int *temp)
 					temp_val !=
 					(val & HW_ATL_FW2X_CTRL_TEMPERATURE),
 					1U, 10000U);
-	err = hw_atl_utils_fw_downld_dwords(self, phy_temp_offset,
-					    &temp_res, 1);
+	err = hw_atl_utils_fw_downld_dwords(self, offset, &temp_res, 1);
 
 	if (err)
 		return err;
@@ -356,133 +363,78 @@ static int aq_fw2x_get_phy_temp(struct aq_hw_s *self, int *temp)
 	/* Convert PHY temperature from 1/256 degree Celsius
 	 * to 1/1000 degree Celsius.
 	 */
-	*temp = (temp_res & 0xFFFF)  * 1000 / 256;
+	*temp = (temp_res & 0xFFFF) * 1000 / 256;
 
 	return 0;
 }
 
 static int aq_fw2x_get_cable_len(struct aq_hw_s *self, int *cable_len)
 {
-	int err = 0;
 	u32 cable_len_res;
+	int err = 0;
+	u32 offset;
 
-	err = hw_atl_utils_fw_downld_dwords(self,
-				self->mbox_addr +
-				offsetof(struct hw_atl_utils_mbox, info) +
-				offsetof(struct hw_aq_info, phy_temperature),
-				&cable_len_res,
-				sizeof(cable_len_res)/sizeof(u32));
+	/* To correct read dword, we begin to read with phy_temperature
+	 * (aligned 4)
+	 */
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.phy_temperature);
+
+	err = hw_atl_utils_fw_downld_dwords(self, offset, &cable_len_res, 1);
 
 	if (err)
 		return err;
 
+	/* Skip the first two bytes, which respond to phy_temperature,
+	 * take only the first byte, because cable len is one byte in size
+	 */
 	*cable_len = (cable_len_res >> 16) & 0xFF;
 	return 0;
 }
 
-static int aq_fw2x_set_sleep_proxy(struct aq_hw_s *self, u8 *mac)
+static int aq_fw2x_set_wol(struct aq_hw_s *self, u8 *mac)
 {
 	struct hw_atl_utils_fw_rpc *rpc = NULL;
-	struct offload_info *cfg = NULL;
-	unsigned int rpc_size = 0U;
-	u32 mpi_opts;
+	struct offload_info *info = NULL;
+	u32 wol_bits = 0;
+	u32 rpc_size;
 	int err = 0;
 	u32 val;
 
-	rpc_size = sizeof(rpc->msg_id) + sizeof(*cfg);
+	if (self->aq_nic_cfg->wol & WAKE_PHY) {
+		aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR,
+				HW_ATL_FW2X_CTRL_LINK_DROP);
+		readx_poll_timeout_atomic(aq_fw2x_state2_get, self, val,
+					  (val &
+					   HW_ATL_FW2X_CTRL_LINK_DROP) != 0,
+					  1000, 100000);
+		wol_bits |= HW_ATL_FW2X_CTRL_WAKE_ON_LINK;
+	}
 
-	err = hw_atl_utils_fw_rpc_wait(self, &rpc);
-	if (err < 0)
-		goto err_exit;
+	if (self->aq_nic_cfg->wol & WAKE_MAGIC) {
+		wol_bits |= HW_ATL_FW2X_CTRL_SLEEP_PROXY |
+			    HW_ATL_FW2X_CTRL_WOL;
 
-	memset(rpc, 0, rpc_size);
-	cfg = (struct offload_info *)(&rpc->msg_id + 1);
+		err = hw_atl_utils_fw_rpc_wait(self, &rpc);
+		if (err < 0)
+			goto err_exit;
 
-	memcpy(cfg->mac_addr, mac, ETH_ALEN);
-	cfg->len = sizeof(*cfg);
+		rpc_size = sizeof(*info) +
+			   offsetof(struct hw_atl_utils_fw_rpc, fw2x_offloads);
+		memset(rpc, 0, rpc_size);
+		info = &rpc->fw2x_offloads;
+		memcpy(info->mac_addr, mac, ETH_ALEN);
+		info->len = sizeof(*info);
 
-	/* Clear bit 0x36C.23 and 0x36C.22 */
-	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	mpi_opts &= ~HW_ATL_FW2X_CTRL_SLEEP_PROXY;
-	mpi_opts &= ~HW_ATL_FW2X_CTRL_LINK_DROP;
+		err = hw_atl_utils_fw_rpc_call(self, rpc_size);
+		if (err < 0)
+			goto err_exit;
+	}
 
-	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
-
-	err = hw_atl_utils_fw_rpc_call(self, rpc_size);
-	if (err < 0)
-		goto err_exit;
-
-	/* Set bit 0x36C.23 */
-	mpi_opts |= HW_ATL_FW2X_CTRL_SLEEP_PROXY;
-	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
-
-	err = readx_poll_timeout_atomic(aq_fw2x_state2_get,
-					self, val,
-					val & HW_ATL_FW2X_CTRL_SLEEP_PROXY,
-					1U, 100000U);
-
-err_exit:
-	return err;
-}
-
-static int aq_fw2x_set_wake_magic(struct aq_hw_s *self, u8 *mac)
-{
-	struct hw_atl_utils_fw_rpc *rpc = NULL;
-	struct fw2x_msg_wol *msg = NULL;
-	u32 mpi_opts;
-	int err = 0;
-	u32 val;
-
-	err = hw_atl_utils_fw_rpc_wait(self, &rpc);
-	if (err < 0)
-		goto err_exit;
-
-	msg = (struct fw2x_msg_wol *)rpc;
-
-	memset(msg, 0, sizeof(*msg));
-
-	msg->msg_id = HAL_ATLANTIC_UTILS_FW2X_MSG_WOL;
-	msg->magic_packet_enabled = true;
-	memcpy(msg->hw_addr, mac, ETH_ALEN);
-
-	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	mpi_opts &= ~HW_ATL_FW2X_CTRL_WOL;
-	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
-
-	err = hw_atl_utils_fw_rpc_call(self, sizeof(*msg));
-	if (err < 0)
-		goto err_exit;
-
-	/* Set bit 0x36C.24 */
-	mpi_opts |= HW_ATL_FW2X_CTRL_WOL;
-	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
-
-	err = readx_poll_timeout_atomic(aq_fw2x_state2_get,
-					self, val, val & HW_ATL_FW2X_CTRL_WOL,
-					1U, 10000U);
+	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, wol_bits);
 
 err_exit:
 	return err;
-}
-
-static void aq_fw2x_set_wake_phy(struct aq_hw_s *self)
-{
-	u32 mpi_opts;
-
-	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	/* Set LINK_DROP bit, NIC stores the actual ethernet link status
-	 * Link is being dropped
-	 */
-	mpi_opts |= HW_ATL_FW2X_CTRL_LINK_DROP;
-	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
-
-	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	/* Set WAKE_ON_LINK bit and clear LINK_DROP bit
-	 * NIC attempts to link up
-	 */
-	mpi_opts |= HW_ATL_FW2X_CTRL_WAKE_ON_LINK;
-	mpi_opts &= ~HW_ATL_FW2X_CTRL_LINK_DROP;
-	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 }
 
 static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state,
@@ -490,49 +442,39 @@ static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state,
 {
 	int err = 0;
 
-	if (self->aq_nic_cfg->wol & WAKE_MAGIC) {
-		err = aq_fw2x_set_sleep_proxy(self, mac);
-		if (err < 0)
-			goto err_exit;
+	if (self->aq_nic_cfg->wol)
+		err = aq_fw2x_set_wol(self, mac);
 
-		err = aq_fw2x_set_wake_magic(self, mac);
-		if (err < 0)
-			goto err_exit;
-	}
-
-	if (self->aq_nic_cfg->wol & WAKE_PHY)
-		aq_fw2x_set_wake_phy(self);
-
-err_exit:
 	return err;
 }
 
 static int aq_fw2x_send_fw_request(struct aq_hw_s *self,
-		const struct hw_fw_request_iface *fw_req, size_t size)
+				   const struct hw_fw_request_iface *fw_req,
+				   size_t size)
 {
 	u32 ctrl2, orig_ctrl2;
 	u32 dword_cnt;
 	int err = 0;
 	u32 val;
-	
+
 	/* Write data to drvIface Mailbox */
 	dword_cnt = size / sizeof(u32);
 	if (size % sizeof(u32))
 		dword_cnt++;
-	err = hw_atl_utils_fw_upload_dwords(self, aq_fw2x_rpc_get(self),
-					    (void *)fw_req, dword_cnt);
+	err = hw_atl_write_fwcfg_dwords(self, (void *)fw_req, dword_cnt);
 	if (err < 0)
 		goto err_exit;
-	
+
 	/* Toggle statistics bit for FW to update */
 	ctrl2 = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
 	orig_ctrl2 = ctrl2 & BIT(CAPS_HI_FW_REQUEST);
 	ctrl2 = ctrl2 ^ BIT(CAPS_HI_FW_REQUEST);
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, ctrl2);
-	
+
 	/* Wait FW to report back */
 	err = readx_poll_timeout_atomic(aq_fw2x_state2_get, self, val,
-					orig_ctrl2 != (val & BIT(CAPS_HI_FW_REQUEST)),
+					orig_ctrl2 != (val &
+						       BIT(CAPS_HI_FW_REQUEST)),
 					1U, 10000U);
 
 err_exit:
@@ -576,17 +518,17 @@ static int aq_fw2x_set_eee_rate(struct aq_hw_s *self, u32 speed)
 }
 
 static int aq_fw2x_get_eee_rate(struct aq_hw_s *self, u32 *rate,
-				u32 *supported_rates, u32 *lpi_timer)
+				u32 *supported_rates)
 {
 	u32 mpi_state;
 	u32 caps_hi;
 	int err = 0;
-	u32 lpi;
-	u32 addr = self->mbox_addr + offsetof(struct hw_atl_utils_mbox, info) +
-		   offsetof(struct hw_aq_info, caps_hi);
+	u32 offset;
 
-	err = hw_atl_utils_fw_downld_dwords(self, addr, &caps_hi,
-					    sizeof(caps_hi) / sizeof(u32));
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.caps_hi);
+
+	err = hw_atl_utils_fw_downld_dwords(self, offset, &caps_hi, 1);
 
 	if (err)
 		return err;
@@ -595,11 +537,6 @@ static int aq_fw2x_get_eee_rate(struct aq_hw_s *self, u32 *rate,
 
 	mpi_state = aq_fw2x_state2_get(self);
 	*rate = fw2x_to_eee_mask(mpi_state);
-
-	err = hw_atl_msm_read_lpi_timer(self, &lpi);
-	if (err)
-		return err;
-	*lpi_timer = HW_ATL_CLOCK_TO_US(lpi);
 
 	return err;
 }
@@ -620,7 +557,7 @@ static int aq_fw2x_set_flow_control(struct aq_hw_s *self)
 	u32 mpi_state = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
 
 	aq_fw2x_upd_flow_control_bits(self, &mpi_state,
-				      self->aq_nic_cfg->flow_control);
+				      self->aq_nic_cfg->fc.req);
 
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_state);
 
@@ -630,9 +567,14 @@ static int aq_fw2x_set_flow_control(struct aq_hw_s *self)
 static u32 aq_fw2x_get_flow_control(struct aq_hw_s *self, u32 *fcmode)
 {
 	u32 mpi_state = aq_fw2x_state2_get(self);
+	*fcmode = 0;
 
-	*fcmode = ((mpi_state & HW_ATL_FW2X_CAP_PAUSE) ? AQ_NIC_FC_RX : 0) |
-		  ((mpi_state & HW_ATL_FW2X_CAP_ASYM_PAUSE) ? AQ_NIC_FC_TX : 0);
+	if (mpi_state & HW_ATL_FW2X_CAP_PAUSE)
+		*fcmode |= AQ_NIC_FC_RX;
+
+	if (mpi_state & HW_ATL_FW2X_CAP_ASYM_PAUSE)
+		*fcmode |= AQ_NIC_FC_TX;
+
 	return 0;
 }
 
@@ -673,11 +615,23 @@ static u32 aq_fw2x_rpc_get(struct aq_hw_s *self)
 	return aq_hw_read_reg(self, HW_ATL_FW2X_MPI_RPC_ADDR);
 }
 
+static int aq_fw2x_settings_get(struct aq_hw_s *self, u32 *addr)
+{
+	int err = 0;
+	u32 offset;
+
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.setting_address);
+
+	err = hw_atl_utils_fw_downld_dwords(self, offset, addr, 1);
+
+	return err;
+}
+
 static u32 aq_fw2x_state2_get(struct aq_hw_s *self)
 {
 	return aq_hw_read_reg(self, HW_ATL_FW2X_MPI_STATE2_ADDR);
 }
-
 
 static void aq_fw2x_set_downshift(struct aq_hw_s *self, bool enable)
 {
@@ -691,20 +645,38 @@ static void aq_fw2x_set_downshift(struct aq_hw_s *self, bool enable)
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
 }
 
+static int aq_fw2x_set_media_detect(struct aq_hw_s *self, bool on)
+{
+	int err = 0;
+	u32 enable;
+	u32 offset;
+
+	if (self->fw_ver_actual < HW_ATL_FW_VER_MEDIA_CONTROL)
+		return -EOPNOTSUPP;
+
+	offset = offsetof(struct hw_atl_utils_settings, media_detect);
+	enable = on;
+
+	err = hw_atl_write_fwsettings_dwords(self, offset, &enable, 1);
+
+	if (err)
+		return err;
+
+	return 0;
+}
 
 static int aq_fw2x_run_tdr_diag(struct aq_hw_s *self)
 {
-	u32 val;
-	u32 caps_hi;
 	int err = 0;
+	u32 caps_hi;
+	u32 offset;
+	u32 val;
+
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.caps_hi);
 
 	/* Check if capability is available */
-	err = hw_atl_utils_fw_downld_dwords(self,
-				self->mbox_addr +
-				offsetof(struct hw_atl_utils_mbox, info) +
-				offsetof(struct hw_aq_info, caps_hi),
-				&caps_hi,
-				sizeof(caps_hi) / sizeof(u32));
+	err = hw_atl_utils_fw_downld_dwords(self, offset, &caps_hi, 1);
 	if (err)
 		return err;
 
@@ -721,14 +693,13 @@ static int aq_fw2x_run_tdr_diag(struct aq_hw_s *self)
 
 static int aq_fw2x_get_diag_data(struct aq_hw_s *self, struct aq_diag_s *diag)
 {
-	u32 caps_lo;
+	u32 caps_ex;
 	int err = 0;
+	u32 offset;
 	u32 val;
 
 	if (!diag)
 		return -EINVAL;
-
-	memset(diag, 0, sizeof(*diag));
 
 	/* Check if FW reported back ready TDR diag */
 	val = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR) &
@@ -736,43 +707,35 @@ static int aq_fw2x_get_diag_data(struct aq_hw_s *self, struct aq_diag_s *diag)
 	if (val != (aq_fw2x_state2_get(self) & BIT(CTRL_CABLE_DIAG)))
 		return -EBUSY;
 
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.caps_ex);
+
 	/* Check if capability is available */
-	err = hw_atl_utils_fw_downld_dwords(self,
-				self->mbox_addr +
-				offsetof(struct hw_atl_utils_mbox, info) +
-				offsetof(struct hw_aq_info, caps_lo),
-				&caps_lo,
-				sizeof(caps_lo) / sizeof(u32));
+	err = hw_atl_utils_fw_downld_dwords(self, offset, &caps_ex, 1);
 	if (err)
 		return err;
 
 	/** Reads SNR margins
 	 */
-	if (caps_lo & BIT(CAPS_LO_SNR_OPERATING_MARGIN)) {
-		err = hw_atl_utils_fw_downld_dwords(self,
-				self->mbox_addr +
-				offsetof(struct hw_atl_utils_mbox, info) +
-				offsetof(struct hw_aq_info, snr_margin),
-				(u32 *)&diag->snr_margin,
-				sizeof(diag->snr_margin)/sizeof(u32));
+	if (caps_ex & BIT(CAPS_EX_SNR_OPERATING_MARGIN)) {
+		offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+						    info.snr_margin);
+
+		err = hw_atl_utils_fw_downld_dwords(self, offset,
+						    (u32 *)&diag->snr_margin,
+						    sizeof(diag->snr_margin) /
+						    sizeof(u32));
 	}
+
+	offset = self->mbox_addr + offsetof(struct hw_atl_utils_mbox,
+					    info.cable_diag_data);
 
 	/** Reads Cable diag data
 	 */
-	err = hw_atl_utils_fw_downld_dwords(self,
-				self->mbox_addr +
-				offsetof(struct hw_atl_utils_mbox, info) +
-				offsetof(struct hw_aq_info, cable_diag_data),
-				(u32 *)&diag->cable_diag,
-				sizeof(struct hw_aq_cable_diag)*4/sizeof(u32));
-	if (err)
-		return err;
-
-	(void)aq_fw2x_get_cable_len(self, &diag->cable_len);
-
-	(void)aq_fw2x_get_phy_temp(self, &diag->phy_temp);
-
-	diag->phy_temp = diag->phy_temp / 1000;
+	err = hw_atl_utils_fw_downld_dwords(self, offset,
+					    (u32 *)&diag->cable_diag,
+					    sizeof(diag->cable_diag) /
+					    sizeof(u32));
 
 	return err;
 }
@@ -799,6 +762,7 @@ const struct aq_fw_ops aq_fw_2x_ops = {
 	.led_control        = aq_fw2x_led_control,
 	.set_phyloopback    = aq_fw2x_set_phyloopback,
 	.set_downshift      = aq_fw2x_set_downshift,
+	.set_media_detect   = aq_fw2x_set_media_detect,
 	.run_tdr_diag       = aq_fw2x_run_tdr_diag,
 	.get_diag_data      = aq_fw2x_get_diag_data,
 };

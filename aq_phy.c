@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-2.0-only
 /* aQuantia Corporation Network Driver
- * Copyright (C) 2018 aQuantia Corporation. All rights reserved
+ * Copyright (C) 2018-2019 aQuantia Corporation. All rights reserved
  */
 
 #include "aq_phy.h"
@@ -91,10 +91,8 @@ u16 aq_phy_read_reg(struct aq_hw_s *aq_hw, u16 mmd, u16 address)
 
 	hw_atl_reg_glb_cpu_sem_set(aq_hw, 1U, HW_ATL_FW_SM_MDIO);
 
-
 err_exit:
 	return err;
-
 }
 
 void aq_phy_write_reg(struct aq_hw_s *aq_hw, u16 mmd, u16 address, u16 data)

@@ -70,124 +70,101 @@ struct __packed hw_atl_stats_s {
 	u32 dpc;
 };
 
-union __packed ip_addr {
-	struct {
-		u8 addr[16];
-	} v6;
-	struct {
-		u8 padding[12];
-		u8 addr[4];
-	} v4;
+struct __packed offload_ip_info {
+	u8 v4_local_addr_count;
+	u8 v4_addr_count;
+	u8 v6_local_addr_count;
+	u8 v6_addr_count;
+	u32 v4_addr;
+	u32 v4_prefix;
+	u32 v6_addr;
+	u32 v6_prefix;
+};
+
+struct __packed offload_port_info {
+	u16 udp_port_count;
+	u16 tcp_port_count;
+	u32 udp_port;
+	u32 tcp_port;
+};
+
+struct __packed offload_ka_info {
+	u16 v4_ka_count;
+	u16 v6_ka_count;
+	u32 retry_count;
+	u32 retry_interval;
+	u32 v4_ka;
+	u32 v6_ka;
+};
+
+struct __packed offload_rr_info {
+	u32 rr_count;
+	u32 rr_buf_len;
+	u32 rr_id_x;
+	u32 rr_buf;
+};
+
+struct __packed offload_info {
+	u32 version;
+	u32 len;
+	u8 mac_addr[ETH_ALEN];
+
+	u8 reserved[2];
+
+	struct offload_ip_info ips;
+	struct offload_port_info ports;
+	struct offload_ka_info kas;
+	struct offload_rr_info rrs;
+	u8 buf[0];
+};
+
+struct __packed drv_msg_enable_wakeup {
+	union {
+		u32 pattern_mask;
+
+		struct {
+			u32 reason_arp_v4_pkt : 1;
+			u32 reason_ipv4_ping_pkt : 1;
+			u32 reason_ipv6_ns_pkt : 1;
+			u32 reason_ipv6_ping_pkt : 1;
+			u32 reason_link_up : 1;
+			u32 reason_link_down : 1;
+			u32 reason_maximum : 1;
+		};
+	};
+
+	union {
+		u32 offload_mask;
+	};
+};
+
+struct __packed magic_packet_pattern_s {
+	u8 mac_addr[ETH_ALEN];
+};
+
+struct __packed drv_msg_wol_add {
+	u32 priority;
+	u32 packet_type;
+	u32 pattern_id;
+	u32 next_pattern_offset;
+
+	struct magic_packet_pattern_s magic_packet_pattern;
+};
+
+struct __packed drv_msg_wol_remove {
+	u32 id;
 };
 
 struct __packed hw_atl_utils_fw_rpc {
 	u32 msg_id;
 
 	union {
-		struct {
-			u32 pong;
-		} msg_ping;
-
-		struct {
-			u8 mac_addr[6];
-			u32 ip_addr_cnt;
-
-			struct {
-				union ip_addr addr;
-				union ip_addr mask;
-			} ip[1];
-		} msg_arp;
-
-		struct {
-			u32 len;
-			u8 packet[1514U];
-		} msg_inject;
-
-		struct {
-			u32 priority;
-			u32 wol_packet_type;
-			u32 pattern_id;
-			u32 next_wol_pattern_offset;
-
-			union {
-				struct {
-					u32 flags;
-					u8 ipv4_source_address[4];
-					u8 ipv4_dest_address[4];
-					u16 tcp_source_port_number;
-					u16 tcp_dest_port_number;
-				} ipv4_tcp_syn_parameters;
-
-				struct {
-					u32 flags;
-					u8 ipv6_source_address[16];
-					u8 ipv6_dest_address[16];
-					u16 tcp_source_port_number;
-					u16 tcp_dest_port_number;
-				} ipv6_tcp_syn_parameters;
-
-				struct {
-					u32 flags;
-				} eapol_request_id_message_parameters;
-
-				struct {
-					u32 flags;
-					u32 mask_offset;
-					u32 mask_size;
-					u32 pattern_offset;
-					u32 pattern_size;
-				} wol_bit_map_pattern;
-
-				struct {
-					u8 mac_addr[ETH_ALEN];
-				} wol_magic_packet_pattern;
-			} wol_pattern;
-		} msg_wol;
-
-		struct {
-			u16 tcQuanta[8];
-			u16 tcThreshold[8];
-		} msg_msm_pfc_quantas;
-
-		struct {
-			union {
-				u32 pattern_mask;
-
-				struct {
-					u32 reason_arp_v4_pkt : 1;
-					u32 reason_ipv4_ping_pkt : 1;
-					u32 reason_ipv6_ns_pkt : 1;
-					u32 reason_ipv6_ping_pkt : 1;
-					u32 reason_link_up : 1;
-					u32 reason_link_down : 1;
-					u32 reason_maximum : 1;
-				};
-			};
-
-			union {
-				u32 offload_mask;
-			};
-		} msg_enable_wakeup;
-
-		struct {
-			u32 priority;
-			u32 protocol_offload_type;
-			u32 protocol_offload_id;
-			u32 next_protocol_offload_offset;
-
-			union {
-				struct {
-					u32 flags;
-					u8 remote_ipv4_addr[4];
-					u8 host_ipv4_addr[4];
-					u8 mac_addr[6];
-				} ipv4_arp_params;
-			};
-		} msg_offload;
-
-		struct {
-			u32 id;
-		} msg_del_id;
+		/* fw1x structures */
+		struct drv_msg_wol_add msg_wol_add;
+		struct drv_msg_wol_remove msg_wol_remove;
+		struct drv_msg_enable_wakeup msg_enable_wakeup;
+		/* fw2x structures */
+		struct offload_info fw2x_offloads;
 	};
 };
 
@@ -232,7 +209,7 @@ enum gpio_pin_function {
 	GPIO_PIN_FUNCTION_SIZE
 };
 
-struct __packed hw_aq_info {
+struct __packed hw_atl_info {
 	u8 reserved[6];
 	u16 phy_fault_code;
 	u16 phy_temperature;
@@ -247,8 +224,8 @@ struct __packed hw_aq_info {
 	u32 reserved3[7];
 	u32 reserved_simpleresp[3];
 	u32 reserved_linkstat[7];
-	u32 reserved_wakesCount;
-	u32 reserved_eeeStat[12];
+	u32 reserved_wakes_count;
+	u32 reserved_eee_stat[12];
 	u32 tx_stuck_cnt;
 	u32 setting_address;
 	u32 setting_length;
@@ -261,93 +238,55 @@ struct __packed hw_aq_info {
 struct __packed hw_atl_utils_mbox {
 	struct hw_atl_utils_mbox_header header;
 	struct hw_atl_stats_s stats;
-	struct hw_aq_info info;
+	struct hw_atl_info info;
 };
 
-/* fw2x */
-typedef u16	in_port_t;
-typedef u32	ip4_addr_t;
+struct __packed hw_atl_utils_settings {
+	u32 mtu;
+	u32 downshift_retry_count;
+	u32 link_pause_frame_quanta_100m;
+	u32 link_pause_frame_threshold_100m;
+	u32 link_pause_frame_quanta_1g;
+	u32 link_pause_frame_threshold_1g;
+	u32 link_pause_frame_quanta_2p5g;
+	u32 link_pause_frame_threshold_2p5g;
+	u32 link_pause_frame_quanta_5g;
+	u32 link_pause_frame_threshold_5g;
+	u32 link_pause_frame_quanta_10g;
+	u32 link_pause_frame_threshold_10g;
+	u32 pfc_quanta_class_0;
+	u32 pfc_threshold_class_0;
+	u32 pfc_quanta_class_1;
+	u32 pfc_threshold_class_1;
+	u32 pfc_quanta_class_2;
+	u32 pfc_threshold_class_2;
+	u32 pfc_quanta_class_3;
+	u32 pfc_threshold_class_3;
+	u32 pfc_quanta_class_4;
+	u32 pfc_threshold_class_4;
+	u32 pfc_quanta_class_5;
+	u32 pfc_threshold_class_5;
+	u32 pfc_quanta_class_6;
+	u32 pfc_threshold_class_6;
+	u32 pfc_quanta_class_7;
+	u32 pfc_threshold_class_7;
+	u32 eee_link_down_timeout;
+	u32 eee_link_up_timeout;
+	u32 eee_max_link_drops;
+	u32 eee_rates_mask;
+	u32 wake_timer;
+	u32 thermal_shutdown_off_temp;
+	u32 thermal_shutdown_warning_temp;
+	u32 thermal_shutdown_cold_temp;
+	u32 msm_options;
+	u32 dac_cable_serdes_modes;
+	u32 media_detect;
+};
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 typedef int	int32_t;
 typedef short	int16_t;
 #endif
-typedef u32	fw_offset_t;
-
-struct __packed ip6_addr {
-	u32 addr[4];
-};
-
-struct __packed offload_ka_v4 {
-	u32 timeout;
-	in_port_t local_port;
-	in_port_t remote_port;
-	u8 remote_mac_addr[6];
-	u16 win_size;
-	u32 seq_num;
-	u32 ack_num;
-	ip4_addr_t local_ip;
-	ip4_addr_t remote_ip;
-};
-
-struct __packed offload_ka_v6 {
-	u32 timeout;
-	in_port_t local_port;
-	in_port_t remote_port;
-	u8 remote_mac_addr[6];
-	u16 win_size;
-	u32 seq_num;
-	u32 ack_num;
-	struct ip6_addr local_ip;
-	struct ip6_addr remote_ip;
-};
-
-struct __packed offload_ip_info {
-	u8 v4_local_addr_count;
-	u8 v4_addr_count;
-	u8 v6_local_addr_count;
-	u8 v6_addr_count;
-	fw_offset_t v4_addr;
-	fw_offset_t v4_prefix;
-	fw_offset_t v6_addr;
-	fw_offset_t v6_prefix;
-};
-
-struct __packed offload_port_info {
-	u16 udp_port_count;
-	u16 tcp_port_count;
-	fw_offset_t udp_port;
-	fw_offset_t tcp_port;
-};
-
-struct __packed offload_ka_info {
-	u16 v4_ka_count;
-	u16 v6_ka_count;
-	u32 retry_count;
-	u32 retry_interval;
-	fw_offset_t v4_ka;
-	fw_offset_t v6_ka;
-};
-
-struct __packed offload_rr_info {
-	u32 rr_count;
-	u32 rr_buf_len;
-	fw_offset_t rr_id_x;
-	fw_offset_t rr_buf;
-};
-
-struct __packed offload_info {
-	u32 version;
-	u32 len;
-	u8 mac_addr[ETH_ALEN];
-
-	u8 reserved[2];
-
-	struct offload_ip_info ips;
-	struct offload_port_info ports;
-	struct offload_ka_info kas;
-	struct offload_rr_info rrs;
-	u8 buf[0];
-};
 
 /* Mailbox FW Request interface */
 struct __packed hw_fw_request_ptp_gpio_ctrl {
@@ -474,20 +413,12 @@ enum hal_atl_utils_fw_state_e {
 #define HAL_ATLANTIC_RATE_100M       BIT(5)
 #define HAL_ATLANTIC_RATE_INVALID    BIT(6)
 
-#define HAL_ATLANTIC_UTILS_FW_MSG_PING          0x1U
-#define HAL_ATLANTIC_UTILS_FW_MSG_ARP           0x2U
-#define HAL_ATLANTIC_UTILS_FW_MSG_INJECT        0x3U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_ADD       0x4U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_PRIOR     0x10000000U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_PATTERN   0x1U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_MAG_PKT   0x2U
 #define HAL_ATLANTIC_UTILS_FW_MSG_WOL_DEL       0x5U
 #define HAL_ATLANTIC_UTILS_FW_MSG_ENABLE_WAKEUP 0x6U
-#define HAL_ATLANTIC_UTILS_FW_MSG_MSM_PFC       0x7U
-#define HAL_ATLANTIC_UTILS_FW_MSG_PROVISIONING  0x8U
-#define HAL_ATLANTIC_UTILS_FW_MSG_OFFLOAD_ADD   0x9U
-#define HAL_ATLANTIC_UTILS_FW_MSG_OFFLOAD_DEL   0xAU
-#define HAL_ATLANTIC_UTILS_FW_MSG_CABLE_DIAG    0xDU
 
 enum hw_atl_fw2x_rate {
 	FW2X_RATE_100M    = 0x20,
@@ -513,7 +444,6 @@ enum hw_atl_fw2x_caps_lo {
 	CAPS_LO_2P5GBASET_FD,
 	CAPS_LO_5GBASET_FD        = 10,
 	CAPS_LO_10GBASET_FD,
-	CAPS_LO_SNR_OPERATING_MARGIN = 16,
 };
 
 /* 0x374
@@ -593,13 +523,13 @@ enum hw_atl_fw2x_ctrl {
 };
 
 enum hw_atl_caps_ex {
-	CAPS_EX_RESERVED00, //  0 (0x00)
-	CAPS_EX_RESERVED01, //  1 (0x01)
-	CAPS_EX_RESERVED02, //  2 (0x02)
-	CAPS_EX_RESERVED03, //  3 (0x03)
-	CAPS_EX_RESERVED04, //  4 (0x04)
-	CAPS_EX_RESERVED05, //  5 (0x05)
-	CAPS_EX_RESERVED06, //  6 (0x06)
+	CAPS_EX_LED_CONTROL, //  0 (0x00)
+	CAPS_EX_LED0_MODE_LO, //  1 (0x01)
+	CAPS_EX_LED0_MODE_HI, //  2 (0x02)
+	CAPS_EX_LED1_MODE_LO, //  3 (0x03)
+	CAPS_EX_LED1_MODE_HI, //  4 (0x04)
+	CAPS_EX_LED2_MODE_LO, //  5 (0x05)
+	CAPS_EX_LED2_MODE_HI, //  6 (0x06)
 	CAPS_EX_RESERVED07, //  7 (0x07)
 	CAPS_EX_RESERVED08, //  8 (0x08)
 	CAPS_EX_RESERVED09, //  9 (0x09)
@@ -616,7 +546,7 @@ enum hw_atl_caps_ex {
 	CAPS_EX_PTP_GPIO_EN, // 20 (0x14)
 	CAPS_EX_UPDATE_SETTINGS, // 21 (0x15)
 	CAPS_EX_PHY_CTRL_TS_PIN, // 22 (0x16)
-	CAPS_EX_RESERVED23, // 23 (0x17)
+	CAPS_EX_SNR_OPERATING_MARGIN, // 23 (0x17)
 	CAPS_EX_RESERVED24, // 24 (0x18)
 	CAPS_EX_RESERVED25, // 25 (0x19)
 	CAPS_EX_RESERVED26, // 26 (0x1a)
@@ -674,8 +604,10 @@ struct aq_stats_s *hw_atl_utils_get_hw_stats(struct aq_hw_s *self);
 int hw_atl_utils_fw_downld_dwords(struct aq_hw_s *self, u32 a,
 				  u32 *p, u32 cnt);
 
-int hw_atl_utils_fw_upload_dwords(struct aq_hw_s *self, u32 a,
-		u32 *p, u32 cnt);
+int hw_atl_write_fwcfg_dwords(struct aq_hw_s *self, u32 *p, u32 cnt);
+
+int hw_atl_write_fwsettings_dwords(struct aq_hw_s *self, u32 offset, u32 *p,
+				   u32 cnt);
 
 int hw_atl_utils_fw_set_wol(struct aq_hw_s *self, bool wol_enabled, u8 *mac);
 
@@ -684,10 +616,9 @@ int hw_atl_utils_fw_rpc_call(struct aq_hw_s *self, unsigned int rpc_size);
 int hw_atl_utils_fw_rpc_wait(struct aq_hw_s *self,
 			     struct hw_atl_utils_fw_rpc **rpc);
 
-int hw_atl_msm_read_lpi_timer(struct aq_hw_s *self, uint32_t *val);
-
 void hw_atl_utils_get_chip_info(struct aq_hw_s *self,
 				struct aq_hw_chip_info *chip_info);
+
 extern const struct aq_fw_ops aq_fw_1x_ops;
 extern const struct aq_fw_ops aq_fw_2x_ops;
 

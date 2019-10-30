@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
  * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
  */
 
 /* File aq_compat.h: Backward compat with previous linux kernel versions */
@@ -26,6 +23,7 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 #if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 6))
 
+#ifndef from_timer
 #define from_timer(var, callback_timer, timer_fieldname) \
 	container_of(callback_timer, typeof(*var), timer_fieldname)
 
@@ -36,6 +34,7 @@ static inline void timer_setup(struct timer_list *timer,
 	setup_timer(timer, (void (*)(unsigned long))callback,
 		    (unsigned long)timer);
 }
+#endif
 
 #endif
 #endif
@@ -164,10 +163,14 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 })
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 0)
+#ifndef NETIF_F_GSO_UDP_L4
 #define NETIF_F_GSO_UDP_L4 0
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 4)
 #define NETIF_F_GSO_PARTIAL 0
 #endif
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
@@ -181,4 +184,7 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 )
 #endif
 
+#if !IS_ENABLED(CONFIG_CRC_ITU_T)
+u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
+#endif
 #endif /* AQ_COMMON_H */

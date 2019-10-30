@@ -157,7 +157,7 @@ static int hw_atl_a0_hw_qos_set(struct aq_hw_s *self)
 
 	/* QoS Rx buf size per TC */
 	tc = 0;
-	is_rx_flow_control = (AQ_NIC_FC_RX & self->aq_nic_cfg->flow_control);
+	is_rx_flow_control = (AQ_NIC_FC_RX & self->aq_nic_cfg->fc.req);
 	buff_size = HW_ATL_A0_RXBUF_MAX;
 
 	hw_atl_rpb_rx_pkt_buff_size_per_tc_set(self, buff_size, tc);
@@ -973,17 +973,4 @@ const struct aq_hw_ops hw_atl_ops_a0 = {
 	.hw_get_regs                 = hw_atl_utils_hw_get_regs,
 	.hw_get_hw_stats             = hw_atl_utils_get_hw_stats,
 	.hw_get_fw_version           = hw_atl_utils_get_fw_version,
-
-	.hw_tx_tc_mode_get       = NULL,
-	.hw_rx_tc_mode_get       = NULL,
-
-	.hw_ring_hwts_rx_fill        = NULL,
-	.hw_ring_hwts_rx_receive     = NULL,
-
-	.hw_ptp_dpath_enable     = NULL,
-	.hw_get_ptp_ts           = NULL,
-	.hw_adj_clock_freq        = NULL,
-	.hw_gpio_pulse           = NULL,
-
-	.enable_ptp              = NULL,
 };

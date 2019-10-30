@@ -71,7 +71,7 @@ static int aq_vec_poll(struct napi_struct *napi, int budget)
 				err = aq_ring_rx_clean(&ring[AQ_VEC_RX_ID],
 						       napi,
 						       &work_done,
-						       budget - work_done, NULL);
+						       budget - work_done);
 				if (err < 0)
 					goto err_exit;
 
