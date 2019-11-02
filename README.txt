@@ -256,7 +256,7 @@ AQ_CFG_VECS_DEF
 ------------------------------------------------------------
 Number of queues
 Valid Range: 0 - 8 (up to AQ_CFG_VECS_MAX)
-Default value: 4
+Default value: 8
 
 AQ_CFG_IS_RSS_DEF
 ------------------------------------------------------------
@@ -274,9 +274,9 @@ Default value: 1
 AQ_CFG_NUM_RSS_QUEUES_DEF
 ------------------------------------------------------------
 Number of queues for Receive Side Scaling
-Valid Range: 0 - 4 (up to AQ_CFG_VECS_DEF)
+Valid Range: 0 - 8 (up to AQ_CFG_VECS_DEF)
 
-Default value: 4
+Default value: 8
 
 AQ_CFG_IS_LRO_DEF
 ------------------------------------------------------------
