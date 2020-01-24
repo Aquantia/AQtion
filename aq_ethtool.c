@@ -552,8 +552,7 @@ static int aq_ethtool_get_ts_info(struct net_device *ndev,
 				    BIT(HWTSTAMP_FILTER_PTP_V2_L2_EVENT) |
 				    BIT(HWTSTAMP_FILTER_PTP_V2_EVENT);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+#if IS_REACHABLE(CONFIG_PTP_1588_CLOCK)
 	info->phc_index = (aq_nic->aq_ptp) ?
 		ptp_clock_index(aq_ptp_get_ptp_clock(aq_nic->aq_ptp)) : -1;
 #endif

@@ -222,6 +222,7 @@ unsigned int aq_pci_func_get_irq_type(struct aq_nic_s *self)
 		return AQ_HW_IRQ_MSIX;
 	if (self->pdev->msi_enabled)
 		return AQ_HW_IRQ_MSI;
+
 	return AQ_HW_IRQ_LEGACY;
 }
 
@@ -350,10 +351,10 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	numvecs = min((u8)AQ_CFG_VECS_DEF,
 		      aq_nic_get_cfg(self)->aq_hw_caps->msix_irqs);
 	numvecs = min(numvecs, num_online_cpus());
-	numvecs += 1; // Request IRQ vector for PTP
+	/* Request IRQ vector for PTP */
+	numvecs += 1;
 
 	numvecs += AQ_HW_SERVICE_IRQS;
-
 	/*enable interrupts */
 #if !AQ_CFG_FORCE_LEGACY_INT
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
@@ -409,6 +410,7 @@ err_ndev:
 	pci_release_regions(pdev);
 err_pci_func:
 	pci_disable_device(pdev);
+
 	return err;
 }
 
@@ -475,8 +477,7 @@ static void aq_pci_shutdown(struct pci_dev *pdev)
 
 static int aq_suspend_common(struct device *dev, bool deep)
 {
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct aq_nic_s *nic = pci_get_drvdata(pdev);
+	struct aq_nic_s *nic = pci_get_drvdata(to_pci_dev(dev));
 
 	rtnl_lock();
 
@@ -499,8 +500,10 @@ static int aq_suspend_common(struct device *dev, bool deep)
 static int atl_resume_common(struct device *dev, bool deep)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
-	struct aq_nic_s *nic = pci_get_drvdata(pdev);
+	struct aq_nic_s *nic;
 	int ret;
+
+	nic = pci_get_drvdata(pdev);
 
 	rtnl_lock();
 
@@ -546,7 +549,7 @@ static int aq_pm_resume_restore(struct device *dev)
 	return atl_resume_common(dev, true);
 }
 
-const struct dev_pm_ops aq_pm_ops = {
+static const struct dev_pm_ops aq_pm_ops = {
 	.suspend = aq_pm_suspend_poweroff,
 	.poweroff = aq_pm_suspend_poweroff,
 	.freeze = aq_pm_freeze,

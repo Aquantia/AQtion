@@ -9,7 +9,6 @@
 #include "aq_ring.h"
 #include "aq_nic.h"
 #include "aq_hw.h"
-#include "aq_ptp.h"
 #include "aq_hw_utils.h"
 #include "aq_ptp.h"
 #include "aq_trace.h"
@@ -32,8 +31,8 @@ static int aq_get_rxpage(struct aq_rxpage *rxpage, unsigned int order,
 			 struct device *dev)
 {
 	struct page *page;
-	dma_addr_t daddr;
 	int ret = -ENOMEM;
+	dma_addr_t daddr;
 
 	page = dev_alloc_pages(order);
 	if (unlikely(!page))
@@ -62,7 +61,7 @@ err_exit:
 static int aq_get_rxpages(struct aq_ring_s *self, struct aq_ring_buff_s *rxbuf,
 			  int order)
 {
-	int ret = 0;
+	int ret;
 
 	if (rxbuf->rxdata.page) {
 		/* One means ring is the only user and can reuse */
@@ -91,9 +90,10 @@ static int aq_get_rxpages(struct aq_ring_s *self, struct aq_ring_buff_s *rxbuf,
 				    aq_nic_get_dev(self->aq_nic));
 		if (ret)
 			self->stats.rx.alloc_fails++;
+		return ret;
 	}
 
-	return ret;
+	return 0;
 }
 
 static struct aq_ring_s *aq_ring_alloc(struct aq_ring_s *self,
@@ -121,6 +121,7 @@ err_exit:
 		aq_ring_free(self);
 		self = NULL;
 	}
+
 	return self;
 }
 
@@ -147,6 +148,7 @@ err_exit:
 		aq_ring_free(self);
 		self = NULL;
 	}
+
 	return self;
 }
 
@@ -178,6 +180,7 @@ err_exit:
 		aq_ring_free(self);
 		self = NULL;
 	}
+
 	return self;
 }
 
@@ -186,7 +189,6 @@ aq_ring_hwts_rx_alloc(struct aq_ring_s *self, struct aq_nic_s *aq_nic,
 		      unsigned int idx, unsigned int size, unsigned int dx_size)
 {
 	struct device *dev = aq_nic_get_dev(aq_nic);
-	int err = 0;
 	size_t sz = size * dx_size + AQ_CFG_RXDS_DEF;
 
 	memset(self, 0, sizeof(*self));
@@ -199,12 +201,6 @@ aq_ring_hwts_rx_alloc(struct aq_ring_s *self, struct aq_nic_s *aq_nic,
 	self->dx_ring = dma_alloc_coherent(dev, sz, &self->dx_ring_pa,
 					   GFP_KERNEL);
 	if (!self->dx_ring) {
-		err = -ENOMEM;
-		goto err_exit;
-	}
-
-err_exit:
-	if (err < 0) {
 		aq_ring_free(self);
 		return NULL;
 	}
@@ -217,6 +213,7 @@ int aq_ring_init(struct aq_ring_s *self)
 	self->hw_head = 0;
 	self->sw_head = 0;
 	self->sw_tail = 0;
+
 	return 0;
 }
 
@@ -317,8 +314,10 @@ static void aq_rx_checksum(struct aq_ring_s *self,
 }
 
 #define AQ_SKB_ALIGN SKB_DATA_ALIGN(sizeof(struct skb_shared_info))
-int aq_ring_rx_clean(struct aq_ring_s *self, struct napi_struct *napi,
-		     int *work_done, int budget)
+int aq_ring_rx_clean(struct aq_ring_s *self,
+		     struct napi_struct *napi,
+		     int *work_done,
+		     int budget)
 {
 	struct net_device *ndev = aq_nic_get_ndev(self->aq_nic);
 	bool is_rsc_completed = true;
@@ -350,9 +349,8 @@ int aq_ring_rx_clean(struct aq_ring_s *self, struct napi_struct *napi,
 							    next_,
 							    self->hw_head);
 
-				if (unlikely(!is_rsc_completed)) {
+				if (unlikely(!is_rsc_completed))
 					break;
-				}
 
 				buff->is_error |= buff_->is_error;
 				buff->is_cso_err |= buff_->is_cso_err;
@@ -363,7 +361,8 @@ int aq_ring_rx_clean(struct aq_ring_s *self, struct napi_struct *napi,
 				err = 0;
 				goto err_exit;
 			}
-			if (buff->is_error || buff->is_cso_err) {
+			if (buff->is_error ||
+			    (buff->is_lro && buff->is_cso_err)) {
 				buff_ = buff;
 				do {
 					next_ = buff_->next,
@@ -495,12 +494,12 @@ err_exit:
 
 void aq_ring_hwts_rx_clean(struct aq_ring_s *self, struct aq_nic_s *aq_nic)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+#if IS_REACHABLE(CONFIG_PTP_1588_CLOCK)
 	while (self->sw_head != self->hw_head) {
 		u64 ns;
 
-		self->aq_nic->aq_hw_ops->extract_hwts(self->dx_ring +
+		aq_nic->aq_hw_ops->extract_hwts(aq_nic->aq_hw,
+						self->dx_ring +
 						(self->sw_head * self->dx_size),
 						self->dx_size, &ns);
 		aq_ptp_tx_hwtstamp(aq_nic, ns);

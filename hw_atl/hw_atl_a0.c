@@ -424,6 +424,7 @@ static int hw_atl_a0_hw_start(struct aq_hw_s *self)
 {
 	hw_atl_tpb_tx_buff_en_set(self, 1);
 	hw_atl_rpb_rx_buff_en_set(self, 1);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -431,6 +432,7 @@ static int hw_atl_a0_hw_tx_ring_tail_update(struct aq_hw_s *self,
 					    struct aq_ring_s *ring)
 {
 	hw_atl_reg_tx_dma_desc_tail_ptr_set(self, ring->sw_tail, ring->idx);
+
 	return 0;
 }
 
@@ -441,8 +443,8 @@ static int hw_atl_a0_hw_ring_tx_xmit(struct aq_hw_s *self,
 	struct aq_ring_buff_s *buff = NULL;
 	struct hw_atl_txd_s *txd = NULL;
 	unsigned int buff_pa_len = 0U;
-	unsigned int pkt_len = 0U;
 	unsigned int frag_count = 0U;
+	unsigned int pkt_len = 0U;
 	bool is_gso = false;
 
 	buff = &ring->buff_ring[ring->sw_tail];
@@ -502,6 +504,7 @@ static int hw_atl_a0_hw_ring_tx_xmit(struct aq_hw_s *self,
 	}
 
 	hw_atl_a0_hw_tx_ring_tail_update(self, ring);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -509,8 +512,8 @@ static int hw_atl_a0_hw_ring_rx_init(struct aq_hw_s *self,
 				     struct aq_ring_s *aq_ring,
 				     struct aq_ring_param_s *aq_ring_param)
 {
-	u32 dma_desc_addr_lsw = (u32)aq_ring->dx_ring_pa;
 	u32 dma_desc_addr_msw = (u32)(((u64)aq_ring->dx_ring_pa) >> 32);
+	u32 dma_desc_addr_lsw = (u32)aq_ring->dx_ring_pa;
 
 	hw_atl_rdm_rx_desc_en_set(self, false, aq_ring->idx);
 
@@ -551,8 +554,8 @@ static int hw_atl_a0_hw_ring_tx_init(struct aq_hw_s *self,
 				     struct aq_ring_s *aq_ring,
 				     struct aq_ring_param_s *aq_ring_param)
 {
-	u32 dma_desc_lsw_addr = (u32)aq_ring->dx_ring_pa;
 	u32 dma_desc_msw_addr = (u32)(((u64)aq_ring->dx_ring_pa) >> 32);
+	u32 dma_desc_lsw_addr = (u32)aq_ring->dx_ring_pa;
 
 	hw_atl_reg_tx_dma_desc_base_addresslswset(self, dma_desc_lsw_addr,
 						  aq_ring->idx);
@@ -601,8 +604,8 @@ static int hw_atl_a0_hw_ring_rx_fill(struct aq_hw_s *self,
 static int hw_atl_a0_hw_ring_tx_head_update(struct aq_hw_s *self,
 					    struct aq_ring_s *ring)
 {
-	int err = 0;
 	unsigned int hw_head = hw_atl_tdm_tx_desc_head_ptr_get(self, ring->idx);
+	int err = 0;
 
 	if (aq_utils_obj_test(&self->flags, AQ_HW_FLAG_ERR_UNPLUG)) {
 		err = -ENXIO;
@@ -743,6 +746,7 @@ static int hw_atl_a0_hw_irq_disable(struct aq_hw_s *self, u64 mask)
 static int hw_atl_a0_hw_irq_read(struct aq_hw_s *self, u64 *mask)
 {
 	*mask = hw_atl_itr_irq_statuslsw_get(self);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -867,6 +871,7 @@ static int hw_atl_a0_hw_interrupt_moderation_set(struct aq_hw_s *self)
 static int hw_atl_a0_hw_stop(struct aq_hw_s *self)
 {
 	hw_atl_a0_hw_irq_disable(self, HW_ATL_A0_INT_MASK);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -874,6 +879,7 @@ static int hw_atl_a0_hw_ring_tx_stop(struct aq_hw_s *self,
 				     struct aq_ring_s *ring)
 {
 	hw_atl_tdm_tx_desc_en_set(self, 0U, ring->idx);
+
 	return aq_hw_err_from_flags(self);
 }
 

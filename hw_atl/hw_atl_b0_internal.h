@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
  * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
  */
 
 /* File hw_atl_b0_internal.h: Definition of Atlantic B0 chip specific
@@ -122,8 +119,8 @@
 #define HW_ATL_B0_RXD_WB_STAT_HDRLEN  (0xFFC00000)
 #define HW_ATL_B0_RXD_WB_STAT_HDRLEN_SHIFT (0x16)
 
-#define HW_ATL_B0_RXD_WB_PKTTYPE_VLAN		(1 << 5)
-#define HW_ATL_B0_RXD_WB_PKTTYPE_VLAN_DOUBLE	(1 << 6)
+#define HW_ATL_B0_RXD_WB_PKTTYPE_VLAN          BIT(5)
+#define HW_ATL_B0_RXD_WB_PKTTYPE_VLAN_DOUBLE   BIT(6)
 
 #define HW_ATL_B0_RXD_WB_STAT2_DD      (0x0001)
 #define HW_ATL_B0_RXD_WB_STAT2_EOP     (0x0002)

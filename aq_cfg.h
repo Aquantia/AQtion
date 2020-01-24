@@ -88,6 +88,11 @@
  */
 #define AQ_CFG_UDP_RSS_DISABLE	0
 
+/* Reset datapath only instead of full global reset
+ */
+#ifndef AQ_CFG_NO_MCP_RESET
+#define AQ_CFG_NO_MCP_RESET 0
+#endif
 
 #define AQ_CFG_LOCK_TRYS   100U
 

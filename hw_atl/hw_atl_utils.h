@@ -41,7 +41,7 @@ struct __packed hw_atl_rxd_wb_s {
 	u16 status;
 	u16 pkt_len;
 	u16 next_desc_ptr;
-	u16 vlan;
+	__le16 vlan;
 };
 
 /* Hardware rx HW TIMESTAMP writeback */
@@ -68,6 +68,116 @@ struct __packed hw_atl_stats_s {
 	u32 ubrc;
 	u32 ubtc;
 	u32 dpc;
+};
+
+struct __packed drv_msg_enable_wakeup {
+	union {
+		u32 pattern_mask;
+
+		struct {
+			u32 reason_arp_v4_pkt : 1;
+			u32 reason_ipv4_ping_pkt : 1;
+			u32 reason_ipv6_ns_pkt : 1;
+			u32 reason_ipv6_ping_pkt : 1;
+			u32 reason_link_up : 1;
+			u32 reason_link_down : 1;
+			u32 reason_maximum : 1;
+		};
+	};
+
+	union {
+		u32 offload_mask;
+	};
+};
+
+struct __packed magic_packet_pattern_s {
+	u8 mac_addr[ETH_ALEN];
+};
+
+struct __packed drv_msg_wol_add {
+	u32 priority;
+	u32 packet_type;
+	u32 pattern_id;
+	u32 next_pattern_offset;
+
+	struct magic_packet_pattern_s magic_packet_pattern;
+};
+
+struct __packed drv_msg_wol_remove {
+	u32 id;
+};
+
+struct __packed hw_atl_utils_mbox_header {
+	u32 version;
+	u32 transaction_id;
+	u32 error;
+};
+
+struct __packed hw_atl_ptp_offset {
+	u16 ingress_100;
+	u16 egress_100;
+	u16 ingress_1000;
+	u16 egress_1000;
+	u16 ingress_2500;
+	u16 egress_2500;
+	u16 ingress_5000;
+	u16 egress_5000;
+	u16 ingress_10000;
+	u16 egress_10000;
+};
+
+struct __packed hw_atl_cable_diag {
+	u8 fault;
+	u8 distance;
+	u8 far_distance;
+	u8 reserved;
+};
+
+enum gpio_pin_function {
+	GPIO_PIN_FUNCTION_NC,
+	GPIO_PIN_FUNCTION_VAUX_ENABLE,
+	GPIO_PIN_FUNCTION_EFUSE_BURN_ENABLE,
+	GPIO_PIN_FUNCTION_SFP_PLUS_DETECT,
+	GPIO_PIN_FUNCTION_TX_DISABLE,
+	GPIO_PIN_FUNCTION_RATE_SEL_0,
+	GPIO_PIN_FUNCTION_RATE_SEL_1,
+	GPIO_PIN_FUNCTION_TX_FAULT,
+	GPIO_PIN_FUNCTION_PTP0,
+	GPIO_PIN_FUNCTION_PTP1,
+	GPIO_PIN_FUNCTION_PTP2,
+	GPIO_PIN_FUNCTION_SIZE
+};
+
+struct __packed hw_atl_info {
+	u8 reserved[6];
+	u16 phy_fault_code;
+	u16 phy_temperature;
+	u8 cable_len;
+	u8 reserved1;
+	struct hw_atl_cable_diag cable_diag_data[4];
+	struct hw_atl_ptp_offset ptp_offset;
+	u8 reserved2[12];
+	u32 caps_lo;
+	u32 caps_hi;
+	u32 reserved_datapath;
+	u32 reserved3[7];
+	u32 reserved_simpleresp[3];
+	u32 reserved_linkstat[7];
+	u32 reserved_wakes_count;
+	u32 reserved_eee_stat[12];
+	u32 tx_stuck_cnt;
+	u32 setting_address;
+	u32 setting_length;
+	u32 caps_ex;
+	enum gpio_pin_function gpio_pin[3];
+	u32 pcie_aer_dump[18];
+	u16 snr_margin[4];
+};
+
+struct __packed hw_atl_utils_mbox {
+	struct hw_atl_utils_mbox_header header;
+	struct hw_atl_stats_s stats;
+	struct hw_atl_info info;
 };
 
 struct __packed offload_ip_info {
@@ -118,43 +228,6 @@ struct __packed offload_info {
 	u8 buf[0];
 };
 
-struct __packed drv_msg_enable_wakeup {
-	union {
-		u32 pattern_mask;
-
-		struct {
-			u32 reason_arp_v4_pkt : 1;
-			u32 reason_ipv4_ping_pkt : 1;
-			u32 reason_ipv6_ns_pkt : 1;
-			u32 reason_ipv6_ping_pkt : 1;
-			u32 reason_link_up : 1;
-			u32 reason_link_down : 1;
-			u32 reason_maximum : 1;
-		};
-	};
-
-	union {
-		u32 offload_mask;
-	};
-};
-
-struct __packed magic_packet_pattern_s {
-	u8 mac_addr[ETH_ALEN];
-};
-
-struct __packed drv_msg_wol_add {
-	u32 priority;
-	u32 packet_type;
-	u32 pattern_id;
-	u32 next_pattern_offset;
-
-	struct magic_packet_pattern_s magic_packet_pattern;
-};
-
-struct __packed drv_msg_wol_remove {
-	u32 id;
-};
-
 struct __packed hw_atl_utils_fw_rpc {
 	u32 msg_id;
 
@@ -168,77 +241,40 @@ struct __packed hw_atl_utils_fw_rpc {
 	};
 };
 
-struct __packed hw_atl_utils_mbox_header {
-	u32 version;
-	u32 transaction_id;
-	u32 error;
+/* Mailbox FW Request interface */
+struct __packed hw_fw_request_ptp_gpio_ctrl {
+	u32 index;
+	u32 period;
+	u64 start;
 };
 
-struct __packed hw_aq_ptp_offset {
-	u16 ingress_100;
-	u16 egress_100;
-	u16 ingress_1000;
-	u16 egress_1000;
-	u16 ingress_2500;
-	u16 egress_2500;
-	u16 ingress_5000;
-	u16 egress_5000;
-	u16 ingress_10000;
-	u16 egress_10000;
+struct __packed hw_fw_request_ptp_adj_freq {
+	u32 ns_mac;
+	u32 fns_mac;
+	u32 ns_phy;
+	u32 fns_phy;
+	u32 mac_ns_adj;
+	u32 mac_fns_adj;
 };
 
-struct __packed hw_aq_cable_diag {
-	u8 fault;
-	u8 distance;
-	u8 far_distance;
-	u8 reserved;
+struct __packed hw_fw_request_ptp_adj_clock {
+	u32 ns;
+	u32 sec;
+	int sign;
 };
 
-enum gpio_pin_function {
-	GPIO_PIN_FUNCTION_NC,
-	GPIO_PIN_FUNCTION_VAUX_ENABLE,
-	GPIO_PIN_FUNCTION_EFUSE_BURN_ENABLE,
-	GPIO_PIN_FUNCTION_SFP_PLUS_DETECT,
-	GPIO_PIN_FUNCTION_TX_DISABLE,
-	GPIO_PIN_FUNCTION_RATE_SEL_0,
-	GPIO_PIN_FUNCTION_RATE_SEL_1,
-	GPIO_PIN_FUNCTION_TX_FAULT,
-	GPIO_PIN_FUNCTION_PTP0,
-	GPIO_PIN_FUNCTION_PTP1,
-	GPIO_PIN_FUNCTION_PTP2,
-	GPIO_PIN_FUNCTION_SIZE
-};
+#define HW_AQ_FW_REQUEST_PTP_GPIO_CTRL	         0x11
+#define HW_AQ_FW_REQUEST_PTP_ADJ_FREQ	         0x12
+#define HW_AQ_FW_REQUEST_PTP_ADJ_CLOCK	         0x13
 
-struct __packed hw_atl_info {
-	u8 reserved[6];
-	u16 phy_fault_code;
-	u16 phy_temperature;
-	u8 cable_len;
-	u8 reserved1;
-	struct hw_aq_cable_diag cable_diag_data[4];
-	struct hw_aq_ptp_offset ptp_offset;
-	u8 reserved2[12];
-	u32 caps_lo;
-	u32 caps_hi;
-	u32 reserved_datapath;
-	u32 reserved3[7];
-	u32 reserved_simpleresp[3];
-	u32 reserved_linkstat[7];
-	u32 reserved_wakes_count;
-	u32 reserved_eee_stat[12];
-	u32 tx_stuck_cnt;
-	u32 setting_address;
-	u32 setting_length;
-	u32 caps_ex;
-	enum gpio_pin_function gpio_pin[3];
-	u32 pcie_aer_dump[18];
-	u16 snr_margin[4];
-};
-
-struct __packed hw_atl_utils_mbox {
-	struct hw_atl_utils_mbox_header header;
-	struct hw_atl_stats_s stats;
-	struct hw_atl_info info;
+struct __packed hw_fw_request_iface {
+	u32 msg_id;
+	union {
+		/* PTP FW Request */
+		struct hw_fw_request_ptp_gpio_ctrl ptp_gpio_ctrl;
+		struct hw_fw_request_ptp_adj_freq ptp_adj_freq;
+		struct hw_fw_request_ptp_adj_clock ptp_adj_clock;
+	};
 };
 
 struct __packed hw_atl_utils_settings {
@@ -281,47 +317,6 @@ struct __packed hw_atl_utils_settings {
 	u32 msm_options;
 	u32 dac_cable_serdes_modes;
 	u32 media_detect;
-};
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
-typedef int	int32_t;
-typedef short	int16_t;
-#endif
-
-/* Mailbox FW Request interface */
-struct __packed hw_fw_request_ptp_gpio_ctrl {
-	u32 index;
-	u32 period;
-	u64 start;
-};
-
-struct __packed hw_fw_request_ptp_adj_freq {
-	u32 ns_mac;
-	u32 fns_mac;
-	u32 ns_phy;
-	u32 fns_phy;
-	u32 mac_ns_adj;
-	u32 mac_fns_adj;
-};
-
-struct __packed hw_fw_request_ptp_adj_clock {
-	u32 ns;
-	u32 sec;
-	int sign;
-};
-
-#define HW_AQ_FW_REQUEST_PTP_GPIO_CTRL	         0x11
-#define HW_AQ_FW_REQUEST_PTP_ADJ_FREQ	         0x12
-#define HW_AQ_FW_REQUEST_PTP_ADJ_CLOCK	         0x13
-
-struct __packed hw_fw_request_iface {
-	u32 msg_id;
-	union {
-		/* PTP FW Request */
-		struct hw_fw_request_ptp_gpio_ctrl ptp_gpio_ctrl;
-		struct hw_fw_request_ptp_adj_freq ptp_adj_freq;
-		struct hw_fw_request_ptp_adj_clock ptp_adj_clock;
-	};
 };
 
 enum hw_atl_rx_action_with_traffic {
@@ -432,7 +427,7 @@ enum hw_atl_fw2x_rate {
  * Link capabilities resolution register
  */
 enum hw_atl_fw2x_caps_lo {
-	CAPS_LO_10BASET_HD        = 0x00,
+	CAPS_LO_10BASET_HD        = 0,
 	CAPS_LO_10BASET_FD,
 	CAPS_LO_100BASETX_HD,
 	CAPS_LO_100BASET4_HD,
@@ -450,7 +445,7 @@ enum hw_atl_fw2x_caps_lo {
  * Status register
  */
 enum hw_atl_fw2x_caps_hi {
-	CAPS_HI_RESERVED1         = 0x00,
+	CAPS_HI_RESERVED1         = 0,
 	CAPS_HI_10BASET_EEE,
 	CAPS_HI_RESERVED2,
 	CAPS_HI_PAUSE,
@@ -488,7 +483,7 @@ enum hw_atl_fw2x_caps_hi {
  * Control register
  */
 enum hw_atl_fw2x_ctrl {
-	CTRL_RESERVED1            = 0x00,
+	CTRL_RESERVED1            = 0,
 	CTRL_RESERVED2,
 	CTRL_RESERVED3,
 	CTRL_PAUSE,
@@ -523,38 +518,38 @@ enum hw_atl_fw2x_ctrl {
 };
 
 enum hw_atl_caps_ex {
-	CAPS_EX_LED_CONTROL, //  0 (0x00)
-	CAPS_EX_LED0_MODE_LO, //  1 (0x01)
-	CAPS_EX_LED0_MODE_HI, //  2 (0x02)
-	CAPS_EX_LED1_MODE_LO, //  3 (0x03)
-	CAPS_EX_LED1_MODE_HI, //  4 (0x04)
-	CAPS_EX_LED2_MODE_LO, //  5 (0x05)
-	CAPS_EX_LED2_MODE_HI, //  6 (0x06)
-	CAPS_EX_RESERVED07, //  7 (0x07)
-	CAPS_EX_RESERVED08, //  8 (0x08)
-	CAPS_EX_RESERVED09, //  9 (0x09)
-	CAPS_EX_RESERVED10, // 10 (0x0a)
-	CAPS_EX_RESERVED11, // 11 (0x0b)
-	CAPS_EX_RESERVED12, // 12 (0x0c)
-	CAPS_EX_RESERVED13, // 13 (0x0d)
-	CAPS_EX_RESERVED14, // 14 (0x0e)
-	CAPS_EX_RESERVED15, // 15 (0x0f)
-	CAPS_EX_PHY_PTP_EN, // 16 (0x10)
-	CAPS_EX_MAC_PTP_EN, // 17 (0x11)
-	CAPS_EX_EXT_CLK_EN, // 18 (0x12)
-	CAPS_EX_SCHED_DMA_EN, // 19 (0x13)
-	CAPS_EX_PTP_GPIO_EN, // 20 (0x14)
-	CAPS_EX_UPDATE_SETTINGS, // 21 (0x15)
-	CAPS_EX_PHY_CTRL_TS_PIN, // 22 (0x16)
-	CAPS_EX_SNR_OPERATING_MARGIN, // 23 (0x17)
-	CAPS_EX_RESERVED24, // 24 (0x18)
-	CAPS_EX_RESERVED25, // 25 (0x19)
-	CAPS_EX_RESERVED26, // 26 (0x1a)
-	CAPS_EX_RESERVED27, // 27 (0x1b)
-	CAPS_EX_RESERVED28, // 28 (0x1c)
-	CAPS_EX_RESERVED29, // 29 (0x1d)
-	CAPS_EX_RESERVED30, // 30 (0x1e)
-	CAPS_EX_RESERVED31  // 31 (0x1f)
+	CAPS_EX_LED_CONTROL       =  0,
+	CAPS_EX_LED0_MODE_LO,
+	CAPS_EX_LED0_MODE_HI,
+	CAPS_EX_LED1_MODE_LO,
+	CAPS_EX_LED1_MODE_HI,
+	CAPS_EX_LED2_MODE_LO      =  5,
+	CAPS_EX_LED2_MODE_HI,
+	CAPS_EX_RESERVED07,
+	CAPS_EX_RESERVED08,
+	CAPS_EX_RESERVED09,
+	CAPS_EX_RESERVED10        = 10,
+	CAPS_EX_RESERVED11,
+	CAPS_EX_RESERVED12,
+	CAPS_EX_RESERVED13,
+	CAPS_EX_RESERVED14,
+	CAPS_EX_RESERVED15        = 15,
+	CAPS_EX_PHY_PTP_EN,
+	CAPS_EX_MAC_PTP_EN,
+	CAPS_EX_EXT_CLK_EN,
+	CAPS_EX_SCHED_DMA_EN,
+	CAPS_EX_PTP_GPIO_EN       = 20,
+	CAPS_EX_UPDATE_SETTINGS,
+	CAPS_EX_PHY_CTRL_TS_PIN,
+	CAPS_EX_SNR_OPERATING_MARGIN,
+	CAPS_EX_RESERVED24,
+	CAPS_EX_RESERVED25        = 25,
+	CAPS_EX_RESERVED26,
+	CAPS_EX_RESERVED27,
+	CAPS_EX_RESERVED28,
+	CAPS_EX_RESERVED29,
+	CAPS_EX_RESERVED30        = 30,
+	CAPS_EX_RESERVED31
 };
 
 struct aq_hw_s;

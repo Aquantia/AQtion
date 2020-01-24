@@ -1503,6 +1503,15 @@
 /* default value of bitfield reg_res_dsbl */
 #define HW_ATL_RX_REG_RES_DSBL_DEFAULT 0x1
 
+/* RX reset Bitfield Definitions
+ */
+#define HW_ATL_RX_RESET_ADR 0x00005000
+#define HW_ATL_RX_RESET_MSK 0x80000000
+#define HW_ATL_RX_RESET_MSKN 0x7FFFFFFF
+#define HW_ATL_RX_RESET_SHIFT 31
+#define HW_ATL_RX_RESET_WIDTH 1
+#define HW_ATL_RX_RESET_DEFAULT 0x0
+
 /* tx dca{d}_cpuid[7:0] bitfield definitions
  * preprocessor definitions for the bitfield "dca{d}_cpuid[7:0]".
  * parameter: dca {d} | stride size 0x4 | range [0, 31]
@@ -2436,6 +2445,15 @@
 #define HW_ATL_TX_REG_RES_DSBL_WIDTH 1
 /* default value of bitfield reg_res_dsbl */
 #define HW_ATL_TX_REG_RES_DSBL_DEFAULT 0x1
+
+/* TX reset Bitfield Definitions
+ */
+#define HW_ATL_TX_RESET_ADR 0x00007000
+#define HW_ATL_TX_RESET_MSK 0x80000000
+#define HW_ATL_TX_RESET_MSKN 0x7FFFFFFF
+#define HW_ATL_TX_RESET_SHIFT 31
+#define HW_ATL_TX_RESET_WIDTH 1
+#define HW_ATL_TX_RESET_DEFAULT 0x0
 
 /* mac_phy register access busy bitfield definitions
  * preprocessor definitions for the bitfield "register access busy".

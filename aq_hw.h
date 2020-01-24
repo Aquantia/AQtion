@@ -34,7 +34,7 @@ enum aq_rx_hw_action_with_traffic {
 };
 
 
-#define AQ_RX_FIRST_LOC_FVLANID    0U
+#define AQ_RX_FIRST_LOC_FVLANID     0U
 #define AQ_RX_LAST_LOC_FVLANID	   15U
 #define AQ_RX_FIRST_LOC_FETHERT    16U
 #define AQ_RX_LAST_LOC_FETHERT	   31U
@@ -108,7 +108,7 @@ struct aq_stats_s {
 struct aq_diag_s {
 	u32 cable_len;
 	u32 phy_temp;
-	struct hw_aq_cable_diag cable_diag[4];
+	struct hw_atl_cable_diag cable_diag[4];
 	u16 snr_margin[4];
 };
 
@@ -191,6 +191,7 @@ struct aq_hw_s {
 	u32 settings_addr;
 	u32 rpc_tid;
 	struct hw_atl_utils_fw_rpc rpc;
+	s64 ptp_clk_offset;
 	u16 phy_id;
 	u32 ssid;
 	u8 image_required;
@@ -295,8 +296,9 @@ struct aq_hw_ops {
 	struct aq_stats_s *(*hw_get_hw_stats)(struct aq_hw_s *self);
 
 	u32 (*hw_get_fw_version)(struct aq_hw_s *self);
+
 	int (*hw_set_offload)(struct aq_hw_s *self,
-					struct aq_nic_cfg_s *aq_nic_cfg);
+			      struct aq_nic_cfg_s *aq_nic_cfg);
 
 	int (*hw_tx_tc_mode_get)(struct aq_hw_s *self, u32 *tc_mode);
 
@@ -326,15 +328,18 @@ struct aq_hw_ops {
 
 	int (*hw_get_sync_ts)(struct aq_hw_s *self, u64 *ts);
 
-	u16 (*rx_extract_ts)(u8 *p, unsigned int len, u64 *timestamp);
+	u16 (*rx_extract_ts)(struct aq_hw_s *self, u8 *p, unsigned int len,
+			     u64 *timestamp);
 
-	int (*extract_hwts)(u8 *p, unsigned int len, u64 *timestamp);
+	int (*extract_hwts)(struct aq_hw_s *self, u8 *p, unsigned int len,
+			    u64 *timestamp);
 
 	u32 (*hw_get_clk_sel)(struct aq_hw_s *self);
 
+	int (*hw_set_fc)(struct aq_hw_s *self, u32 fc, u32 tc);
+
 	int (*hw_set_loopback)(struct aq_hw_s *self, u32 mode, bool enable);
 
-	int (*hw_set_fc)(struct aq_hw_s *self, u32 fc, u32 tc);
 	void (*hw_get_chip_info)(struct aq_hw_s *self,
 				 struct aq_hw_chip_info *chip_info);
 };
@@ -359,30 +364,33 @@ struct aq_fw_ops {
 
 	int (*update_stats)(struct aq_hw_s *self);
 
-	int (*set_power)(struct aq_hw_s *self, unsigned int power_state,
-			u8 *mac);
-
 	int (*get_phy_temp)(struct aq_hw_s *self, int *temp);
 
 	int (*get_cable_len)(struct aq_hw_s *self, int *cable_len);
 
+	u32 (*get_flow_control)(struct aq_hw_s *self, u32 *fcmode);
+
+	int (*set_flow_control)(struct aq_hw_s *self);
+
+	int (*led_control)(struct aq_hw_s *self, u32 mode);
+
+	int (*set_phyloopback)(struct aq_hw_s *self, u32 mode, bool enable);
+
+	int (*set_power)(struct aq_hw_s *self, unsigned int power_state,
+			 u8 *mac);
+
 	int (*send_fw_request)(struct aq_hw_s *self,
-			const struct hw_fw_request_iface *fw_req, size_t size);
+			       const struct hw_fw_request_iface *fw_req,
+			       size_t size);
 
 	void (*enable_ptp)(struct aq_hw_s *self, int enable);
+
+	void (*adjust_ptp)(struct aq_hw_s *self, uint64_t adj);
 
 	int (*set_eee_rate)(struct aq_hw_s *self, u32 speed);
 
 	int (*get_eee_rate)(struct aq_hw_s *self, u32 *rate,
 			    u32 *supported_rates);
-
-	int (*set_flow_control)(struct aq_hw_s *self);
-
-	u32 (*get_flow_control)(struct aq_hw_s *self, u32 *fcmode);
-
-	int (*led_control)(struct aq_hw_s *self, u32 mode);
-
-	int (*set_phyloopback)(struct aq_hw_s *self, u32 mode, bool enable);
 
 	void (*set_downshift)(struct aq_hw_s *self, bool enable);
 

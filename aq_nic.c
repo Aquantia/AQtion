@@ -63,10 +63,6 @@ static void aq_nic_update_ndev_stats(struct aq_nic_s *self);
 
 static void aq_nic_rss_init(struct aq_nic_s *self, unsigned int num_rss_queues)
 {
-	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
-	struct aq_rss_parameters *rss_params = &cfg->aq_rss;
-	int i = 0;
-
 	static u8 rss_key[AQ_CFG_RSS_HASHKEY_SIZE] = {
 		0x1e, 0xad, 0x71, 0x87, 0x65, 0xfc, 0x26, 0x7d,
 		0x0d, 0x45, 0x67, 0x74, 0xcd, 0x06, 0x1a, 0x18,
@@ -74,6 +70,11 @@ static void aq_nic_rss_init(struct aq_nic_s *self, unsigned int num_rss_queues)
 		0x19, 0x13, 0x4b, 0xa9, 0xd0, 0x3e, 0xfe, 0x70,
 		0x25, 0x03, 0xab, 0x50, 0x6a, 0x8b, 0x82, 0x0c
 	};
+	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
+	struct aq_rss_parameters *rss_params;
+	int i = 0;
+
+	rss_params = &cfg->aq_rss;
 
 	rss_params->hash_secret_key_size = sizeof(rss_key);
 	memcpy(rss_params->hash_secret_key, rss_key, sizeof(rss_key));
@@ -176,15 +177,13 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 			aq_ndev_driver_name, self->link_status.mbps,
 			self->aq_hw->aq_link_status.mbps);
 		aq_nic_update_interrupt_moderation_settings(self);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+
 		if (self->aq_ptp) {
 			aq_ptp_clock_init(self);
 			aq_ptp_tm_offset_set(self,
 					     self->aq_hw->aq_link_status.mbps);
 			aq_ptp_link_change(self);
 		}
-#endif
 
 		/* Driver has to update flow control settings on RX block
 		 * on any link event.
@@ -208,6 +207,7 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 		netif_tx_disable(self->ndev);
 		aq_utils_obj_set(&self->flags, AQ_NIC_LINK_DOWN);
 	}
+
 	return 0;
 }
 
@@ -222,6 +222,7 @@ static irqreturn_t aq_linkstate_threaded_isr(int irq, void *private)
 
 	self->aq_hw_ops->hw_irq_enable(self->aq_hw,
 				       BIT(self->aq_nic_cfg.link_irq_vec));
+
 	return IRQ_HANDLED;
 }
 
@@ -231,10 +232,7 @@ static void aq_nic_service_task(struct work_struct *work)
 					     service_task);
 	int err;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	aq_ptp_service_task(self);
-#endif
 
 	if (aq_utils_obj_test(&self->flags, AQ_NIC_FLAGS_IS_NOT_READY))
 		return;
@@ -361,14 +359,15 @@ void aq_nic_ndev_init(struct aq_nic_s *self)
 	self->ndev->features = aq_hw_caps->hw_features;
 	self->ndev->vlan_features |= NETIF_F_HW_CSUM | NETIF_F_RXCSUM |
 				     NETIF_F_RXHASH | NETIF_F_SG |
-				     NETIF_F_LRO | NETIF_F_TSO;
+				     NETIF_F_LRO | NETIF_F_TSO | NETIF_F_TSO6;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	self->ndev->gso_partial_features = NETIF_F_GSO_UDP_L4;
 	self->ndev->gso_max_size = 256*1024;
 #endif
 	self->ndev->priv_flags = aq_hw_caps->hw_priv_flags;
 	self->ndev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
-	self->msg_enable = NETIF_MSG_DRV|NETIF_MSG_LINK;
+
+	self->msg_enable = NETIF_MSG_DRV | NETIF_MSG_LINK;
 	self->ndev->mtu = aq_nic_cfg->mtu - ETH_HLEN;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	self->ndev->max_mtu = aq_hw_caps->mtu - ETH_FCS_LEN - ETH_HLEN;
@@ -393,8 +392,8 @@ struct net_device *aq_nic_get_ndev(struct aq_nic_s *self)
 int aq_nic_init(struct aq_nic_s *self)
 {
 	struct aq_vec_s *aq_vec = NULL;
-	int err = 0;
 	unsigned int i = 0U;
+	int err = 0;
 
 	self->power_state = AQ_HW_POWER_STATE_D0;
 	mutex_lock(&self->fwreq_mutex);
@@ -429,8 +428,6 @@ int aq_nic_init(struct aq_nic_s *self)
 		self->aq_vecs > i; ++i, aq_vec = self->aq_vec[i])
 		aq_vec_init(aq_vec, self->aq_hw_ops, self->aq_hw);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 	err = aq_ptp_init(self, self->irqvecs - 1,
 			  self->msix_entry[self->irqvecs - 1].vector);
@@ -447,7 +444,6 @@ int aq_nic_init(struct aq_nic_s *self)
 	err = aq_ptp_ring_init(self);
 	if (err < 0)
 		goto err_exit;
-#endif
 
 	netif_carrier_off(self->ndev);
 
@@ -507,12 +503,10 @@ int aq_nic_start(struct aq_nic_s *self)
 	if (err < 0)
 		goto err_exit;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	err = aq_ptp_ring_start(self);
 	if (err < 0)
 		goto err_exit;
-#endif
+
 	aq_nic_set_loopback(self);
 
 	err = hw_ops->hw_start(self->aq_hw);
@@ -544,12 +538,9 @@ int aq_nic_start(struct aq_nic_s *self)
 				goto err_exit;
 		}
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 		err = aq_ptp_irq_alloc(self);
 		if (err < 0)
 			goto err_exit;
-#endif
 
 		if (self->aq_nic_cfg.link_irq_vec) {
 #ifdef pci_irq_vector_compat
@@ -587,39 +578,50 @@ err_exit:
 	return err;
 }
 
-unsigned int aq_nic_map_skb(struct aq_nic_s *self,
-				   struct sk_buff *skb,
-				   struct aq_ring_s *ring)
+unsigned int aq_nic_map_skb(struct aq_nic_s *self, struct sk_buff *skb,
+			    struct aq_ring_s *ring)
 {
-	unsigned int ret = 0U;
 	unsigned int nr_frags = skb_shinfo(skb)->nr_frags;
-	unsigned int frag_count = 0U;
-	unsigned int dx = ring->sw_tail;
 	struct aq_ring_buff_s *first = NULL;
+	u8 ipver = ip_hdr(skb)->version;
+	struct aq_ring_buff_s *dx_buff;
 	bool need_context_tag = false;
-	struct aq_ring_buff_s *dx_buff = &ring->buff_ring[dx];
+	unsigned int frag_count = 0U;
+	unsigned int ret = 0U;
+	unsigned int dx;
+	u8 l4proto = 0;
 
 	trace_aq_dump_skb(skb);
 
+	if (ipver == 4)
+		l4proto = ip_hdr(skb)->protocol;
+	else if (ipver == 6)
+		l4proto = ipv6_hdr(skb)->nexthdr;
+
+	dx = ring->sw_tail;
+	dx_buff = &ring->buff_ring[dx];
 	dx_buff->flags = 0U;
-	if (skb_is_gso(skb)) {
+
+	if (unlikely(skb_is_gso(skb))) {
 		dx_buff->mss = skb_shinfo(skb)->gso_size;
-		if (ip_hdr(skb)->protocol == IPPROTO_TCP) {
+		if (l4proto == IPPROTO_TCP) {
 			dx_buff->is_gso_tcp = 1U;
 			dx_buff->len_l4 = tcp_hdrlen(skb);
-		} else if (ip_hdr(skb)->protocol == IPPROTO_UDP) {
+		} else if (l4proto == IPPROTO_UDP) {
 			dx_buff->is_gso_udp = 1U;
 			dx_buff->len_l4 = sizeof(struct udphdr);
 			/* UDP GSO Hardware does not replace packet length. */
 			udp_hdr(skb)->len = htons(dx_buff->mss +
 						  dx_buff->len_l4);
+		} else {
+			WARN_ONCE(true, "Bad GSO mode");
+			goto exit;
 		}
 		dx_buff->len_pkt = skb->len;
 		dx_buff->len_l2 = ETH_HLEN;
-		dx_buff->len_l3 = ip_hdrlen(skb);
+		dx_buff->len_l3 = skb_network_header_len(skb);
 		dx_buff->eop_index = 0xffffU;
-		dx_buff->is_ipv6 =
-			(ip_hdr(skb)->version == 6) ? 1U : 0U;
+		dx_buff->is_ipv6 = (ipver == 6);
 		need_context_tag = true;
 	}
 
@@ -653,24 +655,9 @@ unsigned int aq_nic_map_skb(struct aq_nic_s *self,
 	++ret;
 
 	if (skb->ip_summed == CHECKSUM_PARTIAL) {
-		dx_buff->is_ip_cso = (htons(ETH_P_IP) == skb->protocol) ?
-			1U : 0U;
-
-		if (ip_hdr(skb)->version == 4) {
-			dx_buff->is_tcp_cso =
-				(ip_hdr(skb)->protocol == IPPROTO_TCP) ?
-					1U : 0U;
-			dx_buff->is_udp_cso =
-				(ip_hdr(skb)->protocol == IPPROTO_UDP) ?
-					1U : 0U;
-		} else if (ip_hdr(skb)->version == 6) {
-			dx_buff->is_tcp_cso =
-				(ipv6_hdr(skb)->nexthdr == NEXTHDR_TCP) ?
-					1U : 0U;
-			dx_buff->is_udp_cso =
-				(ipv6_hdr(skb)->nexthdr == NEXTHDR_UDP) ?
-					1U : 0U;
-		}
+		dx_buff->is_ip_cso = (htons(ETH_P_IP) == skb->protocol);
+		dx_buff->is_tcp_cso = (l4proto == IPPROTO_TCP);
+		dx_buff->is_udp_cso = (l4proto == IPPROTO_UDP);
 	}
 
 	for (; nr_frags--; ++frag_count) {
@@ -725,7 +712,7 @@ mapping_error:
 	     --ret, dx = aq_ring_next_dx(ring, dx)) {
 		dx_buff = &ring->buff_ring[dx];
 
-		if (!(dx_buff->is_gso_tcp | dx_buff->is_gso_udp) &&
+		if (!(dx_buff->is_gso_tcp || dx_buff->is_gso_udp) &&
 		    !dx_buff->is_vlan && dx_buff->pa) {
 			if (unlikely(dx_buff->is_sop)) {
 				dma_unmap_single(aq_nic_get_dev(self),
@@ -747,11 +734,11 @@ exit:
 
 int aq_nic_xmit(struct aq_nic_s *self, struct sk_buff *skb)
 {
+	unsigned int vec = skb->queue_mapping % self->aq_nic_cfg.vecs;
 	struct aq_ring_s *ring = NULL;
 	unsigned int frags = 0U;
-	unsigned int vec = skb->queue_mapping % self->aq_nic_cfg.vecs;
-	unsigned int tc = 0U;
 	int err = NETDEV_TX_OK;
+	unsigned int tc = 0U;
 
 	frags = skb_shinfo(skb)->nr_frags + 1;
 
@@ -817,10 +804,10 @@ int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev)
 #define netdev_hw_addr dev_addr_list
 #define addr da_addr
 #endif
-	struct netdev_hw_addr *ha = NULL;
-	unsigned int packet_filter = ndev->flags;
 	const struct aq_hw_ops *hw_ops = self->aq_hw_ops;
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
+	unsigned int packet_filter = ndev->flags;
+	struct netdev_hw_addr *ha = NULL;
 	unsigned int i = 0U;
 	int err = 0;
 
@@ -853,7 +840,10 @@ int aq_nic_set_multicast_list(struct aq_nic_s *self, struct net_device *ndev)
 		err = hw_ops->hw_multicast_list_set(self->aq_hw,
 						    self->mc_list.ar,
 						    self->mc_list.count);
+		if (err < 0)
+			return err;
 	}
+
 	return aq_nic_set_packet_filter(self, packet_filter);
 }
 
@@ -903,10 +893,10 @@ int aq_nic_get_regs_count(struct aq_nic_s *self)
 
 void aq_nic_get_stats(struct aq_nic_s *self, u64 *data)
 {
-	unsigned int i = 0U;
-	unsigned int count = 0U;
-	struct aq_stats_s *stats;
 	struct aq_vec_s *aq_vec = NULL;
+	struct aq_stats_s *stats;
+	unsigned int count = 0U;
+	unsigned int i = 0U;
 
 	if (self->aq_fw_ops->update_stats) {
 		mutex_lock(&self->fwreq_mutex);
@@ -989,7 +979,7 @@ void aq_nic_get_link_ksettings(struct aq_nic_s *self,
 		ethtool_link_ksettings_add_link_mode(cmd, supported,
 						     10000baseT_Full);
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 36)
 	if (self->aq_nic_cfg.aq_hw_caps->link_speed_msk & AQ_NIC_RATE_5G)
 		ethtool_link_ksettings_add_link_mode(cmd, supported,
 						     5000baseT_Full);
@@ -1028,7 +1018,7 @@ void aq_nic_get_link_ksettings(struct aq_nic_s *self,
 	if (self->aq_nic_cfg.link_speed_msk  & AQ_NIC_RATE_10G)
 		ethtool_link_ksettings_add_link_mode(cmd, advertising,
 						     10000baseT_Full);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 36)
 	if (self->aq_nic_cfg.link_speed_msk  & AQ_NIC_RATE_5G)
 		ethtool_link_ksettings_add_link_mode(cmd, advertising,
 						     5000baseT_Full);
@@ -1100,7 +1090,6 @@ int aq_nic_set_link_ksettings(struct aq_nic_s *self,
 			goto err_exit;
 		break;
 		}
-
 		if (!(self->aq_nic_cfg.aq_hw_caps->link_speed_msk & rate)) {
 			err = -1;
 			goto err_exit;
@@ -1296,19 +1285,13 @@ int aq_nic_stop(struct aq_nic_s *self)
 	else
 		aq_pci_func_free_irqs(self);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	aq_ptp_irq_free(self);
-#endif
 
 	for (i = 0U, aq_vec = self->aq_vec[0];
 		self->aq_vecs > i; ++i, aq_vec = self->aq_vec[i])
 		aq_vec_stop(aq_vec);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
 	aq_ptp_ring_stop(self);
-#endif
 
 	if (AQ_CFG_UDP_RSS_DISABLE)
 		aq_nic_release_filter(self, aq_rx_filter_l3l4,
@@ -1342,13 +1325,10 @@ void aq_nic_deinit(struct aq_nic_s *self, bool link_down)
 		self->aq_vecs > i; ++i, aq_vec = self->aq_vec[i])
 		aq_vec_deinit(aq_vec);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
-	aq_ptp_ring_deinit(self);
 	aq_ptp_unregister(self);
+	aq_ptp_ring_deinit(self);
 	aq_ptp_ring_free(self);
 	aq_ptp_free(self);
-#endif
 
 	if (likely(self->aq_fw_ops->deinit) && link_down) {
 		mutex_lock(&self->fwreq_mutex);

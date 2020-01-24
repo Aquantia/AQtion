@@ -29,8 +29,7 @@ struct aq_ptp_sync1588 {
 	uint8_t clock_sync_en; /* Enabling sync clock */
 } __packed;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2))
+#if IS_REACHABLE(CONFIG_PTP_1588_CLOCK)
 
 /* Common functions */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
@@ -65,9 +64,9 @@ int aq_ptp_xmit(struct aq_nic_s *aq_nic, struct sk_buff *skb);
 void aq_ptp_tx_hwtstamp(struct aq_nic_s *aq_nic, u64 timestamp);
 
 /* Must be to check available of PTP before call */
-void aq_ptp_hwtstamp_config_get(struct aq_ptp_s *self,
+void aq_ptp_hwtstamp_config_get(struct aq_ptp_s *aq_ptp,
 				struct hwtstamp_config *config);
-int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *self,
+int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *aq_ptp,
 			       struct hwtstamp_config *config);
 
 /* Return either ring is belong to PTP or not*/
@@ -76,7 +75,7 @@ bool aq_ptp_ring(struct aq_nic_s *aq_nic, struct aq_ring_s *ring);
 u16 aq_ptp_extract_ts(struct aq_nic_s *aq_nic, struct sk_buff *skb, u8 *p,
 		      unsigned int len);
 
-struct ptp_clock *aq_ptp_get_ptp_clock(struct aq_ptp_s *self);
+struct ptp_clock *aq_ptp_get_ptp_clock(struct aq_ptp_s *aq_ptp);
 
 int aq_ptp_configure_sync1588(struct aq_nic_s *aq_nic,
 			      struct aq_ptp_sync1588 *sync1588);
@@ -86,7 +85,70 @@ int aq_ptp_link_change(struct aq_nic_s *aq_nic);
 extern int aq_configure_sync1588(struct net_device *ndev,
 				 struct aq_ptp_sync1588 *sync1588);
 #else
-/* Return either ring is belong to PTP or not*/
+
+/* Common functions */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+static inline int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec,
+			      unsigned int num_vec)
+#else
+static inline int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_vec)
+#endif
+{
+	return 0;
+}
+
+static inline void aq_ptp_unregister(struct aq_nic_s *aq_nic) {}
+
+static inline void aq_ptp_free(struct aq_nic_s *aq_nic)
+{
+}
+
+static inline int aq_ptp_irq_alloc(struct aq_nic_s *aq_nic)
+{
+	return 0;
+}
+
+static inline void aq_ptp_irq_free(struct aq_nic_s *aq_nic)
+{
+}
+
+static inline int aq_ptp_ring_alloc(struct aq_nic_s *aq_nic)
+{
+	return 0;
+}
+
+static inline void aq_ptp_ring_free(struct aq_nic_s *aq_nic) {}
+
+static inline int aq_ptp_ring_init(struct aq_nic_s *aq_nic)
+{
+	return 0;
+}
+
+static inline int aq_ptp_ring_start(struct aq_nic_s *aq_nic)
+{
+	return 0;
+}
+
+static inline void aq_ptp_ring_stop(struct aq_nic_s *aq_nic) {}
+static inline void aq_ptp_ring_deinit(struct aq_nic_s *aq_nic) {}
+static inline void aq_ptp_service_task(struct aq_nic_s *aq_nic) {}
+static inline void aq_ptp_tm_offset_set(struct aq_nic_s *aq_nic,
+					unsigned int mbps) {}
+static inline void aq_ptp_clock_init(struct aq_nic_s *aq_nic) {}
+static inline int aq_ptp_xmit(struct aq_nic_s *aq_nic, struct sk_buff *skb)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline void aq_ptp_tx_hwtstamp(struct aq_nic_s *aq_nic, u64 timestamp) {}
+static inline void aq_ptp_hwtstamp_config_get(struct aq_ptp_s *aq_ptp,
+					      struct hwtstamp_config *config) {}
+static inline int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *aq_ptp,
+					     struct hwtstamp_config *config)
+{
+	return 0;
+}
+
 static inline bool aq_ptp_ring(struct aq_nic_s *aq_nic, struct aq_ring_s *ring)
 {
 	return false;
@@ -95,6 +157,16 @@ static inline bool aq_ptp_ring(struct aq_nic_s *aq_nic, struct aq_ring_s *ring)
 static inline u16 aq_ptp_extract_ts(struct aq_nic_s *aq_nic,
 				    struct sk_buff *skb, u8 *p,
 				    unsigned int len)
+{
+	return 0;
+}
+
+static inline struct ptp_clock *aq_ptp_get_ptp_clock(struct aq_ptp_s *aq_ptp)
+{
+	return NULL;
+}
+
+static inline int aq_ptp_link_change(struct aq_nic_s *aq_nic)
 {
 	return 0;
 }

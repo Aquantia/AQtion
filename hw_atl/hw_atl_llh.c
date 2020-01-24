@@ -32,6 +32,12 @@ void hw_atl_glb_glb_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 glb_reg_res_dis)
 			    glb_reg_res_dis);
 }
 
+void hw_atl_rx_reset_set(struct aq_hw_s *aq_hw, u32 rx_reset)
+{
+	aq_hw_write_reg_bit(aq_hw, HW_ATL_RX_RESET_ADR, HW_ATL_RX_RESET_MSK,
+			    HW_ATL_RX_RESET_SHIFT, rx_reset);
+}
+
 void hw_atl_glb_soft_res_set(struct aq_hw_s *aq_hw, u32 soft_res)
 {
 	aq_hw_write_reg_bit(aq_hw, HW_ATL_GLB_SOFT_RES_ADR,
@@ -1511,6 +1517,13 @@ void hw_atl_tx_tx_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 tx_reg_res_dis)
 			    HW_ATL_TX_REG_RES_DSBL_MSK,
 			    HW_ATL_TX_REG_RES_DSBL_SHIFT, tx_reg_res_dis);
 }
+
+void hw_atl_tx_reset_set(struct aq_hw_s *aq_hw, u32 tx_reset)
+{
+	aq_hw_write_reg_bit(aq_hw, HW_ATL_TX_RESET_ADR, HW_ATL_TX_RESET_MSK,
+			    HW_ATL_TX_RESET_SHIFT, tx_reset);
+}
+
 
 /* msm */
 u32 hw_atl_msm_reg_access_status_get(struct aq_hw_s *aq_hw)

@@ -187,4 +187,17 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 #if !IS_ENABLED(CONFIG_CRC_ITU_T)
 u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
 #endif
+
+#ifndef IS_REACHABLE
+#define IS_REACHABLE defined
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 2))
+/* Explicitly disable PTP module on kernels 3.16 and 3.10 */
+#undef CONFIG_PTP_1588_CLOCK
+#endif
+#endif
+
+
 #endif /* AQ_COMMON_H */

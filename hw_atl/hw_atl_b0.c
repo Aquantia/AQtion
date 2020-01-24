@@ -40,6 +40,7 @@
 			NETIF_F_RXHASH |  \
 			NETIF_F_SG |      \
 			NETIF_F_TSO |     \
+			NETIF_F_TSO6 |    \
 			NETIF_F_LRO |     \
 			NETIF_F_NTUPLE |  \
 			NETIF_F_HW_VLAN_CTAG_FILTER | \
@@ -117,8 +118,6 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc112 = {
 	.fw_image_name = AQ_FW_AQC11XX,
 };
 
-static s64 ptp_clk_offset;
-
 static int hw_atl_b0_hw_reset(struct aq_hw_s *self)
 {
 	int err = 0;
@@ -137,14 +136,15 @@ static int hw_atl_b0_hw_reset(struct aq_hw_s *self)
 static int hw_atl_b0_set_fc(struct aq_hw_s *self, u32 fc, u32 tc)
 {
 	hw_atl_rpb_rx_xoff_en_per_tc_set(self, !!(fc & AQ_NIC_FC_RX), tc);
+
 	return 0;
 }
 
 static int hw_atl_b0_hw_qos_set(struct aq_hw_s *self)
 {
-	u32 tc = 0U;
-	u32 buff_size = 0U;
 	unsigned int i_priority = 0U;
+	u32 buff_size = 0U;
+	u32 tc = 0U;
 
 	/* TPS Descriptor rate init */
 	hw_atl_tps_tx_pkt_shed_desc_rate_curr_time_res_set(self, 0x0U);
@@ -246,9 +246,9 @@ static int hw_atl_b0_hw_rss_set(struct aq_hw_s *self,
 				struct aq_rss_parameters *rss_params)
 {
 	u32 num_rss_queues = max(1U, self->aq_nic_cfg->num_rss_queues);
-	u16 bitary[1 + (HW_ATL_B0_RSS_REDIRECTION_MAX *
-			HW_ATL_B0_RSS_REDIRECTION_BITS / 16U)];
 	u8 *indirection_table =	rss_params->indirection_table;
+	u16 bitary[1 + (HW_ATL_B0_RSS_REDIRECTION_MAX *
+		   HW_ATL_B0_RSS_REDIRECTION_BITS / 16U)];
 	int err = 0;
 	u32 i = 0U;
 	u32 val;
@@ -288,10 +288,10 @@ static int hw_atl_b0_hw_offload_set(struct aq_hw_s *self,
 	hw_atl_tpo_tcp_udp_crc_offload_en_set(self, 1);
 
 	/* RX checksums offloads*/
-	hw_atl_rpo_ipv4header_crc_offload_en_set(self,
-				 !!(aq_nic_cfg->features & NETIF_F_RXCSUM));
-	hw_atl_rpo_tcp_udp_crc_offload_en_set(self,
-				 !!(aq_nic_cfg->features & NETIF_F_RXCSUM));
+	hw_atl_rpo_ipv4header_crc_offload_en_set(self, !!(aq_nic_cfg->features &
+						 NETIF_F_RXCSUM));
+	hw_atl_rpo_tcp_udp_crc_offload_en_set(self, !!(aq_nic_cfg->features &
+					      NETIF_F_RXCSUM));
 
 	/* LSO offloads*/
 	hw_atl_tdm_large_send_offload_en_set(self, 0xFFFFFFFFU);
@@ -334,6 +334,7 @@ static int hw_atl_b0_hw_offload_set(struct aq_hw_s *self,
 
 		hw_atl_itr_rsc_delay_set(self, 1U);
 	}
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -417,9 +418,9 @@ static int hw_atl_b0_hw_init_rx_path(struct aq_hw_s *self)
 
 static int hw_atl_b0_hw_mac_addr_set(struct aq_hw_s *self, u8 *mac_addr)
 {
-	int err = 0;
 	unsigned int h = 0U;
 	unsigned int l = 0U;
+	int err = 0;
 
 	if (!mac_addr) {
 		err = -EINVAL;
@@ -448,11 +449,10 @@ static int hw_atl_b0_hw_init(struct aq_hw_s *self, u8 *mac_addr)
 		[AQ_HW_IRQ_MSI]     = { 0x20000021U, 0x20000025U },
 		[AQ_HW_IRQ_MSIX]    = { 0x20000022U, 0x20000026U },
 	};
-
+	struct aq_nic_cfg_s *aq_nic_cfg = self->aq_nic_cfg;
 	int err = 0;
 	u32 val;
 
-	struct aq_nic_cfg_s *aq_nic_cfg = self->aq_nic_cfg;
 
 	hw_atl_b0_hw_init_tx_path(self);
 	hw_atl_b0_hw_init_rx_path(self);
@@ -515,6 +515,7 @@ static int hw_atl_b0_hw_ring_tx_start(struct aq_hw_s *self,
 				      struct aq_ring_s *ring)
 {
 	hw_atl_tdm_tx_desc_en_set(self, 1, ring->idx);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -522,6 +523,7 @@ static int hw_atl_b0_hw_ring_rx_start(struct aq_hw_s *self,
 				      struct aq_ring_s *ring)
 {
 	hw_atl_rdm_rx_desc_en_set(self, 1, ring->idx);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -529,6 +531,7 @@ static int hw_atl_b0_hw_start(struct aq_hw_s *self)
 {
 	hw_atl_tpb_tx_buff_en_set(self, 1);
 	hw_atl_rpb_rx_buff_en_set(self, 1);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -536,6 +539,7 @@ static int hw_atl_b0_hw_tx_ring_tail_update(struct aq_hw_s *self,
 					    struct aq_ring_s *ring)
 {
 	hw_atl_reg_tx_dma_desc_tail_ptr_set(self, ring->sw_tail, ring->idx);
+
 	return 0;
 }
 
@@ -546,8 +550,8 @@ static int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self,
 	struct aq_ring_buff_s *buff = NULL;
 	struct hw_atl_txd_s *txd = NULL;
 	unsigned int buff_pa_len = 0U;
-	unsigned int pkt_len = 0U;
 	unsigned int frag_count = 0U;
+	unsigned int pkt_len = 0U;
 	bool is_vlan = false;
 	bool is_gso = false;
 
@@ -627,6 +631,7 @@ static int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self,
 	wmb();
 
 	hw_atl_b0_hw_tx_ring_tail_update(self, ring);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -634,9 +639,9 @@ static int hw_atl_b0_hw_ring_rx_init(struct aq_hw_s *self,
 				     struct aq_ring_s *aq_ring,
 				     struct aq_ring_param_s *aq_ring_param)
 {
-	u32 dma_desc_addr_lsw = (u32)aq_ring->dx_ring_pa;
 	u32 dma_desc_addr_msw = (u32)(((u64)aq_ring->dx_ring_pa) >> 32);
 	u32 vlan_rx_stripping = self->aq_nic_cfg->is_vlan_rx_strip;
+	u32 dma_desc_addr_lsw = (u32)aq_ring->dx_ring_pa;
 
 	hw_atl_rdm_rx_desc_en_set(self, false, aq_ring->idx);
 
@@ -646,8 +651,7 @@ static int hw_atl_b0_hw_ring_rx_init(struct aq_hw_s *self,
 						  aq_ring->idx);
 
 	hw_atl_reg_rx_dma_desc_base_addressmswset(self,
-						  dma_desc_addr_msw,
-						  aq_ring->idx);
+						  dma_desc_addr_msw, aq_ring->idx);
 
 	hw_atl_rdm_rx_desc_len_set(self, aq_ring->size / 8U, aq_ring->idx);
 
@@ -678,8 +682,8 @@ static int hw_atl_b0_hw_ring_tx_init(struct aq_hw_s *self,
 				     struct aq_ring_s *aq_ring,
 				     struct aq_ring_param_s *aq_ring_param)
 {
-	u32 dma_desc_lsw_addr = (u32)aq_ring->dx_ring_pa;
 	u32 dma_desc_msw_addr = (u32)(((u64)aq_ring->dx_ring_pa) >> 32);
+	u32 dma_desc_lsw_addr = (u32)aq_ring->dx_ring_pa;
 
 	hw_atl_reg_tx_dma_desc_base_addresslswset(self, dma_desc_lsw_addr,
 						  aq_ring->idx);
@@ -770,9 +774,10 @@ static int hw_atl_b0_hw_ring_hwts_rx_receive(struct aq_hw_s *self,
 static int hw_atl_b0_hw_ring_tx_head_update(struct aq_hw_s *self,
 					    struct aq_ring_s *ring)
 {
+	unsigned int hw_head_;
 	int err = 0;
-	unsigned int hw_head_ = hw_atl_tdm_tx_desc_head_ptr_get(self,
-								ring->idx);
+
+	hw_head_ = hw_atl_tdm_tx_desc_head_ptr_get(self, ring->idx);
 
 	if (aq_utils_obj_test(&self->flags, AQ_HW_FLAG_ERR_UNPLUG)) {
 		err = -ENXIO;
@@ -857,6 +862,8 @@ static int hw_atl_b0_hw_ring_rx_receive(struct aq_hw_s *self,
 			}
 		}
 
+		buff->is_lro = !!(HW_ATL_B0_RXD_WB_STAT2_RSCCNT &
+				  rxd_wb->status);
 		if (HW_ATL_B0_RXD_WB_STAT2_EOP & rxd_wb->status) {
 			buff->len = rxd_wb->pkt_len %
 				AQ_CFG_RX_FRAME_MAX;
@@ -869,8 +876,7 @@ static int hw_atl_b0_hw_ring_rx_receive(struct aq_hw_s *self,
 				rxd_wb->pkt_len > AQ_CFG_RX_FRAME_MAX ?
 				AQ_CFG_RX_FRAME_MAX : rxd_wb->pkt_len;
 
-			if (HW_ATL_B0_RXD_WB_STAT2_RSCCNT &
-				rxd_wb->status) {
+			if (buff->is_lro) {
 				/* LRO */
 				buff->next = rxd_wb->next_desc_ptr;
 				++ring->stats.rx.lro_packets;
@@ -890,6 +896,7 @@ static int hw_atl_b0_hw_ring_rx_receive(struct aq_hw_s *self,
 static int hw_atl_b0_hw_irq_enable(struct aq_hw_s *self, u64 mask)
 {
 	hw_atl_itr_irq_msk_setlsw_set(self, LODWORD(mask));
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -899,12 +906,14 @@ static int hw_atl_b0_hw_irq_disable(struct aq_hw_s *self, u64 mask)
 	hw_atl_itr_irq_status_clearlsw_set(self, LODWORD(mask));
 
 	atomic_inc(&self->dpc);
+
 	return aq_hw_err_from_flags(self);
 }
 
 static int hw_atl_b0_hw_irq_read(struct aq_hw_s *self, u64 *mask)
 {
 	*mask = hw_atl_itr_irq_statuslsw_get(self);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -1105,6 +1114,7 @@ static int hw_atl_b0_hw_ring_tx_stop(struct aq_hw_s *self,
 				     struct aq_ring_s *ring)
 {
 	hw_atl_tdm_tx_desc_en_set(self, 0U, ring->idx);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -1112,6 +1122,7 @@ static int hw_atl_b0_hw_ring_rx_stop(struct aq_hw_s *self,
 				     struct aq_ring_s *ring)
 {
 	hw_atl_rdm_rx_desc_en_set(self, 0U, ring->idx);
+
 	return aq_hw_err_from_flags(self);
 }
 
@@ -1137,11 +1148,11 @@ static void hw_atl_b0_get_ptp_ts(struct aq_hw_s *self, u64 *stamp)
 	hw_atl_pcs_ptp_clock_read_enable(self, 1);
 	hw_atl_pcs_ptp_clock_read_enable(self, 0);
 	ns = (get_ptp_ts_val_u64(self, 0) +
-	      (get_ptp_ts_val_u64(self, 1) << 16)) * 1000000000llu +
+	      (get_ptp_ts_val_u64(self, 1) << 16)) * NSEC_PER_SEC +
 	     (get_ptp_ts_val_u64(self, 3) +
 	      (get_ptp_ts_val_u64(self, 4) << 16));
 
-	*stamp = ns + ptp_clk_offset;
+	*stamp = ns + self->ptp_clk_offset;
 }
 
 static void hw_atl_b0_adj_params_get(u64 freq, s64 adj, u32 *ns, u32 *fns)
@@ -1191,21 +1202,23 @@ hw_atl_b0_mac_adj_param_calc(struct hw_fw_request_ptp_adj_freq *ptp_adj_freq,
 
 static int hw_atl_b0_adj_sys_clock(struct aq_hw_s *self, s64 delta)
 {
-	ptp_clk_offset += delta;
+	self->ptp_clk_offset += delta;
+
+	self->aq_fw_ops->adjust_ptp(self, self->ptp_clk_offset);
 
 	return 0;
 }
 
 static int hw_atl_b0_set_sys_clock(struct aq_hw_s *self, u64 time, u64 ts)
 {
-	s64 delta = time - (ptp_clk_offset + ts);
+	s64 delta = time - (self->ptp_clk_offset + ts);
 
 	return hw_atl_b0_adj_sys_clock(self, delta);
 }
 
-int hw_atl_b0_ts_to_sys_clock(struct aq_hw_s *self, u64 ts, u64 *time)
+static int hw_atl_b0_ts_to_sys_clock(struct aq_hw_s *self, u64 ts, u64 *time)
 {
-	*time = ptp_clk_offset + ts;
+	*time = self->ptp_clk_offset + ts;
 	return 0;
 }
 
@@ -1243,7 +1256,7 @@ static int hw_atl_b0_gpio_pulse(struct aq_hw_s *self, u32 index,
 	fwreq.ptp_gpio_ctrl.index = index;
 	fwreq.ptp_gpio_ctrl.period = period;
 	/* Apply time offset */
-	fwreq.ptp_gpio_ctrl.start = start - ptp_clk_offset;
+	fwreq.ptp_gpio_ctrl.start = start;
 
 	size = sizeof(fwreq.msg_id) + sizeof(fwreq.ptp_gpio_ctrl);
 	return self->aq_fw_ops->send_fw_request(self, &fwreq, size);
@@ -1282,13 +1295,14 @@ static int hw_atl_b0_get_sync_ts(struct aq_hw_s *self, u64 *ts)
 	return 0;
 }
 
-static u16 hw_atl_b0_rx_extract_ts(u8 *p, unsigned int len, u64 *timestamp)
+static u16 hw_atl_b0_rx_extract_ts(struct aq_hw_s *self, u8 *p,
+				   unsigned int len, u64 *timestamp)
 {
 	unsigned int offset = 14;
 	struct ethhdr *eth;
-	u64 sec;
+	__be64 sec;
+	__be32 ns;
 	u8 *ptr;
-	u32 ns;
 
 	if (len <= offset || !timestamp)
 		return 0;
@@ -1306,16 +1320,16 @@ static u16 hw_atl_b0_rx_extract_ts(u8 *p, unsigned int len, u64 *timestamp)
 	ptr += sizeof(sec);
 	memcpy(&ns, ptr, sizeof(ns));
 
-	sec = be64_to_cpu(sec) & 0xffffffffffffllu;
-	ns = be32_to_cpu(ns);
-	*timestamp = sec * 1000000000llu + ns + ptp_clk_offset;
+	*timestamp = (be64_to_cpu(sec) & 0xffffffffffffllu) * NSEC_PER_SEC +
+		     be32_to_cpu(ns) + self->ptp_clk_offset;
 
 	eth = (struct ethhdr *)p;
 
 	return (eth->h_proto == htons(ETH_P_1588)) ? 12 : 14;
 }
 
-static int hw_atl_b0_extract_hwts(u8 *p, unsigned int len, u64 *timestamp)
+static int hw_atl_b0_extract_hwts(struct aq_hw_s *self, u8 *p, unsigned int len,
+				  u64 *timestamp)
 {
 	struct hw_atl_rxd_hwts_wb_s *hwts_wb = (struct hw_atl_rxd_hwts_wb_s *)p;
 	u64 tmp, sec, ns;
@@ -1329,9 +1343,9 @@ static int hw_atl_b0_extract_hwts(u8 *p, unsigned int len, u64 *timestamp)
 	sec += tmp;
 	tmp = (u64)((hwts_wb->sec_hw >> 22) & 0x3ff) << 38;
 	sec += tmp;
-	ns = sec * 1000000000llu + hwts_wb->ns;
+	ns = sec * NSEC_PER_SEC + hwts_wb->ns;
 	if (timestamp)
-		*timestamp = ns + ptp_clk_offset;
+		*timestamp = ns + self->ptp_clk_offset;
 	return 0;
 }
 
@@ -1498,6 +1512,7 @@ static int hw_atl_b0_set_loopback(struct aq_hw_s *self, u32 mode, bool enable)
 	default:
 		return -EINVAL;
 	}
+
 	return 0;
 }
 
@@ -1511,7 +1526,6 @@ const struct aq_hw_ops hw_atl_ops_b0 = {
 	.hw_ring_rx_start     = hw_atl_b0_hw_ring_rx_start,
 	.hw_ring_rx_stop      = hw_atl_b0_hw_ring_rx_stop,
 	.hw_stop              = hw_atl_b0_hw_stop,
-	.hw_get_version       = NULL,
 
 	.hw_ring_tx_xmit         = hw_atl_b0_hw_ring_tx_xmit,
 	.hw_ring_tx_head_update  = hw_atl_b0_hw_ring_tx_head_update,
@@ -1556,7 +1570,7 @@ const struct aq_hw_ops hw_atl_ops_b0 = {
 	.rx_extract_ts           = hw_atl_b0_rx_extract_ts,
 	.extract_hwts            = hw_atl_b0_extract_hwts,
 	.hw_set_offload          = hw_atl_b0_hw_offload_set,
-	.hw_set_loopback             = hw_atl_b0_set_loopback,
-	.hw_set_fc                   = hw_atl_b0_set_fc,
-	.hw_get_chip_info            = hw_atl_utils_get_chip_info,
+	.hw_set_loopback         = hw_atl_b0_set_loopback,
+	.hw_set_fc               = hw_atl_b0_set_fc,
+	.hw_get_chip_info        = hw_atl_utils_get_chip_info,
 };

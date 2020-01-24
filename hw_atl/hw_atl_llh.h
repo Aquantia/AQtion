@@ -27,6 +27,8 @@ u32 hw_atl_reg_glb_cpu_sem_get(struct aq_hw_s *aq_hw, u32 semaphore);
 /* set global register reset disable */
 void hw_atl_glb_glb_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 glb_reg_res_dis);
 
+void hw_atl_rx_reset_set(struct aq_hw_s *aq_hw, u32 rx_reset);
+
 /* set soft reset */
 void hw_atl_glb_soft_res_set(struct aq_hw_s *aq_hw, u32 soft_res);
 
@@ -723,6 +725,8 @@ void hw_atl_tps_tx_pkt_shed_tc_data_weight_set(struct aq_hw_s *aq_hw,
 
 /* set tx register reset disable */
 void hw_atl_tx_tx_reg_res_dis_set(struct aq_hw_s *aq_hw, u32 tx_reg_res_dis);
+
+void hw_atl_tx_reset_set(struct aq_hw_s *aq_hw, u32 tx_reset);
 
 /* msm */
 
