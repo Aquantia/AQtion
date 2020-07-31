@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (C) 2014-2019 aQuantia Corporation. */
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
+ */
 
 /* File aq_drvinfo.c: Definition of common code for firmware info in sys.*/
 
@@ -18,11 +22,9 @@
 static ssize_t temperature_show(struct device *ndev,
 				struct device_attribute *attr, char *buf)
 {
-	int err;
-
 	struct aq_nic_s *aq_nic = pci_get_drvdata(to_pci_dev(ndev));
-
 	int temp = 0;
+	int err;
 
 	if (!aq_nic->aq_fw_ops->get_phy_temp)
 		return -ENXIO;
@@ -38,11 +40,9 @@ static ssize_t temperature_show(struct device *ndev,
 static ssize_t cable_show(struct device *ndev,
 			  struct device_attribute *attr, char *buf)
 {
-	int err;
-
 	struct aq_nic_s *aq_nic = pci_get_drvdata(to_pci_dev(ndev));
-
 	int cable_len = 0;
+	int err;
 
 	if (!aq_nic->aq_fw_ops->get_cable_len)
 		return -ENXIO;

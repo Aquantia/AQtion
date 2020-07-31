@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File aq_vec.c: Definition of common structure for vector of Rx and Tx rings.
@@ -94,11 +95,7 @@ err_exit:
 			work_done = budget;
 
 		if (work_done < budget) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 			napi_complete_done(napi, work_done);
-#else
-			napi_complete(napi);
-#endif
 			self->aq_hw_ops->hw_irq_enable(self->aq_hw,
 					1U << self->aq_ring_param.vec_idx);
 		}
@@ -110,16 +107,11 @@ err_exit:
 struct aq_vec_s *aq_vec_alloc(struct aq_nic_s *aq_nic, unsigned int idx,
 			      struct aq_nic_cfg_s *aq_nic_cfg)
 {
-	struct aq_ring_s *ring = NULL;
 	struct aq_vec_s *self = NULL;
-	unsigned int i = 0U;
-	int err = 0;
 
 	self = kzalloc(sizeof(*self), GFP_KERNEL);
-	if (!self) {
-		err = -ENOMEM;
+	if (!self)
 		goto err_exit;
-	}
 
 	self->aq_nic = aq_nic;
 	self->aq_ring_param.vec_idx = idx;
@@ -129,16 +121,23 @@ struct aq_vec_s *aq_vec_alloc(struct aq_nic_s *aq_nic, unsigned int idx,
 	cpumask_set_cpu(self->aq_ring_param.cpu,
 			&self->aq_ring_param.affinity_mask);
 
-	self->tx_rings = 0;
-	self->rx_rings = 0;
-
 	netif_napi_add(aq_nic_get_ndev(aq_nic), &self->napi,
 		       aq_vec_poll, AQ_CFG_NAPI_WEIGHT);
 
+err_exit:
+	return self;
+}
+
+int aq_vec_ring_alloc(struct aq_vec_s *self, struct aq_nic_s *aq_nic,
+		      unsigned int idx, struct aq_nic_cfg_s *aq_nic_cfg)
+{
+	struct aq_ring_s *ring = NULL;
+	unsigned int i = 0U;
+	int err = 0;
+
 	for (i = 0; i < aq_nic_cfg->tcs; ++i) {
-		unsigned int idx_ring = AQ_NIC_TCVEC2RING(self->nic,
-						self->tx_rings,
-						self->aq_ring_param.vec_idx);
+		const unsigned int idx_ring = AQ_NIC_CFG_TCVEC2RING(aq_nic_cfg,
+								    i, idx);
 
 		ring = aq_ring_tx_alloc(&self->ring[i][AQ_VEC_TX_ID], aq_nic,
 					idx_ring, aq_nic_cfg);
@@ -162,12 +161,10 @@ struct aq_vec_s *aq_vec_alloc(struct aq_nic_s *aq_nic, unsigned int idx,
 	}
 
 err_exit:
-	if (err < 0) {
-		aq_vec_free(self);
-		self = NULL;
-	}
+	if (err < 0)
+		aq_vec_ring_free(self);
 
-	return self;
+	return err;
 }
 
 int aq_vec_init(struct aq_vec_s *self, const struct aq_hw_ops *aq_hw_ops,
@@ -277,6 +274,18 @@ err_exit:;
 
 void aq_vec_free(struct aq_vec_s *self)
 {
+	if (!self)
+		goto err_exit;
+
+	netif_napi_del(&self->napi);
+
+	kfree(self);
+
+err_exit:;
+}
+
+void aq_vec_ring_free(struct aq_vec_s *self)
+{
 	struct aq_ring_s *ring = NULL;
 	unsigned int i = 0U;
 
@@ -286,13 +295,12 @@ void aq_vec_free(struct aq_vec_s *self)
 	for (i = 0U, ring = self->ring[0];
 		self->tx_rings > i; ++i, ring = self->ring[i]) {
 		aq_ring_free(&ring[AQ_VEC_TX_ID]);
-		aq_ring_free(&ring[AQ_VEC_RX_ID]);
+		if (i < self->rx_rings)
+			aq_ring_free(&ring[AQ_VEC_RX_ID]);
 	}
 
-	netif_napi_del(&self->napi);
-
-	kfree(self);
-
+	self->tx_rings = 0;
+	self->rx_rings = 0;
 err_exit:;
 }
 
@@ -342,15 +350,13 @@ cpumask_t *aq_vec_get_affinity_mask(struct aq_vec_s *self)
 }
 
 void aq_vec_add_stats(struct aq_vec_s *self,
+		      const unsigned int tc,
 		      struct aq_ring_stats_rx_s *stats_rx,
 		      struct aq_ring_stats_tx_s *stats_tx)
 {
-	struct aq_ring_s *ring = NULL;
-	unsigned int r = 0U;
+	struct aq_ring_s *ring = self->ring[tc];
 
-	for (r = 0U, ring = self->ring[0];
-		self->tx_rings > r; ++r, ring = self->ring[r]) {
-		struct aq_ring_stats_tx_s *tx = &ring[AQ_VEC_TX_ID].stats.tx;
+	if (tc < self->rx_rings) {
 		struct aq_ring_stats_rx_s *rx = &ring[AQ_VEC_RX_ID].stats.rx;
 
 		stats_rx->packets += rx->packets;
@@ -367,6 +373,10 @@ void aq_vec_add_stats(struct aq_vec_s *self,
 		stats_rx->pg_reuses += rx->pg_reuses;
 		stats_rx->head = ring[AQ_VEC_RX_ID].sw_head;
 		stats_rx->tail = ring[AQ_VEC_RX_ID].sw_tail;
+	}
+
+	if (tc < self->tx_rings) {
+		struct aq_ring_stats_tx_s *tx = &ring[AQ_VEC_TX_ID].stats.tx;
 
 		stats_tx->packets += tx->packets;
 		stats_tx->bytes += tx->bytes;
@@ -375,39 +385,6 @@ void aq_vec_add_stats(struct aq_vec_s *self,
 		stats_tx->head = ring[AQ_VEC_TX_ID].sw_head;
 		stats_tx->tail = ring[AQ_VEC_TX_ID].sw_tail;
 	}
-}
-
-int aq_vec_get_sw_stats(struct aq_vec_s *self, u64 *data, unsigned int *p_count)
-{
-	struct aq_ring_stats_rx_s stats_rx;
-	struct aq_ring_stats_tx_s stats_tx;
-	unsigned int count = 0U;
-
-	memset(&stats_rx, 0U, sizeof(struct aq_ring_stats_rx_s));
-	memset(&stats_tx, 0U, sizeof(struct aq_ring_stats_tx_s));
-	aq_vec_add_stats(self, &stats_rx, &stats_tx);
-
-	/* This data should mimic aq_ethtool_queue_stat_names structure
-	 */
-	data[count] += stats_rx.packets;
-	data[++count] += stats_tx.packets;
-	data[++count] += stats_tx.queue_restarts;
-	data[++count] += stats_rx.jumbo_packets;
-	data[++count] += stats_rx.lro_packets;
-	data[++count] += stats_rx.errors;
-	data[++count] += stats_rx.alloc_fails;
-	data[++count] += stats_rx.skb_alloc_fails;
-	data[++count] += stats_rx.polls;
-	data[++count] += stats_rx.irqs;
-	data[++count] = stats_rx.head;
-	data[++count] = stats_rx.tail;
-	data[++count] = stats_tx.head;
-	data[++count] = stats_tx.tail;
-
-	if (p_count)
-		*p_count = ++count;
-
-	return 0;
 }
 
 int aq_vec_dump_rx_ring_descr(struct aq_vec_s *self, void *data, int len)

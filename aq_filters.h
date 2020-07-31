@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (C) 2014-2019 aQuantia Corporation. */
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
+ */
 
 /* File aq_filters.h: RX filters related functions. */
 
@@ -34,5 +38,9 @@ int aq_filters_vlans_update(struct aq_nic_s *aq_nic);
 int aq_filters_vlans_off(struct aq_nic_s *aq_nic);
 int aq_filters_vlans_on(struct aq_nic_s *aq_nic);
 int aq_apply_all_rule(struct aq_nic_s *aq_nic);
+
+int aq_set_data_fl3l4(struct ethtool_rx_flow_spec *fsp,
+		      struct aq_rx_filter_l3l4 *data,
+		      int location, bool add);
 
 #endif /* AQ_FILTERS_H */

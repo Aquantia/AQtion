@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File aq_common.h: Basic includes for all files in project. */
@@ -42,6 +43,16 @@
 #define AQ_DEVICE_ID_AQC111S	0x91B1
 #define AQ_DEVICE_ID_AQC112S	0x92B1
 
+#define AQ_DEVICE_ID_AQC113	0x04C0
+#define AQ_DEVICE_ID_AQC113DEV	0x00C0
+#define AQ_DEVICE_ID_AQC113C	0x14C0
+#define AQ_DEVICE_ID_AQC113CA	0x34C0
+#define AQ_DEVICE_ID_AQC115C	0x12C0
+#define AQ_DEVICE_ID_AQC116C	0x11C0
+
+#define AQ_DEVICE_ID_AQC113CS	0x94C0
+#define AQ_DEVICE_ID_AQC114CS	0x93C0
+
 #define AQ_CHIP_AQC100X		0xC100
 #define AQ_CHIP_AQC107X		0xC107
 #define AQ_CHIP_AQC108X		0xC108
@@ -51,30 +62,48 @@
 #define AQ_CHIP_AQC111EX	0x111E
 #define AQ_CHIP_AQC112EX	0x112E
 
-#define AQ_FW_AQC100X		"aquantia/80B1.fw"
-#define AQ_FW_AQC10XX		"aquantia/87B1.fw"
-#define AQ_FW_AQC11XX		"aquantia/91B1.fw"
+#define AQ_FW_AQC100X		"mrvl/80B1.fw"
+#define AQ_FW_AQC10XX		"mrvl/87B1.fw"
+#define AQ_FW_AQC11XX		"mrvl/91B1.fw"
 
-#define HW_ATL_NIC_NAME "aQuantia AQtion 10Gbit Network Adapter"
+#define HW_ATL_NIC_NAME "Marvell (aQuantia) AQtion 10Gbit Network Adapter"
 
 #define AQ_HWREV_ANY	0
 #define AQ_HWREV_1	1
 #define AQ_HWREV_2	2
+#define AQ_HWREV_3	3
 
 #define AQ_NIC_RATE_10G		BIT(0)
 #define AQ_NIC_RATE_5G		BIT(1)
-#define AQ_NIC_RATE_5GSR	BIT(2)
-#define AQ_NIC_RATE_2GS		BIT(3)
-#define AQ_NIC_RATE_1G		BIT(4)
-#define AQ_NIC_RATE_100M	BIT(5)
+#define AQ_NIC_RATE_2G5		BIT(2)
+#define AQ_NIC_RATE_1G		BIT(3)
+#define AQ_NIC_RATE_100M	BIT(4)
+#define AQ_NIC_RATE_10M		BIT(5)
+#define AQ_NIC_RATE_1G_HALF	BIT(6)
+#define AQ_NIC_RATE_100M_HALF	BIT(7)
+#define AQ_NIC_RATE_10M_HALF	BIT(8)
 
-#define AQ_NIC_RATE_EEE_10G	BIT(6)
-#define AQ_NIC_RATE_EEE_5G	BIT(7)
-#define AQ_NIC_RATE_EEE_2GS	BIT(8)
-#define AQ_NIC_RATE_EEE_1G	BIT(9)
+#define AQ_NIC_RATE_EEE_10G	BIT(9)
+#define AQ_NIC_RATE_EEE_5G	BIT(10)
+#define AQ_NIC_RATE_EEE_2G5	BIT(11)
+#define AQ_NIC_RATE_EEE_1G	BIT(12)
+#define AQ_NIC_RATE_EEE_100M	BIT(13)
 #define AQ_NIC_RATE_EEE_MSK     (AQ_NIC_RATE_EEE_10G |\
 				 AQ_NIC_RATE_EEE_5G |\
-				 AQ_NIC_RATE_EEE_2GS |\
-				 AQ_NIC_RATE_EEE_1G)
+				 AQ_NIC_RATE_EEE_2G5 |\
+				 AQ_NIC_RATE_EEE_1G |\
+				 AQ_NIC_RATE_EEE_100M)
+
+#define AQ_MIF_ID_ATL_A0 0x101U
+#define AQ_MIF_ID_ATL_B0 0x102U
+#define AQ_MIF_ID_ATL_B1 0x10AU
+#define AQ_MIF_ID_ATL_BX 0x102U
+#define AQ_MIF_ID_ATL_XX_MASK 0x307U
+#define AQ_MIF_ID_ATL_FPGA_VAL 0x080U
+#define AQ_MIF_ID_ATL_FPGA_MASK 0x0F0U
+#define AQ_MIF_ID_FPGA_ATL2 0x103U
+#define AQ_MIF_ID_ATL2B0 0x203U
+#define AQ_MIF_ID_ANT_A0 0x200U
+#define AQ_MIF_ID_ANT_XX_MASK 0x30FU
 
 #endif /* AQ_COMMON_H */

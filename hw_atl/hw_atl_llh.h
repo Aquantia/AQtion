@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File hw_atl_llh.h: Declarations of bitfield and register access functions for
@@ -14,6 +15,24 @@
 #include <linux/types.h>
 
 struct aq_hw_s;
+
+/* set temperature sense reset */
+void hw_atl_ts_reset_set(struct aq_hw_s *aq_hw, u32 val);
+
+/* set temperature sense power down */
+void hw_atl_ts_power_down_set(struct aq_hw_s *aq_hw, u32 val);
+
+/* get temperature sense power down */
+u32 hw_atl_ts_power_down_get(struct aq_hw_s *aq_hw);
+
+/* get temperature sense ready */
+u32 hw_atl_ts_ready_get(struct aq_hw_s *aq_hw);
+
+/* get temperature sense ready latch high */
+u32 hw_atl_ts_ready_latch_high_get(struct aq_hw_s *aq_hw);
+
+/* get temperature sense data */
+u32 hw_atl_ts_data_get(struct aq_hw_s *aq_hw);
 
 /* global */
 
@@ -360,10 +379,16 @@ void hw_atl_rpfl2broadcast_en_set(struct aq_hw_s *aq_hw, u32 l2broadcast_en);
 void hw_atl_rpfl2broadcast_flr_act_set(struct aq_hw_s *aq_hw,
 				       u32 l2broadcast_flr_act);
 
+/* get l2 broadcast filter action */
+u32 hw_atl_rpfl2broadcast_flr_act_get(struct aq_hw_s *aq_hw);
+
 /* set l2 multicast filter enable */
 void hw_atl_rpfl2multicast_flr_en_set(struct aq_hw_s *aq_hw,
 				      u32 l2multicast_flr_en,
 				      u32 filter);
+
+/* get l2 promiscuous mode enable */
+u32 hw_atl_rpfl2promiscuous_mode_en_get(struct aq_hw_s *aq_hw);
 
 /* set l2 promiscuous mode enable */
 void hw_atl_rpfl2promiscuous_mode_en_set(struct aq_hw_s *aq_hw,
@@ -435,6 +460,9 @@ void hw_atl_rpf_vlan_outer_etht_set(struct aq_hw_s *aq_hw, u32 vlan_outer_etht);
 /* set vlan promiscuous mode enable */
 void hw_atl_rpf_vlan_prom_mode_en_set(struct aq_hw_s *aq_hw,
 				      u32 vlan_prom_mode_en);
+
+/* Get VLAN promiscuous mode enable */
+u32 hw_atl_rpf_vlan_prom_mode_en_get(struct aq_hw_s *aq_hw);
 
 /* Set VLAN untagged action */
 void hw_atl_rpf_vlan_untagged_act_set(struct aq_hw_s *aq_hw,
@@ -597,6 +625,9 @@ u32 hw_atl_tdm_tx_desc_head_ptr_get(struct aq_hw_s *aq_hw, u32 descriptor);
 void hw_atl_tdm_tx_desc_len_set(struct aq_hw_s *aq_hw, u32 tx_desc_len,
 				u32 descriptor);
 
+void hw_atl_tdm_tx_early_pkt_brk_set(struct aq_hw_s *aq_hw,
+				     const u32 early_pkt_brk);
+
 /* set tx descriptor write-back interrupt enable */
 void hw_atl_tdm_tx_desc_wr_wb_irq_en_set(struct aq_hw_s *aq_hw,
 					 u32 tx_desc_wr_wb_irq_en);
@@ -626,10 +657,11 @@ void hw_atl_thm_lso_tcp_flag_of_middle_pkt_set(struct aq_hw_s *aq_hw,
 /* tpb */
 
 /* set TX Traffic Class Mode */
-void hw_atl_rpb_tps_tx_tc_mode_set(struct aq_hw_s *aq_hw, u32 tx_traf_class_mode);
+void hw_atl_tpb_tps_tx_tc_mode_set(struct aq_hw_s *aq_hw,
+				   u32 tx_traf_class_mode);
 
 /* get TX Traffic Class Mode */
-u32 hw_atl_rpb_tps_tx_tc_mode_get(struct aq_hw_s *aq_hw);
+u32 hw_atl_tpb_tps_tx_tc_mode_get(struct aq_hw_s *aq_hw);
 
 /* set tx buffer enable */
 void hw_atl_tpb_tx_buff_en_set(struct aq_hw_s *aq_hw, u32 tx_buff_en);
@@ -699,13 +731,13 @@ void hw_atl_tps_tx_pkt_shed_desc_tc_arb_mode_set(struct aq_hw_s *aq_hw,
 
 /* set tx packet scheduler descriptor tc max credit */
 void hw_atl_tps_tx_pkt_shed_desc_tc_max_credit_set(struct aq_hw_s *aq_hw,
-						   u32 max_credit,
-					    u32 tc);
+						   const u32 tc,
+						   const u32 max_credit);
 
 /* set tx packet scheduler descriptor tc weight */
 void hw_atl_tps_tx_pkt_shed_desc_tc_weight_set(struct aq_hw_s *aq_hw,
-					       u32 tx_pkt_shed_desc_tc_weight,
-					u32 tc);
+					       const u32 tc,
+					       const u32 weight);
 
 /* set tx packet scheduler descriptor vm arbitration mode */
 void hw_atl_tps_tx_pkt_shed_desc_vm_arb_mode_set(struct aq_hw_s *aq_hw,
@@ -713,13 +745,29 @@ void hw_atl_tps_tx_pkt_shed_desc_vm_arb_mode_set(struct aq_hw_s *aq_hw,
 
 /* set tx packet scheduler tc data max credit */
 void hw_atl_tps_tx_pkt_shed_tc_data_max_credit_set(struct aq_hw_s *aq_hw,
-						   u32 max_credit,
-					    u32 tc);
+						   const u32 tc,
+						   const u32 max_credit);
 
 /* set tx packet scheduler tc data weight */
 void hw_atl_tps_tx_pkt_shed_tc_data_weight_set(struct aq_hw_s *aq_hw,
-					       u32 tx_pkt_shed_tc_data_weight,
-					u32 tc);
+					       const u32 tc,
+					       const u32 weight);
+
+/* set tx descriptor rate mode */
+void hw_atl_tps_tx_desc_rate_mode_set(struct aq_hw_s *aq_hw,
+				      const u32 rate_mode);
+
+/* set tx packet scheduler descriptor rate enable */
+void hw_atl_tps_tx_desc_rate_en_set(struct aq_hw_s *aq_hw, const u32 desc,
+				    const u32 enable);
+
+/* set tx packet scheduler descriptor rate integral value */
+void hw_atl_tps_tx_desc_rate_x_set(struct aq_hw_s *aq_hw, const u32 desc,
+				   const u32 rate_int);
+
+/* set tx packet scheduler descriptor rate fractional value */
+void hw_atl_tps_tx_desc_rate_y_set(struct aq_hw_s *aq_hw, const u32 desc,
+				   const u32 rate_frac);
 
 /* tx */
 
@@ -834,6 +882,9 @@ u32 hw_atl_sem_ram_get(struct aq_hw_s *self);
 
 /* get global microprocessor mdio semaphore */
 u32 hw_atl_sem_mdio_get(struct aq_hw_s *self);
+
+u32 hw_atl_sem_reset1_get(struct aq_hw_s *self);
+u32 hw_atl_sem_reset2_get(struct aq_hw_s *self);
 
 /* get global microprocessor scratch pad register */
 u32 hw_atl_scrpad_get(struct aq_hw_s *aq_hw, u32 scratch_scp);

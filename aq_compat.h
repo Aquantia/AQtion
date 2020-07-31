@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File aq_compat.h: Backward compat with previous linux kernel versions */
@@ -18,6 +19,31 @@
 
 #ifndef RHEL_RELEASE_CODE
 #define RHEL_RELEASE_CODE 0
+#endif
+
+#ifndef SLE_VERSION
+#define SLE_VERSION(a, b, c)	KERNEL_VERSION(a, b, c)
+#endif
+
+#ifdef CONFIG_SUSE_KERNEL
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 14)
+/* SLES15 Beta1 is 4.12.14-2.
+ * SLES12 SP4 will also uses 4.12.14-nn.xx.y
+ */
+#define SLE_VERSION_CODE SLE_VERSION(15, 0, 0)
+#else
+#error Unsupported SUSE kernel version.
+#endif /* LINUX_VERSION_CODE == KERNEL_VERSION(x,y,z) */
+#endif /* CONFIG_SUSE_KERNEL */
+
+#ifndef SLE_VERSION_CODE
+#define SLE_VERSION_CODE 0
+#endif
+
+#ifndef NETIF_F_HW_MACSEC
+/* Disable MACSec code, if HW offload is not supported */
+#undef CONFIG_MACSEC
+#undef CONFIG_MACSEC_MODULE
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
@@ -55,6 +81,15 @@ static inline struct sk_buff *napi_alloc_skb(struct napi_struct *napi,
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+#if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 6))
+static inline u64 mul_u32_u32(u32 a, u32 b)
+{
+	return (u64)a * b;
+}
+#endif
+#endif	/* 4.11.0 */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 /* from commit 1dff8083a024650c75a9c961c38082473ceae8cf */
 #define page_to_virt(x)	__va(PFN_PHYS(page_to_pfn(x)))
@@ -77,6 +112,10 @@ static inline int page_ref_count(struct page *page)
 
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+#define napi_complete_done(n, done) napi_complete(n)
+#endif /* 3.19.0 */
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)) && !(RHEL_RELEASE_CODE)
 
 /* from commit 286ab723d4b83d37deb4017008ef1444a95cfb0d */
@@ -93,8 +132,7 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
  * pull the whole head buffer len for now
  */
 #define eth_get_headlen(ndev, __data, __max_len) (__max_len)
-#else	/* 3.18.0 */
-
+#elif RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 2)
 #define eth_get_headlen(ndev, data, len) \
 	eth_get_headlen(data, len)
 #endif /* 3.18.0 */
@@ -114,12 +152,12 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 						   NULL, __order)
 #endif  /* 3.19.0 */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0) &&\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) &&\
     RHEL_RELEASE_CODE <= RHEL_RELEASE_VERSION(7,3)
 #define hlist_add_behind(_a, _b) hlist_add_after(_b, _a)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 #if !(RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(6,8) && \
       RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,0)) && \
     !(RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,2))
@@ -131,11 +169,12 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,6,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 #define	IPV6_USER_FLOW	0x0e
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) &&\
+    (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 2))
 #define timecounter_adjtime(tc, delta) do { \
 		(tc)->nsec += delta; } while(0)
 #define skb_vlan_tag_present(__skb) ((__skb)->vlan_tci & VLAN_TAG_PRESENT)
@@ -173,16 +212,24 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 4)
 #define NETIF_F_GSO_PARTIAL 0
 #endif
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
-	(RHEL_RELEASE_CODE && (RHEL_RELEASE_CODE <= RHEL_RELEASE_VERSION(7, 4)))
-#define pci_irq_vector_compat(self, nr) \
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+#if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 5))
+#ifdef CONFIG_PCI_MSI
+#define pci_irq_vector(pdev, nr) \
 ( \
-	(self->pdev->msix_enabled) ? \
-		self->msix_entry[nr].vector \
+	(pdev->msix_enabled) ? \
+		((struct aq_nic_s *)pci_get_drvdata(pdev))->msix_entry[nr].vector \
 		: \
-		self->pdev->irq + nr \
+		pdev->irq + nr \
 )
-#endif
+#else
+#define pci_irq_vector(pdev, nr) \
+( \
+	pdev->irq \
+)
+#endif /* CONFIG_PCI_MSI */
+#endif /* !RHEL || RHEL < 7.5 */
+#endif /* < 4.8.0 */
 
 #if !IS_ENABLED(CONFIG_CRC_ITU_T)
 u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
@@ -199,5 +246,22 @@ u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 1)
+#define dev_open(dev, extack) dev_open(dev)
+#endif
 
-#endif /* AQ_COMMON_H */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) && \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) || \
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 3) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 6)
+#define TC_SETUP_QDISC_MQPRIO TC_SETUP_MQPRIO
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 3))
+#define NETIF_F_HW_TC 0
+#endif
+#endif
+
+#endif /* AQ_COMPAT_H */

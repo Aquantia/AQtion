@@ -1,6 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File hw_atl_fw_image.h

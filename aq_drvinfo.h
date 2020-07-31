@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (C) 2014-2019 aQuantia Corporation. */
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
+ */
 
 /* File aq_drvinfo.h: Declaration of common code for firmware info in sys.*/
 

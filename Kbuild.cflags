@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0-only
+################################################################################
+#
+# Marvell (aQuantia) Ethernet Controller AQtion Linux Driver
+# Copyright (C) 2020 Marvell International Ltd.
+#
+################################################################################
+
+#
+# Makefile for the AQtion(tm) Ethernet driver
+# (common cflags)
+#
+
+subdir-ccflags-y:=-I$(src)
+
+ifneq ($(filter gcc cc,$(CC)),)
+	#subdir-ccflags-y += -DPCI_DEBUG -ggdb
+	#subdir-ccflags-y += -DDEBUG_DUMPREGS
+	#subdir-ccflags-y += -DTSN_SUPPORT
+	subdir-ccflags-y += -Wall
+endif
+
+ifneq ($(filter clang-%,$(CC)),)
+	subdir-ccflags-y += -Wno-date-time -W --system-header-prefix=linux/ \
+	-fsanitize=integer,address,undefined,alignment,bool,bounds,null,\
+	enum,integer-divide-by-zero,shift,unreachable,unsigned-integer-overflow
+endif

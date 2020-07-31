@@ -1,17 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* aQuantia Corporation Network Driver
- * Copyright (C) 2018-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2018-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 #ifndef AQ_PHY_H
 #define AQ_PHY_H
 
-#include <linux/mdio.h>
+#include "linux/types.h"
 
-#include "hw_atl/hw_atl_llh.h"
-#include "hw_atl/hw_atl_llh_internal.h"
-#include "aq_hw_utils.h"
-#include "aq_hw.h"
+struct aq_hw_s;
 
 #define HW_ATL_PHY_ID_MAX 32U
 

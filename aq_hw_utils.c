@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File aq_hw_utils.c: Definitions of helper functions used across
@@ -41,12 +42,17 @@ u32 aq_hw_read_reg(struct aq_hw_s *hw, u32 reg)
 	    (~0U) == readl(hw->mmio +
 			   hw->aq_nic_cfg->aq_hw_caps->hw_alive_check_addr))
 		aq_utils_obj_set(&hw->flags, AQ_HW_FLAG_ERR_UNPLUG);
-
+#ifdef DEBUG_DUMPREGS
+	printk("aq rr 0x%04x: 0x%x\n", reg, value);
+#endif
 	return value;
 }
 
 void aq_hw_write_reg(struct aq_hw_s *hw, u32 reg, u32 value)
 {
+#ifdef DEBUG_DUMPREGS
+	printk("aq wr 0x%04x: 0x%x\n", reg, value);
+#endif
 	writel(value, hw->mmio + reg);
 }
 
@@ -56,11 +62,37 @@ void aq_hw_write_reg(struct aq_hw_s *hw, u32 reg, u32 value)
  */
 u64 aq_hw_read_reg64(struct aq_hw_s *hw, u32 reg)
 {
-	u64 value = aq_hw_read_reg(hw, reg);
+	u64 value = -1;
+#ifdef CONFIG_X86_64
+	if (hw->aq_nic_cfg->aq_hw_caps->op64bit) {
+		value = readq(hw->mmio + reg);
+	} else
+#endif
+	{
+		value = aq_hw_read_reg(hw, reg);
+		value |= (u64)aq_hw_read_reg(hw, reg + 4) << 32;
+	}
 
-	value |= (u64)aq_hw_read_reg(hw, reg + 4) << 32;
+	if ((~0ULL) == value &&
+	    (~0U) == readl(hw->mmio +
+			   hw->aq_nic_cfg->aq_hw_caps->hw_alive_check_addr))
+		aq_utils_obj_set(&hw->flags, AQ_HW_FLAG_ERR_UNPLUG);
 
 	return value;
+}
+
+void aq_hw_write_reg64(struct aq_hw_s *hw, u32 reg, u64 value)
+{
+#ifdef CONFIG_X86_64
+	if (hw->aq_nic_cfg->aq_hw_caps->op64bit) {
+		writeq(value, hw->mmio + reg);
+	} else
+#endif
+	{
+		writel((u32)(value & 0xffffffff), hw->mmio + reg);
+		writel((u32)((value >> 32) & 0xffffffff),
+		       hw->mmio + reg + sizeof(u32));
+	}
 }
 
 int aq_hw_err_from_flags(struct aq_hw_s *hw)
@@ -78,4 +110,30 @@ int aq_hw_err_from_flags(struct aq_hw_s *hw)
 
 err_exit:
 	return err;
+}
+
+int aq_hw_num_tcs(struct aq_hw_s *hw)
+{
+	switch (hw->aq_nic_cfg->tc_mode) {
+	case AQ_TC_MODE_8TCS:
+		return 8;
+	case AQ_TC_MODE_4TCS:
+		return 4;
+	default:
+		break;
+	}
+
+	return 1;
+}
+
+int aq_hw_q_per_tc(struct aq_hw_s *hw)
+{
+	switch (hw->aq_nic_cfg->tc_mode) {
+	case AQ_TC_MODE_8TCS:
+		return 4;
+	case AQ_TC_MODE_4TCS:
+		return 8;
+	default:
+		return 4;
+	}
 }

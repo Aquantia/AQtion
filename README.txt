@@ -1,5 +1,5 @@
-Linux* aQuantia AQtion Driver for the aQuantia Multi-Gigabit PCI Express Family of
-Ethernet Adapters
+Linux* aQuantia AQtion Driver for the aQuantia Multi-Gigabit PCI Express Family
+of Ethernet Adapters
 =============================================================================
 
 Contents
@@ -11,51 +11,64 @@ Contents
 - Building and Installation
 - Command Line Parameters
 - Additional Configurations
+- Uninstall
 - Support
 
 IMPORTANT NOTE
 ==============
 
-WARNING:  The AQtion driver compiles by default with the LRO (Large Receive
-Offload) feature enabled.  This option offers the lowest CPU utilization for
-receives, but is completely incompatible with *routing/ip forwarding* and
-*bridging*.  If enabling ip forwarding or bridging is a requirement, it is
-necessary to disable LRO using compile time options as noted in the LRO
-section later in this document.  The result of not disabling LRO when combined
-with ip forwarding or bridging can be low throughput or even a kernel panic.
+WARNING:
+AQtion driver is built with the LRO (Large Receive Offload) feature enabled
+by default.
+This option offers the lowest CPU utilization for receives, but it is completely
+incompatible with *routing/ip forwarding* and *bridging*.
+If you need ip forwarding or bridging, please make sure to disable LRO using the
+compile time options described in the LRO section below.
+NB! If LRO is enabled, attempts to use ip forwarding or bridging can result in
+low throughput or even a kernel panic.
 
 In This Release
 ===============
 
-This file describes the aQuantia AQtion Driver for the aQuantia Multi-Gigabit PCI Express Family of
-Ethernet Adapters.  This driver supports the linux kernels >= 3.10, 
-and includes support for x86_64 and ARM Linux system.
+This file describes the aQuantia AQtion Driver for the aQuantia Multi-Gigabit
+PCI Express Family of Ethernet Adapters.
+This driver supports Linux kernels >= 3.10, and includes support for x86_64 and
+ARM Linux system.
 
-This release contains source tarball and (optional) src.rpm package.
+This release contains a source tarball and (optionally) a src.rpm package.
 
 Identifying Your Adapter
 ========================
 
-The driver in this release is compatible with AQC-100, AQC-107, AQC-108 based ethernet adapters.
+The driver in this release is compatible with ethernet adapters based on:
+ - AQC-100,
+ - AQC-107,
+ - AQC-108,
+ - AQC-109,
+ - AQC-111,
+ - AQC-112,
+ - AQC-113.
 
 
 SFP+ Devices (for AQC-100 based adapters)
 ----------------------------------
 
-This release tested with passive Direct Attach Cables (DAC) and SFP+/LC Optical Transceiver.
+This release was verified to work with passive Direct Attach Cables (DAC) and
+SFP+/LC Optical Transceiver.
 
 Building and Installation
 =========================
 
 To manually build this driver:
 ------------------------------------------------------------
-1. Make sure you have all the environment to build standalone kernel module.
-   On debian based systems you may do the following:
+1. Make sure you have all the packages required to build a standalone kernel
+   module.
+   On a debian-based systems you should at least install the following packages:
 
 	sudo apt install linux-headers build-essential
 
-2. Move the base driver tar file to the directory of your choice. For example,
-   use /home/username/aquantia.
+2. Move the base driver tar file to the directory of your choice.
+   For example, use /home/username/aquantia.
    Untar/unzip archive:
 
 	cd ~/aquantia
@@ -65,43 +78,48 @@ To manually build this driver:
 
 	cd Aquantia-AQtion-x.y.z/
 
+NB! Make sure that pathname doesn't contain whitespaces and special characters
+    (e.g. brackets), because kernel build system doesn't support such paths
+    unfortunately and the build will fail.
+
 4. Compile the driver module:
 	make
 
-5. Load the dependencies and the module:
-	sudo modprobe ptp
-	sudo modprobe crc_itu_t
-	sudo insmod atlantic.ko
-
-6. Unload the driver
+5. Unload the driver, if an older version is in use:
 	sudo rmmod atlantic
 
-7. Install the driver in the system
-	make && make install
+5. Load the dependencies and the module itself:
+	sudo make load
 
-driver will be in:
+7. Install the driver
+	sudo make install
+
+driver will be installed into the following location:
 
 	/lib/modules/`uname -r`/aquantia/atlantic.ko
 
-8. Uninstall the driver:
-	make uninstall
-or run the following commands:
-	sudo rm -f /lib/modules/`uname -r`/aquantia/atlantic.ko
-	depmod -a `uname -r`
+NB! You might need to update initramfs image uponon install
+(e.g. if atlantic.ko is a part of it, otherwise an old version will be
+loaded from initramfs image on next reboot).
+This is a potentially harmful operation, so 'make install' will check
+if such an update is needed and will ask for your consent before actually
+running update-initramfs / dracut.
+Please make sure you understand the risks before choosing 'Y'!
 
-Alternatively build and install driver with dkms
+Alternatively build and install the driver with dkms
 ------------------------------------------------------------
-1. Make sure you have all the environment to build standalone kernel module.
-   On debian based systems you may do the following:
+1. Make sure you have all the packages required to build a standalone kernel
+   module.
+   On Debian-based systems the following command can be used:
 
 	sudo apt-get install linux-headers-`uname -r` build-essential gawk dkms
 
-   On redhat based systems you may do the following:
+   On redhat-based systems the following command can be used:
 
 	sudo yum install kernel-devel-`uname -r` gcc gcc-c++ make gawk dkms
 
-2. Move the base driver tar file to the directory of your choice. For example,
-   use /home/username/aquantia.
+2. Move the base driver tar file to the directory of your choice.
+   For example, use /home/username/aquantia.
    Untar/unzip archive:
 
 	cd ~/aquantia
@@ -111,91 +129,84 @@ Alternatively build and install driver with dkms
 
 	cd Aquantia-AQtion-x.y.z/
 
-4. Build and install driver:
+4. Build and install the driver:
 
 	sudo ./dkms.sh install
 
-driver will be in:
+driver will be installed into the following location:
 
 	/lib/modules/`uname -r`/updates/dkms/atlantic.ko
 
-5. Uninstall the driver:
-
-	sudo ./dkms.sh uninstall
-
-Install driver on Debian\Ubuntu using atlantic-x.y.z.deb
+Install the driver on Debian\Ubuntu using atlantic-x.y.z.deb
 ------------------------------------------------------------
-1. Make sure you have all the environment to build standalone kernel module. Execute the commands:
+1. Make sure you have all the packages required to build a standalone kernel
+   module.
+   Execute the command:
 	sudo apt-get install linux-headers-`uname -r`
 
-2. Move the atlantic-x.y.z.deb file to the directory of your choice. For example,
-   use /home/username/aquantia. 
- 
-3. Execute the commands:
-    cd /home/username/aquantia
-    sudo apt-get install ./atlantic-x.y.z.deb
-	
-    After this driver will be installed.
-    (You can check this via "dpkg -l | grep -i atlantic")
+2. Move the atlantic-x.y.z.deb file to the directory of your choice.
+   For example, use /home/username/aquantia.
 
-4. Uninstall the driver:
-   Run the following commands:
-   sudo dpkg -P atlantic
+3. Execute the following commands:
+	cd /home/username/aquantia
+	sudo apt-get install ./atlantic-x.y.z.deb
 
-	
-Alternatively you can use  atlantic-x.y.z.noarch.rpm
+You can use "dpkg -l | grep -i atlantic" to verify that the driver has been
+installed.
+
+Alternatively you can use atlantic-x.y.z.noarch.rpm
 ------------------------------------------------------------
-1. Make sure you have all the environment to build standalone kernel module. Execute the commands:
+1. Make sure you have all the packages required to build a standalone kernel
+   module.
+   Execute the command:
 	sudo yum install kernel-devel-`uname -r`
 
-2. Move the atlantic-x.y.z.noarch.rpm file to the directory of your choice. For example,
-   use /home/username/aquantia. 
- 
-3. Execute the commands:
-    cd /home/username/aquantia
-    sudo yum install ./atlantic-x.y.z.noarch.rpm
-	
-    After this driver will be installed.
-    (You can check this via "rpm -qa | grep -i atlantic")
+2. Move the atlantic-x.y.z.noarch.rpm file to the directory of your choice.
+   For example, use /home/username/aquantia.
 
-4. Uninstall the driver:
-   Run the following commands:
-   sudo rpm -e atlantic-x.y.z.noarch
+3. Execute the following commands:
+	cd /home/username/aquantia
+	sudo yum install ./atlantic-x.y.z.noarch.rpm
+
+You can use "rpm -qa | grep -i atlantic" to verify that the driver has been
+installed.
 
 Check that the driver is working
 ------------------------------------------------------------
-	
-1. Verify ethernet interface appears:
-	ifconfig
-	or
-	ip addr show
-	
-	If no new interface appears, check dmesg output.
-	If you see "Bad firmware detected" please update firmware on your ethernet card.
 
-2. Assign an IP address to the interface by entering the following, where
-   x is the interface number:
+1. Verify that ethernet interface appears:
+	ifconfig
+   or
+	ip addr show
+
+   If there's no new interface in the output, then check the dmesg output.
+   If you see a "Bad firmware detected" message there, please update the
+   firmware on your ethernet card.
+
+2. Assign an IP address to the interface
+   (replace 'ethX' with an actual interface name):
 
 	ifconfig ethX <IP_address> netmask <netmask>
-    or
-	ip addr add <IP_address> dev <DEV>
+   or
+	ip addr add <IP_address> dev ethX
 
-3. Verify that the interface works. Enter the following, where <IP_address>
-   is the IP address for another machine on the same subnet as the interface
-   that is being tested:
+3. Verify that the interface works
+   (replace '<IP_address>' with an actual IP address of another machine on
+    the same subnet with the interface under test):
 
 	ping  <IP_address>
-or (for IPv6)
+   or (for IPv6)
 	ping6 <IPv6_address>
 
-4. Check the correct version of the driver is active (assume interface is eth1):
+4. Make sure you are using the correct version of the driver
+   (replace 'ethX' with an actual interface name):
 
-        ethtool -i eth1
+	ethtool -i ethX
 
 Troubleshooting
 -----------------------
 
-Some distributions do not provide kernel sources ready for thirdparty module build.
+Some distributions don't provide kernel sources ready for 3rdparty module build.
 In general, the following could be used to prepare kernel source tree for build:
 
 	sudo su
@@ -206,42 +217,45 @@ In general, the following could be used to prepare kernel source tree for build:
 
 Configuration
 =========================
-  Viewing Link Messages
-  ---------------------
-  Link messages will not be displayed to the console if the distribution is
-  restricting system messages. In order to see network driver link messages on
-  your console, set dmesg to eight by entering the following:
 
-       dmesg -n 8
+Viewing Link Messages
+---------------------
+Link messages will not be displayed to the console, if the distribution is
+restricting system messages.
+In order to see network driver link messages on your console, set the dmesg
+log level to eight by running:
 
-  NOTE: This setting is not saved across reboots.
+	dmesg -n 8
 
-  Jumbo Frames
-  ------------
-  The driver supports Jumbo Frames for all adapters. Jumbo Frames support is
-  enabled by changing the MTU to a value larger than the default of 1500.
-  The maximum value for the MTU is 16000.  Use the `ip` command to
-  increase the MTU size.  For example:
+NOTE: This setting is not saved across reboots.
 
-        ip link set mtu 16000 dev enp1s0
+Jumbo Frames
+------------
+This driver supports Jumbo Frames for all adapters. Jumbo Frames support is
+enabled by changing the MTU to a value larger than the default (1500).
+The maximum value for the MTU is 16000.
+Use the `ip` command to increase the MTU size. For example:
 
-  ethtool
-  -------
-  The driver utilizes the ethtool interface for driver configuration and
-  diagnostics, as well as displaying statistical information. The latest
-  ethtool version is required for this functionality.
+	ip link set mtu 16000 dev enp1s0
 
-  NAPI
-  ----
-  NAPI (Rx polling mode) is supported in the atlantic driver.
+ethtool
+-------
+This driver utilizes ethtool interface for driver configuration and diagnostics,
+as well as displaying statistical information.
+Make sure you have an up-to-date version of ethtool to use this functionality.
+
+NAPI
+----
+This driver supports NAPI (Rx polling mode).
 
 Supported ethtool options
 ============================
- Viewing adapter settings
- ---------------------
- ethtool <ethX>
 
- Output example:
+Viewing adapter settings
+---------------------
+	ethtool <ethX>
+
+Output example:
 
   Settings for enp1s0:
     Supported ports: [ TP ]
@@ -273,20 +287,21 @@ Supported ethtool options
     Link detected: yes
 
  ---
- Note: AQrate speeds (2.5/5 Gb/s) will be displayed only with linux kernels > 4.10.
-    But you can still use these speeds:
+Note: AQrate speeds (2.5/5 Gb/s) will be displayed only on
+   Linux kernels > 4.10.
+   But the speeds themselves can be used even on older kernel version:
 	ethtool -s eth0 autoneg off speed 2500
 
- Note: AQC FW provides only information on actual negotiated pause frame usage.
-    Link partner pause settings are not directly available.
-    Thus, `Advertised pause frame use` actually shows negotiated settings.
-    To check on real advertised settings, `ethtool -a eth0` could be used.
+Note: AQC FW provides only information on actual negotiated pause frame usage.
+   Link partner pause settings are not directly available.
+   Thus, `Advertised pause frame use` actually shows negotiated settings.
+   To see the real advertised settings, use `ethtool -a eth0`.
 
- Viewing adapter information
- ---------------------
- ethtool -i <ethX>
+Viewing adapter information
+---------------------
+	ethtool -i <ethX>
 
- Output example:
+Output example:
  driver: atlantic
  version: 2.3.1
  firmware-version: 3.1.78
@@ -298,11 +313,11 @@ Supported ethtool options
  supports-register-dump: yes
  supports-priv-flags: no
 
- Viewing Ethernet adapter statistics:
- ---------------------
- ethtool -S <ethX>
+Viewing Ethernet adapter statistics:
+---------------------
+	ethtool -S <ethX>
 
- Output example:
+Output example:
  NIC statistics:
      InPackets: 13238607
      InUCast: 13293852
@@ -347,54 +362,54 @@ Supported ethtool options
      Queue[3] InLroPackets: 0
      Queue[3] InErrors: 0
 
- Disable GRO when routing/bridging
- ---------------------------------
- Due to a known kernel issue, GRO must be turned off when routing/bridging. 
- Its can be done with command:
- 
- ethtool -K <ethX> gro off
+Disable GRO when routing/bridging
+---------------------------------
+Due to a known kernel issue, GRO must be turned off when routing/bridging.
+This can be done by running:
 
- 
- Disable LRO when routing/bridging
- ---------------------------------
- Due to a known kernel issue, LRO must be turned off when routing/bridging. 
- Its can be done with command:
- 
- ethtool -K <ethX> lro off
+	ethtool -K <ethX> gro off
 
- Interrupt coalescing support
- ---------------------------------
- ITR mode, TX/RX coalescing timings could be viewed with:
 
- ethtool -c <ethX>
+Disable LRO when routing/bridging
+---------------------------------
+Due to a known kernel issue, LRO must be turned off when routing/bridging.
+This can be done by running:
 
- and changed with:
+	ethtool -K <ethX> lro off
 
- ethtool -C <ethX> tx-usecs <usecs> rx-usecs <usecs>
+Interrupt coalescing support
+---------------------------------
+ITR mode, TX/RX coalescing timings could be viewed with:
 
- To disable coalescing:
+	ethtool -c <ethX>
 
- ethtool -C <ethX> tx-usecs 0 rx-usecs 0 tx-max-frames 1 tx-max-frames 1
+and changed with:
 
- Wake on LAN support
- ---------------------------------
+	ethtool -C <ethX> tx-usecs <usecs> rx-usecs <usecs>
 
- WOL support by magic packet:
+To disable coalescing:
 
- ethtool -s <ethX> wol g
+	ethtool -C <ethX> tx-usecs 0 rx-usecs 0 tx-max-frames 1 tx-max-frames 1
 
- To disable WOL:
-
- ethtool -s <ethX> wol d
-
- Set and check the driver message level
+Wake on LAN support
  ---------------------------------
 
- Set message level
+WOL support by magic packet:
 
- ethtool -s <ethX> msglvl <level>
+	ethtool -s <ethX> wol g
 
- Level values:
+To disable WOL:
+
+	ethtool -s <ethX> wol d
+
+Set and check the driver message level
+---------------------------------
+
+Set message level
+
+	ethtool -s <ethX> msglvl <level>
+
+Level values:
 
  0x0001 - general driver status.
  0x0002 - hardware probing.
@@ -411,137 +426,145 @@ Supported ethtool options
  0x2000 - hardware status.
  0x4000 - Wake-on-LAN status.
 
- By default, the level of debugging messages is set 0x0001(general driver status).
+By default, the level of debugging messages is set to 0x0001
+(general driver status).
 
- Check message level
+Check message level
 
- ethtool <ethX> | grep "Current message level"
+	ethtool <ethX> | grep "Current message level"
 
- If you want to disable the output of messages
+If you want to disable the output of messages
 
- ethtool -s <ethX> msglvl 0
+	ethtool -s <ethX> msglvl 0
 
- RX flow rules (ntuple filters)
- ---------------------------------
- There are separate rules supported, that applies in that order:
- 1. 16 VLAN ID rules
- 2. 16 L2 EtherType rules
- 3. 8 L3/L4 5-Tuple rules
+RX flow rules (ntuple filters)
+---------------------------------
+This driver supports several rule types, but the order is fixed:
+1. 16 VLAN ID rules
+2. 16 L2 EtherType rules
+3. 8 L3/L4 5-Tuple rules
 
 
- The driver utilizes the ethtool interface for configuring ntuple filters,
- via "ethtool -N <device> <filter>".
+This driver uses ethtool interface for configuring ntuple filters,
+via "ethtool -N <device> <filter>".
 
- To enable or disable the RX flow rules:
+Use the following command to enable/disable the RX flow rules:
 
- ethtool -K ethX ntuple <on|off>
+	ethtool -K ethX ntuple <on|off>
 
- When disabling ntuple filters, all the user programed filters are
- flushed from the driver cache and hardware. All needed filters must
- be re-added when ntuple is re-enabled.
+When ntuple filters are disabled, the driver flushes all the previously
+programmed user filters from both the driver cache and the hardware.
+Thus, everything must be re-added when ntuple is re-enabled.
 
- Because of the fixed order of the rules, the location of filters is also fixed:
+Since the order of the rules is, the location of filters is also fixed:
  - Locations 0 - 15 for VLAN ID filters
  - Locations 16 - 31 for L2 EtherType filters
  - Locations 32 - 39 for L3/L4 5-tuple filters (locations 32, 36 for IPv6)
 
- The L3/L4 5-tuple (protocol, source and destination IP address, source and
- destination TCP/UDP/SCTP port) is compared against 8 filters. For IPv4, up to
- 8 source and destination addresses can be matched. For IPv6, up to 2 pairs of
- addresses can be supported. Source and destination ports are only compared for
- TCP/UDP/SCTP packets.
+The L3/L4 5-tuple (protocol, source and destination IP address, source and
+destination TCP/UDP/SCTP port) is compared against 8 filters.
+For IPv4, up to 8 source and destination addresses can be matched.
+For IPv6, only 2 pairs of addresses are supported at maximum.
+Source and destination ports are compared only for TCP/UDP/SCTP packets.
 
- To add a filter that directs packet to queue 5, use <-N|-U|--config-nfc|--config-ntuple> switch:
+To add a filter that directs a packet to queue 5, use the
+ <-N|-U|--config-nfc|--config-ntuple> switch:
 
- ethtool -N <ethX> flow-type udp4 src-ip 10.0.0.1 dst-ip 10.0.0.2 src-port 2000 dst-port 2001 action 5 <loc 32>
+	ethtool -N <ethX> flow-type udp4 src-ip 10.0.0.1 dst-ip 10.0.0.2 src-port 2000 dst-port 2001 action 5 <loc 32>
 
+where:
  - action is the queue number.
  - loc is the rule number.
 
- For "flow-type ip4|udp4|tcp4|sctp4|ip6|udp6|tcp6|sctp6" you must set the loc
- number within 32 - 39.
- For "flow-type ip4|udp4|tcp4|sctp4|ip6|udp6|tcp6|sctp6" you can set 8 rules
- for traffic IPv4 or you can set 2 rules for traffic IPv6. Loc number traffic
- IPv6 is 32 and 36.
- At the moment you can not use IPv4 and IPv6 filters at the same time.
+For "flow-type ip4|udp4|tcp4|sctp4|ip6|udp6|tcp6|sctp6" the loc value must be
+between 32 and 39 ([32 .. 39]).
+For "flow-type ip4|udp4|tcp4|sctp4|ip6|udp6|tcp6|sctp6" you can create:
+ - up to 8 rules for IPv4 traffic;
+ - up to 2 rules for IPv6 traffic.
+In case of IPv6 the loc value must be either 32 or 36.
+At the moment you can not use IPv4 and IPv6 filters at the same time.
 
- Example filter for IPv6 filter traffic:
+Example filter for IPv6 filter traffic:
 
- sudo ethtool -N <ethX> flow-type tcp6 src-ip 2001:db8:0:f101::1 dst-ip 2001:db8:0:f101::2 action 1 loc 32
- sudo ethtool -N <ethX> flow-type ip6 src-ip 2001:db8:0:f101::2 dst-ip 2001:db8:0:f101::5 action -1 loc 36
+	sudo ethtool -N <ethX> flow-type tcp6 src-ip 2001:db8:0:f101::1 dst-ip 2001:db8:0:f101::2 action 1 loc 32
+	sudo ethtool -N <ethX> flow-type ip6 src-ip 2001:db8:0:f101::2 dst-ip 2001:db8:0:f101::5 action -1 loc 36
 
- Example filter for IPv4 filter traffic:
+Example filter for IPv4 filter traffic:
 
- sudo ethtool -N <ethX> flow-type udp4 src-ip 10.0.0.4 dst-ip 10.0.0.7 src-port 2000 dst-port 2001 loc 32
- sudo ethtool -N <ethX> flow-type tcp4 src-ip 10.0.0.3 dst-ip 10.0.0.9 src-port 2000 dst-port 2001 loc 33
- sudo ethtool -N <ethX> flow-type ip4 src-ip 10.0.0.6 dst-ip 10.0.0.4 loc 34
+	sudo ethtool -N <ethX> flow-type udp4 src-ip 10.0.0.4 dst-ip 10.0.0.7 src-port 2000 dst-port 2001 loc 32
+	sudo ethtool -N <ethX> flow-type tcp4 src-ip 10.0.0.3 dst-ip 10.0.0.9 src-port 2000 dst-port 2001 loc 33
+	sudo ethtool -N <ethX> flow-type ip4 src-ip 10.0.0.6 dst-ip 10.0.0.4 loc 34
 
- If you set action -1, then all traffic corresponding to the filter will be discarded.
- The maximum value action is 31.
-
-
- The VLAN filter (VLAN id) is compared against 16 filters.
- VLAN id must be accompanied by mask 0xF000. That is to distinguish VLAN filter
- from L2 Ethertype filter with UserPriority since both User Priority and VLAN ID
- are passed in the same 'vlan' parameter.
-
- To add a filter that directs packets from VLAN 2001 to queue 5:
- ethtool -N <ethX> flow-type ip4 vlan 2001 m 0xF000 action 1 loc 0
+If you set action -1, then all traffic corresponding to the filter will be
+discarded.
+The maximum value action is 31.
 
 
- L2 EtherType filters allows filter packet by EtherType field or both EtherType
- and User Priority (PCP) field of 802.1Q.
- UserPriority (vlan) parameter must be accompanied by mask 0x1FFF. That is to
- distinguish VLAN filter from L2 Ethertype filter with UserPriority since both
- User Priority and VLAN ID are passed in the same 'vlan' parameter.
+The VLAN filter (VLAN id) is compared against 16 filters.
+VLAN id must be accompanied by mask 0xF000.
+This is required in order to distinguish VLAN filter from L2 Ethertype filter
+with UserPriority, since both User Priority and VLAN ID are passed in the same
+'vlan' parameter.
 
- To add a filter that directs IP4 packess of priority 3 to queue 3:
- ethtool -N <ethX> flow-type ether proto 0x800 vlan 0x600 m 0x1FFF action 3 loc 16
+To add a filter that directs packets from VLAN 2001 to queue 5:
+	ethtool -N <ethX> flow-type ip4 vlan 2001 m 0xF000 action 1 loc 0
 
 
- To see the list of filters currently present:
+L2 EtherType filters allows to filter packets by EtherType field or both
+EtherType and User Priority (PCP) field of 802.1Q.
+UserPriority (vlan) parameter must be accompanied by mask 0x1FFF.
+This is required in order to distinguish VLAN filter from L2 Ethertype filter
+with UserPriority, since both User Priority and VLAN ID are passed in the same
+'vlan' parameter.
 
- ethtool <-u|-n|--show-nfc|--show-ntuple> <ethX>
+To add a filter that directs IP4 packess of priority 3 to queue 3:
+	ethtool -N <ethX> flow-type ether proto 0x800 vlan 0x600 m 0x1FFF action 3 loc 16
 
- Rules may be deleted from the table itself. This is done using:
 
- sudo ethtool <-N|-U|--config-nfc|--config-ntuple> <ethX> delete <loc>
+To see the list of currently present filters:
 
- - loc is the rule number to be deleted.
+	ethtool <-u|-n|--show-nfc|--show-ntuple> <ethX>
 
- Rx filters is an interface to load the filter table that funnels all flow
- into queue 0 unless an alternative queue is specified using "action". In that
- case, any flow that matches the filter criteria will be directed to the
- appropriate queue. RX filters is supported on all kernels 2.6.30 and later.
+Rules can be deleted from the table itself. This is done using:
 
- RSS for UDP
- ---------------------------------
- Currently, NIC does not support RSS for fragmented IP packets, which leads to
- incorrect working of RSS for fragmented UDP traffic. To disable RSS for UDP the
- RX Flow L3/L4 rule may be used.
+	sudo ethtool <-N|-U|--config-nfc|--config-ntuple> <ethX> delete <loc>
 
- Example:
- ethtool -N eth0 flow-type udp4 action 0 loc 32
+where:
+ - loc is the number of the rule to delete.
 
- UDP GSO hardware offload
- ---------------------------------
- UDP GSO allows to boost UDP tx rates by offloading UDP headers allocation
- into hardware. A special userspace socket option is required for this,
- could be validated with /kernel/tools/testing/selftests/net/
+Rx filters is an interface to load the filter table that funnels all flow
+into queue 0 unless an alternative queue is specified using "action". In that
+case, any flow that matches the filter criteria will be directed to the
+appropriate queue.
+RX filters are supported on all kernels starting from 2.6.30 (and later).
 
-    udpgso_bench_tx -u -4 -D 10.0.1.1 -s 6300 -S 100
+RSS for UDP
+---------------------------------
+Currently, NIC does not support RSS for fragmented IP packets, which leads to
+an incorrect handling of RSS for fragmented UDP traffic.
+To disable RSS for UDP one can use the following RX Flow L3/L4 rule:
 
- Will cause sending out of 100 byte sized UDP packets formed from single
- 6300 bytes user buffer.
+	ethtool -N eth0 flow-type udp4 action 0 loc 32
 
- UDP GSO is configured by:
+UDP GSO hardware offload
+---------------------------------
+UDP GSO allows to boost UDP tx rates by offloading UDP headers allocation
+into hardware. A special userspace socket option is required for this,
+could be validated with /kernel/tools/testing/selftests/net/
 
-    ethtool -K eth0 tx-udp-segmentation on
+	udpgso_bench_tx -u -4 -D 10.0.1.1 -s 6300 -S 100
 
- Private flags (testing)
- ---------------------------------
+Will cause sending out of 100 byte sized UDP packets formed from single
+6300 bytes user buffer.
 
- Atlantic driver supports private flags for hardware custom features:
+UDP GSO is configured by:
+
+	ethtool -K eth0 tx-udp-segmentation on
+
+Private flags (testing)
+---------------------------------
+
+Atlantic driver supports private flags for custom hardware-specific features:
 
 	$ ethtool --show-priv-flags ethX
 
@@ -554,30 +577,30 @@ Supported ethtool options
 	Downshift          : on
 	MediaDetect        : off
 
- Example:
+Example:
 
- 	$ ethtool --set-priv-flags ethX DMASystemLoopback on
+	$ ethtool --set-priv-flags ethX DMASystemLoopback on
 
- DMASystemLoopback:   DMA Host loopback.
- PKTSystemLoopback:   Packet buffer host loopback.
- DMANetworkLoopback:  Network side loopback on DMA block.
- PHYInternalLoopback: Internal loopback on Phy.
- PHYExternalLoopback: External loopback on Phy (with loopback ethernet cable).
- Downshift:           When `on`, enables link speed downgrade in case PHY sees
-                      currently selected speed is constantly failing
- MediaDetect:         When `on`, enables low-power autoneg in PHY
+DMASystemLoopback:   DMA Host loopback.
+PKTSystemLoopback:   Packet buffer host loopback.
+DMANetworkLoopback:  Network side loopback on DMA block.
+PHYInternalLoopback: Internal loopback on Phy.
+PHYExternalLoopback: External loopback on Phy (with loopback ethernet cable).
+Downshift:           When `on`, enables link speed downgrade in case PHY sees
+                     currently selected speed is constantly failing
+MediaDetect:         When `on`, enables low-power autoneg in PHY
 
 Self test
 ------------------------------------
 
-Self test could be initiated with command
+Self test can be initiated using the following command:
 
-    sudo ethtool -t enp3s0 offline|online
+	sudo ethtool -t enp3s0 offline|online
 
 `online` mode will not run TDR diagnostics and will only return SNR data.
-`offline` mode will also run TDR diagnostics with temporary link drop.
+`offline` mode will also run TDR diagnostics, which causes temporary link drop.
 
-Its result values are coded, as below:
+Result values are coded as descibed below:
 
     TDR status values:
 
@@ -592,7 +615,8 @@ Its result values are coded, as below:
 
     TDR distance:
 
-The distance in meters, accurate to +-1m, of the first of the four worst reflections
+The distance in meters, accurate to +-1m, of the first of the four worst
+reflections
 
     TDR far distance:
 
@@ -607,7 +631,7 @@ The number is in offset binary, with 0.0 dB represented by 0x8000.
 
 Command Line Parameters
 =======================
-The following command line parameters are available on atlantic driver:
+The following command line parameters are supported by atlantic driver:
 
 aq_itr -Interrupt throttling mode
 ----------------------------------------
@@ -637,8 +661,8 @@ Note: ITR settings could be changed in runtime by ethtool -c means (see below)
 aq_rxpageorder
 ----------------------------------------
 Default value: 0
-RX page order override. Thats a power of 2 number of RX pages allocated for
-each descriptor. Received descriptor size is still limited by AQ_CFG_RX_FRAME_MAX.
+RX page order override. Thats a power of 2 number of RX pages allocated for each
+descriptor. Received descriptor size is still limited by AQ_CFG_RX_FRAME_MAX.
 Increasing pageorder makes page reuse better (actual on iommu enabled systems).
 
 aq_rx_refill_thres
@@ -686,7 +710,8 @@ Enable/disable Large Receive Offload
 
 This offload enables the adapter to coalesce multiple TCP segments and indicate
 them as a single coalesced unit to the OS networking subsystem.
-The system consumes less energy but it also introduces more latency in packets processing.
+The system consumes less energy but it also introduces more latency in packets
+processing.
 
 Valid values
 0 - disabled
@@ -713,6 +738,43 @@ Default value: 0
 
 After the aq_cfg.h file changed the driver must be rebuilt to take effect.
 
+Uninstall
+=========================
+
+To manually uninstall this driver:
+------------------------------------------------------------
+Run the following command:
+	make uninstall
+or:
+	sudo rmmod atlantic
+	sudo rm -f /lib/modules/`uname -r`/aquantia/atlantic.ko
+	depmod -a `uname -r`
+
+NB! You might need to update initramfs image on uninstall
+(e.g. if atlantic.ko is a part of it, otherwise an old version will be
+loaded from initramfs image on next reboot).
+This is a potentially harmful operation, so 'make uninstall' will check
+if such an update is needed and will ask for your consent before actually
+running update-initramfs / dracut. Please make sure you understand the
+risks before choosing 'Y'!
+If you are running the commands yourself, then remember that
+update-initramfs / dracut might be needed.
+
+Uninstall driver with dkms
+------------------------------------------------------------
+Run the following command:
+	sudo ./dkms.sh uninstall
+
+Uninstall driver on Debian\Ubuntu using atlantic-x.y.z.deb
+------------------------------------------------------------
+Run the following command:
+	sudo dpkg -P atlantic
+
+Uninstall driver using atlantic-x.y.z.noarch.rpm
+------------------------------------------------------------
+Run the following command:
+	sudo rpm -e atlantic-x.y.z.noarch
+
 Support
 =======
 
@@ -723,8 +785,9 @@ to the issue to support@aquantia.com
 License
 =======
 
-aQuantia Corporation Network Driver
-Copyright(c) 2014 - 2019 aQuantia Corporation.
+Atlantic Network Driver
+Copyright (C) 2014-2019 aQuantia Corporation
+Copyright (C) 2019-2020 Marvell International Ltd.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms and conditions of the GNU General Public License,

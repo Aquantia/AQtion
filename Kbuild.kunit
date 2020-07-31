@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0-only
+################################################################################
+#
+# Marvell (aQuantia) Ethernet Controller AQtion Linux Driver
+# Copyright (C) 2020 Marvell International Ltd.
+#
+################################################################################
+
+#
+# Makefile for the AQtion(tm) Ethernet driver
+# (KUnit-specific)
+#
+
+CFLAGS_hw_atl/hw_atl_b0.o := -include kunit/atl_fake_hw.h
+CFLAGS_hw_atl/hw_atl_llh.o := -include kunit/atl_fake_hw.h
+CFLAGS_hw_atl2/hw_atl2.o := -include kunit/atl_fake_hw.h
+CFLAGS_hw_atl2/hw_atl2_llh.o := -include kunit/atl_fake_hw.h
+
+UTEST_EXCLUDE_OBJS:=aq_drvinfo.o aq_pci_func.o aq_sysfs.o
+UTEST_COMMON_OBJS:=$(filter-out $(UTEST_EXCLUDE_OBJS),$($(TARGET)-objs) $($(TARGET)-y))
+
+obj-$(CONFIG_AQTION_KUNIT_TESTS):=$(UTEST_COMMON_OBJS)
+obj-$(CONFIG_AQTION_KUNIT_TESTS)+=kunit/

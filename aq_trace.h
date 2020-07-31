@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2018 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2018-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 #undef TRACE_SYSTEM
@@ -15,6 +16,10 @@
 #include <linux/version.h>
 #include <linux/netdevice.h>
 #include "aq_compat.h"
+
+#ifndef RHEL_RELEASE_CODE
+#define RHEL_RELEASE_CODE 0
+#endif
 
 #if BITS_PER_LONG == 32
 /* Sorry, we won't show any tracing data on 32bit systems for now */
@@ -42,6 +47,8 @@ TRACE_EVENT(aq_rx_descr,
 
 		__field(u8, rss_type)
 		__field(u8, pkt_type)
+		__field(u8, a2_rdm_err)
+		__field(u8, a2_avb_ts)
 		__field(u8, rsvd)
 		__field(u8, rx_cntl)
 		__field(u8, sph)
@@ -56,7 +63,9 @@ TRACE_EVENT(aq_rx_descr,
 		__entry->hdr_len =  DESCR_FIELD(descr[0], 31, 22);
 		__entry->sph = DESCR_FIELD(descr[0], 21, 21);
 		__entry->rx_cntl = DESCR_FIELD(descr[0], 20, 19);
-		__entry->rsvd = DESCR_FIELD(descr[0], 18, 12);
+		__entry->rsvd = DESCR_FIELD(descr[0], 18, 14);
+		__entry->a2_avb_ts = DESCR_FIELD(descr[0], 13, 13);
+		__entry->a2_rdm_err = DESCR_FIELD(descr[0], 12, 12);
 		__entry->pkt_type = DESCR_FIELD(descr[0], 11, 4);
 		__entry->rss_type = DESCR_FIELD(descr[0], 3, 0);
 
@@ -69,13 +78,13 @@ TRACE_EVENT(aq_rx_descr,
 		__entry->eop = DESCR_FIELD(descr[1], 1, 1);
 		__entry->dd = DESCR_FIELD(descr[1], 0, 0);
 	),
-	TP_printk("ring=%d descr=%u rss_hash=0x%x hdr_len=%u sph=%u rx_cntl=%u rsvd=0x%x pkt_type=%u rss_type=%u vlan_tag=%u next_desp=%u pkt_len=%u rsc_cnt=%u rx_estat=0x%x rx_stat=0x%x eop=%u dd=%u",
+	TP_printk("ring=%d descr=%u rss_hash=0x%x hdr_len=%u sph=%u rx_cntl=%u rsvd=0x%x a2_avb_ts=%u a2_rdm_err=%u pkt_type=%u rss_type=%u vlan_tag=%u next_desp=%u pkt_len=%u rsc_cnt=%u rx_estat=0x%x rx_stat=0x%x eop=%u dd=%u",
 		  __entry->ring_idx, __entry->pointer, __entry->rss_hash,
 		  __entry->hdr_len, __entry->sph, __entry->rx_cntl,
-		  __entry->rsvd, __entry->pkt_type, __entry->rss_type,
-		  __entry->vlan_tag, __entry->next_desp, __entry->pkt_len,
-		  __entry->rsc_cnt, __entry->rx_estat, __entry->rx_stat,
-		  __entry->eop, __entry->dd)
+		  __entry->rsvd, __entry->a2_avb_ts, __entry->a2_rdm_err,
+		  __entry->pkt_type, __entry->rss_type, __entry->vlan_tag,
+		  __entry->next_desp, __entry->pkt_len, __entry->rsc_cnt,
+		  __entry->rx_estat, __entry->rx_stat, __entry->eop, __entry->dd)
 );
 
 TRACE_EVENT(aq_tx_descr,
@@ -90,6 +99,8 @@ TRACE_EVENT(aq_tx_descr,
 		__field(u8, ct_en)
 		__field(u8, ct_idx)
 		__field(u16, rsvd2)
+		__field(u8, a2_clk_sel)
+		__field(u8, a2_ts_en)
 		__field(u8, tx_cmd)
 		__field(u8, eop)
 		__field(u8, dd)
@@ -104,7 +115,9 @@ TRACE_EVENT(aq_tx_descr,
 		__entry->pay_len = DESCR_FIELD(descr[1], 63, 46);
 		__entry->ct_en =  DESCR_FIELD(descr[1], 45, 45);
 		__entry->ct_idx = DESCR_FIELD(descr[1], 44, 44);
-		__entry->rsvd2 = DESCR_FIELD(descr[1], 43, 30);
+		__entry->rsvd2 = DESCR_FIELD(descr[1], 43, 32);
+		__entry->a2_clk_sel = DESCR_FIELD(descr[1], 31, 31);
+		__entry->a2_ts_en = DESCR_FIELD(descr[1], 30, 30);
 		__entry->tx_cmd = DESCR_FIELD(descr[1], 29, 22);
 		__entry->eop = DESCR_FIELD(descr[1], 21, 21);
 		__entry->dd = DESCR_FIELD(descr[1], 20, 20);
@@ -113,11 +126,12 @@ TRACE_EVENT(aq_tx_descr,
 		__entry->des_typ = DESCR_FIELD(descr[1], 2, 0);
 
 	),
-	TP_printk("ring=%d descr=%u pay_len=%u ct_en=%u ct_idx=%u rsvd2=0x%x tx_cmd=0x%x eop=%u dd=%u buf_len=%u rsvd1=%u des_typ=0x%x",
-		  __entry->ring_idx, __entry->pointer, __entry->pay_len,
+	TP_printk("ring=%d descr=%u addr=0x%llx pay_len=%u ct_en=%u ct_idx=%u rsvd2=0x%x a2_clk_sel=%u a2_ts_en=%u tx_cmd=0x%x eop=%u dd=%u buf_len=%u rsvd1=%u des_typ=0x%x",
+		  __entry->ring_idx, __entry->pointer, __entry->data_buf_addr, __entry->pay_len,
 		  __entry->ct_en, __entry->ct_idx, __entry->rsvd2,
-		  __entry->tx_cmd, __entry->eop, __entry->dd, __entry->buf_len,
-		  __entry->rsvd1, __entry->des_typ)
+		  __entry->a2_clk_sel, __entry->a2_ts_en, __entry->tx_cmd,
+		  __entry->eop, __entry->dd, __entry->buf_len, __entry->rsvd1,
+		  __entry->des_typ)
 );
 
 
@@ -128,7 +142,7 @@ TRACE_EVENT(aq_tx_context_descr,
 		__field(unsigned int, ring_idx)
 		__field(unsigned int, pointer)
 		/* Tx Context Descriptor */
-		__field(u16, out_len)
+		__field(u8, out_len)
 		__field(u8, tun_len)
 		__field(u64, resvd3)
 		__field(u16, mss_len)
@@ -143,9 +157,9 @@ TRACE_EVENT(aq_tx_context_descr,
 	TP_fast_assign(
 		__entry->ring_idx = ring_idx;
 		__entry->pointer = pointer;
-		__entry->out_len = DESCR_FIELD(descr[0], 63, 48);
-		__entry->tun_len = DESCR_FIELD(descr[0], 47, 40);
-		__entry->resvd3 = DESCR_FIELD(descr[0], 39, 0);
+		__entry->out_len = DESCR_FIELD(descr[0], 63, 56);
+		__entry->tun_len = DESCR_FIELD(descr[0], 55, 48);
+		__entry->resvd3 = DESCR_FIELD(descr[0], 47, 0);
 		__entry->mss_len = DESCR_FIELD(descr[1], 63, 48);
 		__entry->l4_len = DESCR_FIELD(descr[1], 47, 40);
 		__entry->l3_len = DESCR_FIELD(descr[1], 39, 31);
@@ -165,6 +179,36 @@ TRACE_EVENT(aq_tx_context_descr,
 
 
 void trace_aq_tx_descriptor(int ring_idx, unsigned int pointer, u64 descr[2]);
+
+TRACE_EVENT(aq_tx_time_stamp_descr_a2,
+	TP_PROTO(int ring_idx, unsigned int pointer, u64 *descr),
+	TP_ARGS(ring_idx, pointer, descr),
+	TP_STRUCT__entry(
+		__field(unsigned int, ring_idx)
+		__field(unsigned int, pointer)
+		/* Tx Time Stamp Descriptor */
+		__field(u64, launch_time)
+		__field(u64, rsvd4)
+		__field(u8, clk_sel)
+		__field(u8, lt_vld)
+		__field(u8, rsvd5)
+		__field(u8, des_typ)
+	),
+	TP_fast_assign(
+		__entry->ring_idx = ring_idx;
+		__entry->pointer = pointer;
+		__entry->launch_time = descr[0];
+		__entry->rsvd4 = DESCR_FIELD(descr[1], 63, 6);
+		__entry->clk_sel =  DESCR_FIELD(descr[1], 5, 5);
+		__entry->lt_vld = DESCR_FIELD(descr[1], 4, 4);
+		__entry->rsvd5 = DESCR_FIELD(descr[1], 3, 3);
+		__entry->des_typ = DESCR_FIELD(descr[1], 2, 0);
+	),
+	TP_printk("ring=%d descr=%u launch_time=%llu rsvd4=%llu clk_sel=%u lt_vld=%u rsvd5=%u des_typ=0x%x",
+		  __entry->ring_idx, __entry->pointer, __entry->launch_time,
+		  __entry->rsvd4, __entry->clk_sel, __entry->lt_vld,
+		  __entry->rsvd5, __entry->des_typ)
+);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || RHEL_RELEASE_CODE
 #define SKB_CSUM_LEVEL(SKB) ((SKB)->csum_level)
@@ -210,14 +254,19 @@ TRACE_EVENT(aq_dump_skb,
 		__field(u8, ip_summed)
 		__field(u16, vlan_tci)
 		__field(u16, gso_size)
+		__field(void*, data)
+		__field(void*, head)
 	),
 	TP_fast_assign(
 		__entry->len = skb->len;
 		__entry->ip_summed = skb->ip_summed;
 		__entry->vlan_tci = skb->vlan_tci;
 		__entry->gso_size = skb_shinfo(skb)->gso_size;
+		__entry->data = skb->data;
+		__entry->head = skb->head;
 	),
-	TP_printk("len=%d ip_summed=%d vlan_tci=0x%x gso_size=%d",
+	TP_printk("data=%p head=%p align=%d, len=%d ip_summed=%d vlan_tci=0x%x gso_size=%d",
+		  __entry->data, __entry->head, NET_IP_ALIGN,
 		  __entry->len, __entry->ip_summed,
 		  __entry->vlan_tci,
 		  __entry->gso_size)

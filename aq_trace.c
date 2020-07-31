@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2018 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2018-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 #include <linux/types.h>
@@ -18,6 +19,9 @@ void trace_aq_tx_descriptor(int ring_idx, unsigned int pointer, u64 descr[2])
 	break;
 	case 2:
 		trace_aq_tx_context_descr(ring_idx, pointer, descr);
+	break;
+	case 3:
+		trace_aq_tx_time_stamp_descr_a2(ring_idx, pointer, descr);
 	break;
 	}
 }

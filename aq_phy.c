@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* aQuantia Corporation Network Driver
- * Copyright (C) 2018-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2018-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
+#include "linux/mdio.h"
+
 #include "aq_phy.h"
+#include "aq_hw.h"
+#include "aq_hw_utils.h"
+#include "hw_atl/hw_atl_llh.h"
+#include "hw_atl/hw_atl_llh_internal.h"
 
 /* Semaphore for synchronizing access to MDIO */
 #define HW_ATL_PTP_DISABLE_MSK (1U << 0xa)

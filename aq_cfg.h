@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * aQuantia Corporation Network Driver
- * Copyright (C) 2014-2019 aQuantia Corporation. All rights reserved
+/* Atlantic Network Driver
+ *
+ * Copyright (C) 2014-2019 aQuantia Corporation
+ * Copyright (C) 2019-2020 Marvell International Ltd.
  */
 
 /* File aq_cfg.h: Definition of configuration parameters and constants. */
@@ -27,7 +28,7 @@
 
 #define AQ_CFG_INTERRUPT_MODERATION_USEC_MAX (0x1FF * 2)
 
-#define AQ_CFG_IRQ_MASK                      0x3FFU
+#define AQ_CFG_IRQ_MASK                      0x7FFU
 
 #define AQ_CFG_VECS_MAX   8U
 #define AQ_CFG_TCS_MAX    8U
@@ -42,6 +43,9 @@
 /* LRO */
 #define AQ_CFG_IS_LRO_DEF           1U
 
+/* PTP */
+#define AQ_CFG_PTP_DEF              1U
+
 /* RSS */
 #define AQ_CFG_RSS_INDIRECTION_TABLE_MAX  64U
 #define AQ_CFG_RSS_HASHKEY_SIZE           40U
@@ -50,7 +54,7 @@
 #define AQ_CFG_NUM_RSS_QUEUES_DEF   AQ_CFG_VECS_DEF
 #define AQ_CFG_RSS_BASE_CPU_NUM_DEF 0U
 
-#define AQ_CFG_PCI_FUNC_MSIX_IRQS   9U
+#define AQ_CFG_PCI_FUNC_MSIX_IRQS   11U
 #define AQ_CFG_PCI_FUNC_PORTS       2U
 
 #define AQ_CFG_SERVICE_TIMER_INTERVAL    (1 * HZ)
@@ -96,8 +100,8 @@
 
 #define AQ_CFG_LOCK_TRYS   100U
 
-#define AQ_CFG_DRV_AUTHOR      "aQuantia"
-#define AQ_CFG_DRV_DESC        "aQuantia Corporation(R) Network Driver"
+#define AQ_CFG_DRV_AUTHOR      "Marvell"
+#define AQ_CFG_DRV_DESC        "Marvell (Aquantia) Corporation(R) Network Driver"
 #define AQ_CFG_DRV_NAME        "atlantic"
 #define AQ_CFG_DRV_VERSION	__stringify(NIC_MAJOR_DRIVER_VERSION)"."\
 				__stringify(NIC_MINOR_DRIVER_VERSION)"."\

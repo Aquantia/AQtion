@@ -2,10 +2,42 @@
 # aQuantia device configuration
 #
 
+config NET_VENDOR_AQUANTIA
+	bool "aQuantia devices"
+	default y
+	help
+	  Set this to y if you have an Ethernet network cards that uses the aQuantia
+	  AQC107/AQC108 chipset.
+
+	  This option does not build any drivers; it causes the aQuantia
+	  drivers that can be built to appear in the list of Ethernet drivers.
+
+
+if NET_VENDOR_AQUANTIA
+
 config AQTION
 	tristate "aQuantia AQtion(tm) Support"
 	depends on PCI
+	depends on MACSEC || MACSEC=n
 	imply CRC_ITU_T
 	imply PTP_1588_CLOCK
-	---help---
+	help
 	  This enables the support for the aQuantia AQtion(tm) Ethernet card.
+
+config AQTION_KUNIT_TESTS
+	bool "Build KUnit tests for aQuantia AQtion"
+	depends on KUNIT=y
+	help
+	  This builds the unit tests for aQuantia drivers.
+
+	  KUnit tests run during boot and output the results to the debug log
+	  in TAP format (http://testanything.org/). Only useful for kernel devs
+	  running KUnit test harness and are not for inclusion into a production
+	  build.
+
+	  For more information on KUnit and unit tests in general please refer
+	  to the KUnit documentation in Documentation/dev-tools/kunit/.
+
+	  If unsure, say N.
+
+endif # NET_VENDOR_AQUANTIA
