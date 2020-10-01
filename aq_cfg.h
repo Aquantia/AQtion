@@ -10,8 +10,6 @@
 #ifndef AQ_CFG_H
 #define AQ_CFG_H
 
-#include <generated/utsrelease.h>
-
 #define AQ_CFG_VECS_DEF   8U
 #define AQ_CFG_TCS_DEF    1U
 

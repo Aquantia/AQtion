@@ -29,7 +29,7 @@
 /* 33, because of an agreement to split L2 filters between us and FW */
 #define HW_ATL_B0_MAC_MAX  33U
 #define HW_ATL_B0_VLAN_MAX_FILTERS 16U
-#define HW_ATL_B0_ETYPE_MAX_FILTERS 16U
+#define HW_ATL_B0_ETYPE_MAX_FILTERS 15U
 #define HW_ATL_B0_L3L4_MAX_FILTERS 8U
 
 /* interrupts */

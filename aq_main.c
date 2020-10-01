@@ -40,7 +40,7 @@ MODULE_VERSION(AQ_CFG_DRV_VERSION);
 MODULE_AUTHOR(AQ_CFG_DRV_AUTHOR);
 MODULE_DESCRIPTION(AQ_CFG_DRV_DESC);
 
-const char aq_ndev_driver_name[] = AQ_CFG_DRV_NAME;
+static const char aq_ndev_driver_name[] = AQ_CFG_DRV_NAME;
 
 static const struct net_device_ops aq_ndev_ops;
 
@@ -111,7 +111,7 @@ err_exit:
 	return err;
 }
 
-static int aq_ndev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+static netdev_tx_t aq_ndev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 
@@ -124,10 +124,12 @@ static int aq_ndev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		 * and hardware PTP design of the chip. Otherwise ptp stream
 		 * will fail to sync
 		 */
-		if (unlikely((((ip_hdr(skb)->version == 4) &&
-			(ip_hdr(skb)->protocol == IPPROTO_UDP)) ||
-				(ipv6_hdr(skb)->version == 6)) &&
-				(udp_hdr(skb)->dest == htons(PTP_EV_PORT))))
+		if (unlikely(((ip_hdr(skb)->version == 4) &&
+				(ip_hdr(skb)->protocol == IPPROTO_UDP) &&
+				((udp_hdr(skb)->dest == htons(PTP_EV_PORT)) ||
+				(udp_hdr(skb)->dest == htons(320)))) ||
+			((ipv6_hdr(skb)->version == 6) &&
+				(udp_hdr(skb)->dest == htons(PTP_EV_PORT)))))
 			return aq_ptp_xmit(aq_nic, skb);
 
 		if (unlikely(eth_hdr(skb)->h_proto == htons(ETH_P_1588)))

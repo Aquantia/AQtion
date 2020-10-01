@@ -38,9 +38,8 @@ u32 aq_hw_read_reg(struct aq_hw_s *hw, u32 reg)
 {
 	u32 value = readl(hw->mmio + reg);
 
-	if ((~0U) == value &&
-	    (~0U) == readl(hw->mmio +
-			   hw->aq_nic_cfg->aq_hw_caps->hw_alive_check_addr))
+	if (value == U32_MAX &&
+	    readl(hw->mmio + hw->aq_nic_cfg->aq_hw_caps->hw_alive_check_addr) == U32_MAX)
 		aq_utils_obj_set(&hw->flags, AQ_HW_FLAG_ERR_UNPLUG);
 #ifdef DEBUG_DUMPREGS
 	printk("aq rr 0x%04x: 0x%x\n", reg, value);
@@ -62,20 +61,19 @@ void aq_hw_write_reg(struct aq_hw_s *hw, u32 reg, u32 value)
  */
 u64 aq_hw_read_reg64(struct aq_hw_s *hw, u32 reg)
 {
-	u64 value = -1;
+	u64 value = U64_MAX;
 #ifdef CONFIG_X86_64
-	if (hw->aq_nic_cfg->aq_hw_caps->op64bit) {
+	if (hw->aq_nic_cfg->aq_hw_caps->op64bit)
 		value = readq(hw->mmio + reg);
-	} else
+	else
 #endif
 	{
 		value = aq_hw_read_reg(hw, reg);
 		value |= (u64)aq_hw_read_reg(hw, reg + 4) << 32;
 	}
 
-	if ((~0ULL) == value &&
-	    (~0U) == readl(hw->mmio +
-			   hw->aq_nic_cfg->aq_hw_caps->hw_alive_check_addr))
+	if (value == U64_MAX &&
+	    readl(hw->mmio + hw->aq_nic_cfg->aq_hw_caps->hw_alive_check_addr) == U32_MAX)
 		aq_utils_obj_set(&hw->flags, AQ_HW_FLAG_ERR_UNPLUG);
 
 	return value;
@@ -84,14 +82,13 @@ u64 aq_hw_read_reg64(struct aq_hw_s *hw, u32 reg)
 void aq_hw_write_reg64(struct aq_hw_s *hw, u32 reg, u64 value)
 {
 #ifdef CONFIG_X86_64
-	if (hw->aq_nic_cfg->aq_hw_caps->op64bit) {
+	if (hw->aq_nic_cfg->aq_hw_caps->op64bit)
 		writeq(value, hw->mmio + reg);
-	} else
+	else
 #endif
 	{
-		writel((u32)(value & 0xffffffff), hw->mmio + reg);
-		writel((u32)((value >> 32) & 0xffffffff),
-		       hw->mmio + reg + sizeof(u32));
+		writel(lower_32_bits(value), hw->mmio + reg);
+		writel(upper_32_bits(value), hw->mmio + reg + sizeof(u32));
 	}
 }
 

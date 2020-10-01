@@ -461,6 +461,9 @@ static void hw_atl2_hw_init_new_rx_filters(struct aq_hw_s *self)
 	u8 index;
 	int i;
 
+	/* tag MC frames always */
+	hw_atl_rpfl2_accept_all_mc_packets_set(self, 1);
+
 	/* Action Resolver Table (ART) is used by RPF to decide which action
 	 * to take with a packet based upon input tag and tag mask, where:
 	 *  - input tag is a combination of 3-bit VLan Prio (PTP) and
@@ -524,8 +527,12 @@ static void hw_atl2_hw_new_rx_filter_vlan_promisc(struct aq_hw_s *self,
 				    HW_ATL2_RPF_TAG_UNTAG_MASK, off_action);
 }
 
-static void hw_atl2_hw_new_rx_filter_promisc(struct aq_hw_s *self, bool promisc)
+static void hw_atl2_hw_new_rx_filter_promisc(struct aq_hw_s *self, bool promisc,
+					     bool allmulti)
 {
+	u32 mask = allmulti ? (HW_ATL2_RPF_TAG_UC_MASK |
+			       HW_ATL2_RPF_TAG_ALLMC_MASK) :
+			      HW_ATL2_RPF_TAG_UC_MASK;
 	u16 off_action = promisc ? HW_ATL2_ACTION_DISABLE : HW_ATL2_ACTION_DROP;
 	struct hw_atl2_priv *priv = (struct hw_atl2_priv *)self->priv;
 	bool vlan_promisc_enable;
@@ -533,8 +540,7 @@ static void hw_atl2_hw_new_rx_filter_promisc(struct aq_hw_s *self, bool promisc)
 
 	index = priv->art_base_index + HW_ATL2_RPF_L2_PROMISC_OFF_INDEX;
 	hw_atl2_act_rslvr_table_set(self, index, 0,
-				    HW_ATL2_RPF_TAG_UC_MASK |
-				    HW_ATL2_RPF_TAG_ALLMC_MASK,
+				    mask,
 				    off_action);
 
 	/* turn VLAN promisc mode too */
@@ -777,15 +783,11 @@ static int hw_atl2_hw_packet_filter_set(struct aq_hw_s *self,
 
 	hw_atl_rpfl2broadcast_en_set(self, IS_FILTER_ENABLED(IFF_BROADCAST));
 
-	hw_atl_rpfl2multicast_flr_en_set(self,
+	hw_atl2_hw_new_rx_filter_promisc(self,
+					 IS_FILTER_ENABLED(IFF_PROMISC),
 					 IS_FILTER_ENABLED(IFF_ALLMULTI) &&
-					 IS_FILTER_ENABLED(IFF_MULTICAST), 0);
+					 IS_FILTER_ENABLED(IFF_MULTICAST));
 
-	hw_atl_rpfl2_accept_all_mc_packets_set(self,
-					      IS_FILTER_ENABLED(IFF_ALLMULTI) &&
-					      IS_FILTER_ENABLED(IFF_MULTICAST));
-
-	hw_atl2_hw_new_rx_filter_promisc(self, IS_FILTER_ENABLED(IFF_PROMISC));
 	hw_atl2_utils_set_filter_policy(self, IS_FILTER_ENABLED(IFF_PROMISC),
 					IS_FILTER_ENABLED(IFF_ALLMULTI) &&
 					IS_FILTER_ENABLED(IFF_MULTICAST));

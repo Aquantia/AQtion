@@ -21,6 +21,7 @@
 #include "hw_atl/hw_atl_b0.h"
 #include "hw_atl2/hw_atl2.h"
 #include "aq_filters.h"
+#include "aq_drvinfo.h"
 #include "aq_macsec.h"
 
 static unsigned int aq_sleep_delay = 10000;
@@ -392,6 +393,8 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	if (err < 0)
 		goto err_register;
 
+	aq_drvinfo_init(ndev);
+
 	if (self->aq_hw->aq_fw_ops->get_link_capabilities &&
 	    (self->aq_hw->aq_fw_ops->get_link_capabilities(self->aq_hw) &
 	     BIT(CAPS_LO_WAKE_ON_LINK_FORCED)))
@@ -684,7 +687,7 @@ static const struct dev_pm_ops aq_pm_ops = {
 };
 
 static struct pci_driver aq_pci_ops = {
-	.name = aq_ndev_driver_name,
+	.name = AQ_CFG_DRV_NAME,
 	.id_table = aq_pci_tbl,
 	.probe = aq_pci_probe,
 	.remove = aq_pci_remove,

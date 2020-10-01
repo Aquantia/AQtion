@@ -11,11 +11,11 @@
 #define AQ_PTP_H
 
 #include <linux/net_tstamp.h>
-#include <linux/version.h>
 
 #include "aq_compat.h"
+#include "aq_ring.h"
 
-#define AQ_PTP_SYNC_CFG (SIOCDEVPRIVATE + 0x10)
+#define AQ_PTP_SYNC_CFG (SIOCDEVPRIVATE + 0x5)
 
 enum aq_sync_cntr_action {
 	aq_sync_cntr_nop = 0, /* no action */
@@ -105,7 +105,7 @@ int aq_ptp_configure_ext_gpio(struct net_device *ndev,
 
 
 /* PTP ring statistics */
-int aq_ptp_get_ring_cnt(struct aq_nic_s *aq_nic);
+int aq_ptp_get_ring_cnt(struct aq_nic_s *aq_nic, const enum atl_ring_type ring_type);
 u64 *aq_ptp_get_stats(struct aq_nic_s *aq_nic, u64 *data);
 
 #else

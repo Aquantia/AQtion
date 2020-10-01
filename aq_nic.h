@@ -210,10 +210,6 @@ int aq_nic_xmit(struct aq_nic_s *self, struct sk_buff *skb);
 int aq_nic_get_regs(struct aq_nic_s *self, struct ethtool_regs *regs, void *p);
 int aq_nic_get_regs_count(struct aq_nic_s *self);
 u64 *aq_nic_get_stats(struct aq_nic_s *self, u64 *data);
-int aq_nic_fill_stats_data(struct aq_ring_stats_rx_s *stats_rx,
-			  struct aq_ring_stats_tx_s *stats_tx,
-			  u64 *data,
-			  unsigned int *p_count);
 int aq_nic_stop(struct aq_nic_s *self);
 void aq_nic_deinit(struct aq_nic_s *self, bool link_down);
 void aq_nic_set_power(struct aq_nic_s *self, u32 wol);

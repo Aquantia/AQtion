@@ -279,7 +279,8 @@ struct version_s {
 		u8 minor;
 		u16 build;
 	} phy;
-	u32 rsvd;
+	u32 drv_iface_ver:4;
+	u32 rsvd:28;
 };
 
 struct link_status_s {
@@ -492,7 +493,7 @@ struct phy_fw_load_status_s {
 	u8 rsvd2:2;
 };
 
-struct statistics_s {
+struct statistics_a0_s {
 	struct {
 		u32 link_up;
 		u32 link_down;
@@ -521,8 +522,35 @@ struct statistics_s {
 		u32 rx_good_frames;
 		u32 reserve_fw_gap;
 	} msm;
-	u32 main_loop_cycles;
 	u32 reserve_fw_gap;
+	u32 main_loop_cycles;
+};
+
+struct __packed statistics_b0_s {
+	uint64_t rx_good_octets;
+	uint64_t rx_pause_frames;
+	uint64_t rx_good_frames;
+	uint64_t rx_rrrors;
+	uint64_t rx_unicast_frames;
+	uint64_t rx_multicast_frames;
+	uint64_t rx_broadcast_frames;
+
+	uint64_t tx_good_octets;
+	uint64_t tx_pause_frames;
+	uint64_t tx_good_frames;
+	uint64_t tx_errors;
+	uint64_t tx_unicast_frames;
+	uint64_t tx_multicast_frames;
+	uint64_t tx_broadcast_frames;
+
+	uint32_t main_loop_cycles;
+};
+
+struct __packed statistics_s {
+	union __packed {
+		struct statistics_a0_s a0;
+		struct statistics_b0_s b0; 
+	};
 };
 
 struct filter_caps_s {
@@ -613,7 +641,7 @@ struct management_status_s {
 	u32 rsvd5;
 };
 
-struct fw_interface_out {
+struct __packed fw_interface_out {
 	struct transaction_counter_s transaction_id;
 	struct version_s version;
 	struct link_status_s link_status;
@@ -637,7 +665,6 @@ struct fw_interface_out {
 	struct core_dump_s core_dump;
 	u32 rsvd11;
 	struct statistics_s stats;
-	u32 rsvd12;
 	struct filter_caps_s filter_caps;
 	struct device_caps_s device_caps;
 	u32 rsvd13;
@@ -659,6 +686,9 @@ struct fw_interface_out {
 #define  AQ_HOST_MODE_SLEEP_PROXY  2U
 #define  AQ_HOST_MODE_LOW_POWER    3U
 #define  AQ_HOST_MODE_SHUTDOWN     4U
+
+#define  AQ_A2_FW_INTERFACE_A0     0
+#define  AQ_A2_FW_INTERFACE_B0     1
 
 int hw_atl2_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops);
 

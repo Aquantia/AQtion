@@ -10,11 +10,8 @@
 #ifndef AQ_DRVINFO_H
 #define AQ_DRVINFO_H
 
-#include "aq_nic.h"
-#include "aq_hw.h"
-#include "hw_atl/hw_atl_utils.h"
+struct net_device;
 
 int aq_drvinfo_init(struct net_device *ndev);
-void aq_drvinfo_exit(struct net_device *ndev);
 
 #endif /* AQ_DRVINFO_H */

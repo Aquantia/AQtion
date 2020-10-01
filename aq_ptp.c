@@ -131,9 +131,6 @@ struct aq_ptp_pid {
 };
 
 struct ptp_tm_offset {
-	u64 sync_time_value;
-	u64 ext_sync_period;
-
 	unsigned int mbps;
 	int egress;
 	int ingress;
@@ -183,6 +180,9 @@ struct aq_ptp_s {
 
 	struct ptp_tm_offset ptp_offset[6];
 };
+
+static int aq_ptp_extts_pin_configure(struct ptp_clock_info *ptp,
+				      u32 n_pin, enum ptp_extts_action action);
 
 void aq_ptp_offset_get(struct aq_ptp_s *aq_ptp,
 		       unsigned int mbps, int *egress, int *ingress)
@@ -567,12 +567,12 @@ static int aq_ptp_pid(struct aq_ptp_s *aq_ptp, u64 ts_diff)
 
 	netdev_dbg(aq_ptp->aq_nic->ndev,
 		   "p = %lld, integral = %lld, diff = %lld",
-		   div_u64(p, mul_u32_u32(PTP_DIV_COEF, aq_pid->divider)),
-		   div_u64(integral, mul_u32_u32(PTP_DIV_COEF,
+		   div_s64(p, mul_u32_u32(PTP_DIV_COEF, aq_pid->divider)),
+		   div_s64(integral, mul_u32_u32(PTP_DIV_COEF,
 						 aq_pid->divider)),
-		   div_u64(diff, mul_u32_u32(PTP_DIV_COEF, aq_pid->divider)));
+		   div_s64(diff, mul_u32_u32(PTP_DIV_COEF, aq_pid->divider)));
 
-	aq_pid->adjust[0] = div_u64((p + integral + diff),
+	aq_pid->adjust[0] = div_s64((p + integral + diff),
 				     mul_u32_u32(PTP_DIV_COEF,
 						 aq_pid->divider)) +
 				aq_pid->adjust[1];
@@ -638,21 +638,14 @@ static int aq_ptp_check_ext_gpio_event(struct aq_ptp_s *aq_ptp)
 					spin_unlock_irqrestore(
 							&aq_ptp->ptp_lock,
 							flags);
-					action = ptp_extts_disabled;
+
+					if (aq_ptp->extts_pin_enabled)
+						action = ptp_extts_user;
+					else
+						action = ptp_extts_disabled;
+
 					repeat_event = 0;
 				}
-				break;
-				case ptp_extts_user: {
-					struct ptp_clock_event ptp_event;
-
-					ptp_event.type = PTP_CLOCK_EXTTS;
-					ptp_event.index =
-						aq_ptp->a2_ptp ?
-						n_pin : clock_info->n_pins - 1;
-					ptp_event.timestamp = ts;
-					ptp_clock_event(aq_ptp->ptp_clock,
-						&ptp_event);
-				};
 				break;
 				case ptp_extts_freqsync:
 					if (aq_ptp_pid(aq_ptp, ts_diff))
@@ -660,6 +653,23 @@ static int aq_ptp_check_ext_gpio_event(struct aq_ptp_s *aq_ptp)
 					break;
 				default:
 					break;
+				}
+
+				if (aq_ptp->extts_pin_enabled) {
+					struct ptp_clock_event ptp_event;
+					u64 time = 0;
+
+					aq_nic->aq_hw_ops->hw_ts_to_sys_clock(
+							      aq_nic->aq_hw,
+							      ts, &time);
+
+					ptp_event.type = PTP_CLOCK_EXTTS;
+					ptp_event.index =
+						aq_ptp->a2_ptp ?
+						n_pin : clock_info->n_pins - 1;
+					ptp_event.timestamp = time;
+					ptp_clock_event(aq_ptp->ptp_clock,
+						&ptp_event);
 				}
 
 				((uint64_t *)pin_desc->rsv)[0] = ts;
@@ -781,15 +791,19 @@ static int aq_ptp_extts_pin_configure(struct ptp_clock_info *ptp,
 {
 	struct aq_ptp_s *aq_ptp = container_of(ptp, struct aq_ptp_s, ptp_info);
 	struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
-	u32 on = action != ptp_extts_disabled;
+	u32 on = (action != ptp_extts_disabled) || aq_ptp->extts_pin_enabled;
 
 	if (!aq_ptp->ptp_info.n_ext_ts ||
 		n_pin >= (aq_ptp->ptp_info.n_ext_ts +
 			aq_ptp->ptp_info.n_per_out))
 		return -EINVAL;
 
-	if (aq_ptp->ptp_info.pin_config[n_pin].func != PTP_PF_EXTTS)
+	if (aq_ptp->ptp_info.pin_config[n_pin].func != PTP_PF_EXTTS) {
+		netdev_err(aq_nic->ndev, "Pin has invalid function %d instead of %d\n",
+			   aq_ptp->ptp_info.pin_config[n_pin].func,
+			   PTP_PF_EXTTS);
 		return -EINVAL;
+	}
 
 	if (aq_ptp->a1_ptp) {
 		cancel_delayed_work_sync(&aq_ptp->poll_sync);
@@ -800,7 +814,13 @@ static int aq_ptp_extts_pin_configure(struct ptp_clock_info *ptp,
 		}
 	}
 
-	aq_ptp->ptp_info.pin_config[n_pin].rsv[2] = action;
+	if (action == ptp_extts_disabled && aq_ptp->extts_pin_enabled) {
+		action = ptp_extts_user;
+		aq_ptp->ptp_info.pin_config[n_pin].rsv[2] = action;
+	} else if (action != ptp_extts_user)
+		aq_ptp->ptp_info.pin_config[n_pin].rsv[2] = action;
+	else if (aq_ptp->ptp_info.pin_config[n_pin].rsv[2] == ptp_extts_disabled)
+		aq_ptp->ptp_info.pin_config[n_pin].rsv[2] = action;
 
 	((uint64_t *)aq_ptp->ptp_info.pin_config[n_pin].rsv)[0] =
 		aq_nic->aq_hw_ops->hw_ptp_gpio_get_event(aq_nic->aq_hw,
@@ -836,10 +856,21 @@ static int aq_ptp_extts_pin_configure(struct ptp_clock_info *ptp,
 static int aq_ptp_gpio_feature_enable(struct ptp_clock_info *ptp,
 				      struct ptp_clock_request *rq, int on)
 {
+	struct aq_ptp_s *aq_ptp = container_of(ptp, struct aq_ptp_s, ptp_info);
+	int pin;
+
 	switch (rq->type) {
 	case PTP_CLK_REQ_EXTTS:
-		return aq_ptp_extts_pin_configure(ptp, rq->extts.index,
-				on ? ptp_extts_user : ptp_extts_disabled);
+		pin = ptp_find_pin(aq_ptp->ptp_clock, PTP_PF_EXTTS,
+				   rq->extts.index);
+		if (pin < 0) {
+			netdev_err(aq_ptp->aq_nic->ndev, "There is no EXTTS pin configured");
+			return -EINVAL;
+		}
+		aq_ptp->extts_pin_enabled = !!on;
+		return aq_ptp_extts_pin_configure(ptp, pin,
+				on ? ptp_extts_user : 
+				     aq_ptp->ptp_info.pin_config[pin].rsv[2]);
 	case PTP_CLK_REQ_PEROUT:
 		return aq_ptp_perout_pin_configure(ptp, rq, on);
 	case PTP_CLK_REQ_PPS:
@@ -934,7 +965,7 @@ int aq_ptp_configure_ext_gpio(struct net_device *ndev,
 		/* If we need only clock sync poll TS at least
 		 * 3 times per period
 		 */
-		aq_ptp->poll_timeout_ms = div_u64(aq_ptp->pid.ext_sync_period,
+		aq_ptp->poll_timeout_ms = div_u64(ext_gpio_event->sync_pulse_ms,
 						  3);
 	}
 
@@ -943,9 +974,9 @@ int aq_ptp_configure_ext_gpio(struct net_device *ndev,
 		aq_ptp_pid_reset(&aq_ptp->pid);
 	}
 
-	aq_ptp_extts_pin_configure(&aq_ptp->ptp_info,
-				   ext_gpio_event->gpio_index,
-				   action);
+	err = aq_ptp_extts_pin_configure(&aq_ptp->ptp_info,
+					 ext_gpio_event->gpio_index,
+					 action);
 
 err_exit:
 	return err;
@@ -968,26 +999,32 @@ static int aq_ptp_verify(struct ptp_clock_info *ptp, unsigned int n_pin,
 	/* we want to keep the functions locked as well */
 	switch (func) {
 	case PTP_PF_NONE:
+		break;
 	case PTP_PF_EXTTS:
 		if (aq_ptp->a1_ptp && n_pin < ptp->n_per_out) {
 			/* A1: Only SYNC1588 may be PTP input,
 			 * A2 all GPIO may be input
 			 */
+			netdev_err(aq_ptp->aq_nic->ndev, "Only SYNC1588 may be PTP input");
 			return -EINVAL;
 		}
 		break;
 	case PTP_PF_PEROUT:
 		/* A1: Only main GPIO may be PTP output */
 		if ((aq_ptp->a1_ptp && n_pin >= ptp->n_per_out) ||
-			(n_pin > ptp->n_per_out))
+		   (n_pin > ptp->n_per_out)) {
+			netdev_err(aq_ptp->aq_nic->ndev, "Only main GPIO may be PTP output");
 			return -EINVAL;
+		}
 
 		/* ANT_A0 ASIC: Only GPIO1 or GPIO3 may be PTP output */
 		if (aq_ptp->a2_ptp &&
 		    !(ATL_HW_IS_CHIP_FEATURE(aq_ptp->aq_nic->aq_hw, FPGA)) &&
-			!(aq_ptp->ptp_info.pin_config[n_pin].rsv[3] == 1) &&
-			!(aq_ptp->ptp_info.pin_config[n_pin].rsv[3] == 3))
+		    !(aq_ptp->ptp_info.pin_config[n_pin].rsv[3] == 1) &&
+		    !(aq_ptp->ptp_info.pin_config[n_pin].rsv[3] == 3)) {
+			netdev_err(aq_ptp->aq_nic->ndev, "Only GPIO1 or GPIO3 may be PTP output");
 			return -EINVAL;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -1434,7 +1471,9 @@ static irqreturn_t aq_ptp_isr(int irq, void *private)
 		goto err_exit;
 	}
 
+	u64_stats_update_begin(&aq_ptp->ptp_rx.stats.rx.syncp);
 	aq_ptp->ptp_rx.stats.rx.irqs++;
+	u64_stats_update_end(&aq_ptp->ptp_rx.stats.rx.syncp);
 	napi_schedule(&aq_ptp->napi);
 
 err_exit:
@@ -1482,6 +1521,12 @@ int aq_ptp_xmit(struct aq_nic_s *aq_nic, struct sk_buff *skb)
 	if (likely(frags)) {
 		err = aq_nic->aq_hw_ops->hw_ring_tx_xmit(aq_nic->aq_hw,
 							 ring, frags);
+		if (err >= 0) {
+			u64_stats_update_begin(&ring->stats.tx.syncp);
+			++ring->stats.tx.packets;
+			ring->stats.tx.bytes += skb->len;
+			u64_stats_update_end(&ring->stats.tx.syncp);
+		}
 	} else {
 		err = NETDEV_TX_BUSY;
 	}
@@ -1545,7 +1590,7 @@ int aq_ptp_ring_init(struct aq_nic_s *aq_nic)
 	if (!aq_ptp)
 		return 0;
 
-	err = aq_ring_init(&aq_ptp->ptp_tx);
+	err = aq_ring_init(&aq_ptp->ptp_tx, ATL_RING_TX);
 	if (err < 0)
 		goto err_exit;
 	err = aq_nic->aq_hw_ops->hw_ring_tx_init(aq_nic->aq_hw,
@@ -1554,7 +1599,7 @@ int aq_ptp_ring_init(struct aq_nic_s *aq_nic)
 	if (err < 0)
 		goto err_exit;
 
-	err = aq_ring_init(&aq_ptp->ptp_rx);
+	err = aq_ring_init(&aq_ptp->ptp_rx, ATL_RING_RX);
 	if (err < 0)
 		goto err_exit;
 	err = aq_nic->aq_hw_ops->hw_ring_rx_init(aq_nic->aq_hw,
@@ -1575,7 +1620,7 @@ int aq_ptp_ring_init(struct aq_nic_s *aq_nic)
 	if (aq_ptp->a2_ptp)
 		return 0;
 
-	err = aq_ring_init(&aq_ptp->hwts_rx);
+	err = aq_ring_init(&aq_ptp->hwts_rx, ATL_RING_RX);
 	if (err < 0)
 		goto err_rx_free;
 	err = aq_nic->aq_hw_ops->hw_ring_rx_init(aq_nic->aq_hw,
@@ -1857,6 +1902,7 @@ static void aq_ptp_gpio_init(struct aq_ptp_s *aq_ptp,
 	u32 ncount = 0;
 	u32 i;
 
+	memset(pin_desc, 0, sizeof(pin_desc));
 	for (i = 0; i < MAX_PTP_GPIO_COUNT; i++) {
 		if (gpio_pin[i] == (GPIO_PIN_FUNCTION_PTP0 + ncount)) {
 			snprintf(pin_desc[ncount].name, sizeof(pin_desc[ncount].name),
@@ -2137,36 +2183,32 @@ struct ptp_clock *aq_ptp_get_ptp_clock(struct aq_ptp_s *aq_ptp)
 	return aq_ptp->ptp_clock;
 }
 
-int aq_ptp_get_ring_cnt(struct aq_nic_s *aq_nic)
+int aq_ptp_get_ring_cnt(struct aq_nic_s *aq_nic, const enum atl_ring_type ring_type)
 {
-	return aq_nic->aq_ptp->a1_ptp ? 2 : 1;
+	if (!aq_nic->aq_ptp)
+		return 0;
+
+	/* Additional RX ring is allocated for PTP HWTS on A1 */
+	return (aq_nic->aq_ptp->a1_ptp && ring_type == ATL_RING_RX) ? 2 : 1;
 }
 
 u64 *aq_ptp_get_stats(struct aq_nic_s *aq_nic, u64 *data)
 {
 	struct aq_ptp_s *aq_ptp = aq_nic->aq_ptp;
-	struct aq_ring_stats_rx_s *stats_rx;
-	struct aq_ring_stats_tx_s *stats_tx;
 	unsigned int count = 0U;
 
-	stats_rx = &aq_ptp->ptp_rx.stats.rx;
-	stats_tx = &aq_ptp->ptp_tx.stats.tx;
+	if (!aq_ptp)
+		return data;
 
-	stats_rx->head = aq_ptp->ptp_rx.sw_head;
-	stats_rx->tail = aq_ptp->ptp_rx.sw_tail;
-	stats_tx->head = aq_ptp->ptp_tx.sw_head;
-	stats_tx->tail = aq_ptp->ptp_tx.sw_tail;
-
-	aq_nic_fill_stats_data(stats_rx, stats_tx, data, &count);
+	count = aq_ring_fill_stats_data(&aq_ptp->ptp_rx, data);
+	data += count;
+	count = aq_ring_fill_stats_data(&aq_ptp->ptp_tx, data);
+	data += count;
 
 	if (aq_ptp->a1_ptp) {
-		data += count;
-		stats_rx = &aq_ptp->hwts_rx.stats.rx;
-		stats_rx->head = aq_ptp->hwts_rx.sw_head;
-		stats_rx->tail = aq_ptp->hwts_rx.sw_tail;
 		/* Only Receive ring for HWTS */
-		memset(stats_tx, 0, sizeof(struct aq_ring_stats_tx_s));
-		aq_nic_fill_stats_data(stats_rx, stats_tx, data, &count);
+		count = aq_ring_fill_stats_data(&aq_ptp->hwts_rx, data);
+		data += count;
 	}
 
 	return data;

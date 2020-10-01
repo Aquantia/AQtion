@@ -118,10 +118,8 @@ static const char aq_ethtool_stat_names[][ETH_GSTRING_LEN] = {
 	"InDroppedDma",
 };
 
-static const char * const aq_ethtool_queue_stat_names[] = {
+static const char * const aq_ethtool_queue_rx_stat_names[] = {
 	"%sQueue[%d] InPackets",
-	"%sQueue[%d] OutPackets",
-	"%sQueue[%d] Restarts",
 	"%sQueue[%d] InJumboPackets",
 	"%sQueue[%d] InLroPackets",
 	"%sQueue[%d] InErrors",
@@ -131,6 +129,11 @@ static const char * const aq_ethtool_queue_stat_names[] = {
 	"%sQueue[%d] Irqs",
 	"%sQueue[%d] RX Head",
 	"%sQueue[%d] RX Tail",
+};
+
+static const char * const aq_ethtool_queue_tx_stat_names[] = {
+	"%sQueue[%d] OutPackets",
+	"%sQueue[%d] Restarts",
 	"%sQueue[%d] TX Head",
 	"%sQueue[%d] TX Tail",
 };
@@ -305,18 +308,16 @@ static u32 atl_ethtool_n_selftests(struct net_device *ndev)
 
 static u32 aq_ethtool_n_stats(struct net_device *ndev)
 {
+	const int rx_stat_cnt = ARRAY_SIZE(aq_ethtool_queue_rx_stat_names);
+	const int tx_stat_cnt = ARRAY_SIZE(aq_ethtool_queue_tx_stat_names);
 	struct aq_nic_s *nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg = aq_nic_get_cfg(nic);
 	u32 n_stats = ARRAY_SIZE(aq_ethtool_stat_names) +
-		      ARRAY_SIZE(aq_ethtool_queue_stat_names) * cfg->vecs *
-			cfg->tcs;
+		      (rx_stat_cnt + tx_stat_cnt) * cfg->vecs * cfg->tcs;
 
 #if IS_REACHABLE(CONFIG_PTP_1588_CLOCK)
-	if (nic->aq_ptp) {
-		int ring_cnt = aq_ptp_get_ring_cnt(nic);
-
-		n_stats += ARRAY_SIZE(aq_ethtool_queue_stat_names) * ring_cnt;
-	}
+	n_stats += rx_stat_cnt * aq_ptp_get_ring_cnt(nic, ATL_RING_RX) +
+		   tx_stat_cnt * aq_ptp_get_ring_cnt(nic, ATL_RING_TX);
 #endif
 
 #if IS_ENABLED(CONFIG_MACSEC)
@@ -342,8 +343,7 @@ static void aq_ethtool_stats(struct net_device *ndev,
 	memset(data, 0, aq_ethtool_n_stats(ndev) * sizeof(u64));
 	data = aq_nic_get_stats(aq_nic, data);
 #if IS_REACHABLE(CONFIG_PTP_1588_CLOCK)
-	if (aq_nic->aq_ptp)
-		data = aq_ptp_get_stats(aq_nic, data);
+	data = aq_ptp_get_stats(aq_nic, data);
 #endif
 #if IS_ENABLED(CONFIG_MACSEC)
 	data = aq_macsec_get_stats(aq_nic, data);
@@ -361,7 +361,7 @@ static void aq_ethtool_get_drvinfo(struct net_device *ndev,
 	firmware_version = aq_nic_get_fw_version(aq_nic);
 	regs_count = aq_nic_get_regs_count(aq_nic);
 
-	strlcat(drvinfo->driver, aq_ndev_driver_name, sizeof(drvinfo->driver));
+	strlcat(drvinfo->driver, AQ_CFG_DRV_NAME, sizeof(drvinfo->driver));
 	strlcat(drvinfo->version, AQ_CFG_DRV_VERSION, sizeof(drvinfo->version));
 
 	snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
@@ -391,7 +391,8 @@ static void aq_ethtool_get_strings(struct net_device *ndev,
 
 	switch (stringset) {
 	case ETH_SS_STATS: {
-		const int stat_cnt = ARRAY_SIZE(aq_ethtool_queue_stat_names);
+		const int rx_stat_cnt = ARRAY_SIZE(aq_ethtool_queue_rx_stat_names);
+		const int tx_stat_cnt = ARRAY_SIZE(aq_ethtool_queue_tx_stat_names);
 		char tc_string[8];
 		int tc;
 
@@ -405,9 +406,16 @@ static void aq_ethtool_get_strings(struct net_device *ndev,
 				snprintf(tc_string, 8, "TC%d ", tc);
 
 			for (i = 0; i < cfg->vecs; i++) {
-				for (si = 0; si < stat_cnt; si++) {
+				for (si = 0; si < rx_stat_cnt; si++) {
 					snprintf(p, ETH_GSTRING_LEN,
-					     aq_ethtool_queue_stat_names[si],
+					     aq_ethtool_queue_rx_stat_names[si],
+					     tc_string,
+					     AQ_NIC_CFG_TCVEC2RING(cfg, tc, i));
+					p += ETH_GSTRING_LEN;
+				}
+				for (si = 0; si < tx_stat_cnt; si++) {
+					snprintf(p, ETH_GSTRING_LEN,
+					     aq_ethtool_queue_tx_stat_names[si],
 					     tc_string,
 					     AQ_NIC_CFG_TCVEC2RING(cfg, tc, i));
 					p += ETH_GSTRING_LEN;
@@ -416,16 +424,26 @@ static void aq_ethtool_get_strings(struct net_device *ndev,
 		}
 #if IS_REACHABLE(CONFIG_PTP_1588_CLOCK)
 		if (nic->aq_ptp) {
-			int ptp_ring_cnt = aq_ptp_get_ring_cnt(nic);
+			const int rx_ring_cnt = aq_ptp_get_ring_cnt(nic, ATL_RING_RX);
+			const int tx_ring_cnt = aq_ptp_get_ring_cnt(nic, ATL_RING_TX);
 			unsigned int ptp_ring_idx =
 				aq_ptp_ring_idx(nic->aq_nic_cfg.tc_mode);
 
 			snprintf(tc_string, 8, "PTP ");
 
-			for (i = 0; i < ptp_ring_cnt; i++) {
-				for (si = 0; si < stat_cnt; si++) {
+			for (i = 0; i < max(rx_ring_cnt, tx_ring_cnt); i++) {
+				for (si = 0; si < rx_stat_cnt; si++) {
 					snprintf(p, ETH_GSTRING_LEN,
-						 aq_ethtool_queue_stat_names[si],
+						 aq_ethtool_queue_rx_stat_names[si],
+						 tc_string,
+						 i ? PTP_HWST_RING_IDX : ptp_ring_idx);
+					p += ETH_GSTRING_LEN;
+				}
+				if (i >= tx_ring_cnt)
+					continue;
+				for (si = 0; si < tx_stat_cnt; si++) {
+					snprintf(p, ETH_GSTRING_LEN,
+						 aq_ethtool_queue_tx_stat_names[si],
 						 tc_string,
 						 i ? PTP_HWST_RING_IDX : ptp_ring_idx);
 					p += ETH_GSTRING_LEN;
@@ -575,12 +593,8 @@ static u32 aq_ethtool_get_rss_key_size(struct net_device *ndev)
 	return sizeof(cfg->aq_rss.hash_secret_key);
 }
 
-#if defined(ETH_RSS_HASH_TOP)
 static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key,
 			      u8 *hfunc)
-#else
-static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key)
-#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg;
@@ -588,10 +602,8 @@ static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key)
 
 	cfg = aq_nic_get_cfg(aq_nic);
 
-#if defined(ETH_RSS_HASH_TOP)
 	if (hfunc)
 		*hfunc = ETH_RSS_HASH_TOP; /* Toeplitz */
-#endif
 	if (indir) {
 		for (i = 0; i < AQ_CFG_RSS_INDIRECTION_TABLE_MAX; i++)
 			indir[i] = cfg->aq_rss.indirection_table[i];
@@ -603,13 +615,8 @@ static int aq_ethtool_get_rss(struct net_device *ndev, u32 *indir, u8 *key)
 	return 0;
 }
 
-#if defined(ETH_RSS_HASH_TOP)
 static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
 			      const u8 *key, const u8 hfunc)
-#else
-static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
-			      const u8 *key)
-#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(netdev);
 	struct aq_nic_cfg_s *cfg;
@@ -620,12 +627,9 @@ static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
 	cfg = aq_nic_get_cfg(aq_nic);
 	rss_entries = cfg->aq_rss.indirection_table_size;
 
-#if defined(ETH_RSS_HASH_TOP)
 	/* We do not allow change in unsupported parameters */
 	if (hfunc != ETH_RSS_HASH_NO_CHANGE && hfunc != ETH_RSS_HASH_TOP)
 		return -EOPNOTSUPP;
-#endif
-
 	/* Fill out the redirection table */
 	if (indir)
 		for (i = 0; i < rss_entries; i++)
@@ -645,6 +649,19 @@ static int aq_ethtool_set_rss(struct net_device *netdev, const u32 *indir,
 
 	return err;
 }
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+static int aq_ethtool_get_rss_legacy(struct net_device *ndev, u32 *indir, u8 *key)
+{
+	return aq_ethtool_get_rss(ndev, indir, key, NULL);
+}
+
+static int aq_ethtool_set_rss_legacy(struct net_device *netdev, const u32 *indir,
+				     const u8 *key)
+{
+	return aq_ethtool_set_rss(netdev, indir, key, ETH_RSS_HASH_TOP);
+}
+#endif
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
@@ -1370,8 +1387,13 @@ const struct ethtool_ops aq_ethtool_ops = {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)) ||\
     (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,5))
 	.get_rxfh_key_size   = aq_ethtool_get_rss_key_size,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	.get_rxfh            = aq_ethtool_get_rss,
 	.set_rxfh            = aq_ethtool_set_rss,
+#else
+	.get_rxfh            = aq_ethtool_get_rss_legacy,
+	.set_rxfh            = aq_ethtool_set_rss_legacy,
+#endif
 #endif
 	.get_rxnfc           = aq_ethtool_get_rxnfc,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)

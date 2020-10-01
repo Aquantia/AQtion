@@ -114,6 +114,9 @@ static inline int page_ref_count(struct page *page)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 #define napi_complete_done(n, done) napi_complete(n)
+
+#define ETH_RSS_HASH_TOP BIT(0)
+#define ETH_RSS_HASH_NO_CHANGE 0
 #endif /* 3.19.0 */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)) && !(RHEL_RELEASE_CODE)
@@ -166,6 +169,19 @@ static inline void ether_addr_copy(u8 *dst, const u8 *src)
 #define timespec64_to_ns timespec_to_ns
 #define ns_to_timespec64 ns_to_timespec
 #endif
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
+#if !RHEL_RELEASE_CODE
+#define u64_stats_fetch_begin_irq u64_stats_fetch_begin_bh
+#define u64_stats_fetch_retry_irq u64_stats_fetch_retry_bh
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
+#if !RHEL_RELEASE_CODE
+#define u64_stats_init(s)
 #endif
 #endif
 

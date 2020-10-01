@@ -210,7 +210,7 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 
 	if (self->link_status.mbps != new_link_status->mbps) {
 		netdev_info(self->ndev, "%s: link change old %d new %d\n",
-			    aq_ndev_driver_name, self->link_status.mbps,
+			    AQ_CFG_DRV_NAME, self->link_status.mbps,
 			    new_link_status->mbps);
 		aq_nic_update_interrupt_moderation_settings(self);
 
@@ -1002,20 +1002,6 @@ int aq_nic_get_regs_count(struct aq_nic_s *self)
 	return self->aq_nic_cfg.aq_hw_caps->mac_regs_count;
 }
 
-static int aq_nic_get_tc_stats(struct aq_vec_s *vec, const unsigned int tc,
-			       u64 *data, unsigned int *p_count)
-{
-	struct aq_ring_stats_rx_s stats_rx;
-	struct aq_ring_stats_tx_s stats_tx;
-
-	memset(&stats_rx, 0U, sizeof(struct aq_ring_stats_rx_s));
-	memset(&stats_tx, 0U, sizeof(struct aq_ring_stats_tx_s));
-
-	aq_vec_add_stats(vec, tc, &stats_rx, &stats_tx);
-
-	return aq_nic_fill_stats_data(&stats_rx, &stats_tx, data, p_count);
-}
-
 u64 *aq_nic_get_stats(struct aq_nic_s *self, u64 *data)
 {
 	struct aq_vec_s *aq_vec = NULL;
@@ -1049,8 +1035,14 @@ u64 *aq_nic_get_stats(struct aq_nic_s *self, u64 *data)
 	data[++i] = stats->mbtc;
 	data[++i] = stats->bbrc;
 	data[++i] = stats->bbtc;
-	data[++i] = stats->ubrc + stats->mbrc + stats->bbrc;
-	data[++i] = stats->ubtc + stats->mbtc + stats->bbtc;
+	if (stats->brc)
+		data[++i] = stats->brc;
+	else
+		data[++i] = stats->ubrc + stats->mbrc + stats->bbrc;
+	if (stats->btc)
+		data[++i] = stats->btc;
+	else
+		data[++i] = stats->ubtc + stats->mbtc + stats->bbtc;
 	data[++i] = stats->dma_pkt_rc;
 	data[++i] = stats->dma_pkt_tc;
 	data[++i] = stats->dma_oct_rc;
@@ -1066,7 +1058,7 @@ u64 *aq_nic_get_stats(struct aq_nic_s *self, u64 *data)
 		     aq_vec && self->aq_vecs > i;
 		     ++i, aq_vec = self->aq_vec[i]) {
 			data += count;
-			aq_nic_get_tc_stats(aq_vec, tc, data, &count);
+			count = aq_vec_get_sw_stats(aq_vec, tc, data);
 		}
 	}
 
@@ -1091,35 +1083,6 @@ static void aq_nic_update_ndev_stats(struct aq_nic_s *self)
 	ndev->stats.tx_bytes = stats->dma_oct_tc;
 	ndev->stats.tx_errors = stats->erpt;
 	ndev->stats.multicast = stats->mprc;
-}
-
-int aq_nic_fill_stats_data(struct aq_ring_stats_rx_s *stats_rx,
-			   struct aq_ring_stats_tx_s *stats_tx,
-			   u64 *data,
-			   unsigned int *p_count)
-{
-	unsigned int count = 0U;
-	/* This data should mimic aq_ethtool_queue_stat_names structure
-	 */
-	data[count] += stats_rx->packets;
-	data[++count] += stats_tx->packets;
-	data[++count] += stats_tx->queue_restarts;
-	data[++count] += stats_rx->jumbo_packets;
-	data[++count] += stats_rx->lro_packets;
-	data[++count] += stats_rx->errors;
-	data[++count] += stats_rx->alloc_fails;
-	data[++count] += stats_rx->skb_alloc_fails;
-	data[++count] += stats_rx->polls;
-	data[++count] += stats_rx->irqs;
-	data[++count] = stats_rx->head;
-	data[++count] = stats_rx->tail;
-	data[++count] = stats_tx->head;
-	data[++count] = stats_tx->tail;
-
-	if (p_count)
-		*p_count = ++count;
-
-	return 0;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)

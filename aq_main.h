@@ -13,8 +13,6 @@
 #include "aq_common.h"
 #include "aq_nic.h"
 
-extern const char aq_ndev_driver_name[];
-
 void aq_ndev_schedule_work(struct work_struct *work);
 struct net_device *aq_ndev_alloc(void);
 
