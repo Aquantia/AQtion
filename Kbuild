@@ -28,6 +28,7 @@ $(TARGET)-objs:=aq_main.o aq_nic.o aq_pci_func.o aq_nic.o aq_vec.o aq_ring.o aq_
 	aq_compat.o \
 	aq_tsn.o \
 	aq_sysfs.o \
+	aq_xdp.o \
 	hw_atl/hw_atl_a0.o \
 	hw_atl/hw_atl_b0.o \
 	hw_atl/hw_atl_utils.o \

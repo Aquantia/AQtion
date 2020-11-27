@@ -12,6 +12,7 @@
 
 #include <linux/version.h>
 #include <linux/netdevice.h>
+#include <uapi/linux/bpf.h>
 
 #ifndef RHEL_RELEASE_VERSION
 #define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
@@ -278,6 +279,10 @@ u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
 #if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 3))
 #define NETIF_F_HW_TC 0
 #endif
+#endif
+
+#ifdef XDP_PACKET_HEADROOM
+#define HAS_XDP
 #endif
 
 #endif /* AQ_COMPAT_H */

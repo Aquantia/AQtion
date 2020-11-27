@@ -230,6 +230,7 @@ TRACE_EVENT(aq_produce_skb,
 		__field(u8, csum_level)
 		__field(u16, vlan_tci)
 		__field(u32, hash)
+		__field(u32, frags)
 	),
 	TP_fast_assign(
 		__entry->ring_idx = ring_idx;
@@ -238,10 +239,11 @@ TRACE_EVENT(aq_produce_skb,
 		__entry->csum_level = SKB_CSUM_LEVEL(skb);
 		__entry->vlan_tci = skb->vlan_tci;
 		__entry->hash = SKB_HASH(skb);
+		__entry->frags = skb_shinfo(skb)->nr_frags;
 	),
-	TP_printk("ring=%d len=%d ip_summed=%d csum_level=%d vlan_tci=0x%x rxhash=0x%x",
+	TP_printk("ring=%d len=%d ip_summed=%d csum_level=%d vlan_tci=0x%x rxhash=0x%x frags=%d",
 		  __entry->ring_idx, __entry->len, __entry->ip_summed,
-		  __entry->csum_level, __entry->vlan_tci, __entry->hash)
+		  __entry->csum_level, __entry->vlan_tci, __entry->hash, __entry->frags)
 );
 #undef SKB_CSUM_LEVEL
 #undef SKB_HASH

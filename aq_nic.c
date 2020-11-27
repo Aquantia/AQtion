@@ -460,9 +460,18 @@ void aq_nic_set_tx_ring(struct aq_nic_s *self, unsigned int idx,
 	self->aq_ring_tx[idx] = ring;
 }
 
-struct net_device *aq_nic_get_ndev(struct aq_nic_s *self)
+void aq_nic_set_rx_ring(struct aq_nic_s *self, unsigned int idx,
+			struct aq_ring_s *ring)
 {
-	return self->ndev;
+	// TODO: remove idx parameter?
+	self->aq_ring_rx[idx] = ring;
+#ifdef HAS_XDP
+	WARN_ON(xdp_rxq_info_reg(&ring->xdp_rxq, self->ndev,
+			     ring->idx));
+	WARN_ON(xdp_rxq_info_reg_mem_model(&ring->xdp_rxq,
+					MEM_TYPE_PAGE_SHARED, NULL));
+	ring->xdp_prog = self->xdp_prog;
+#endif
 }
 
 int aq_nic_init(struct aq_nic_s *self)

@@ -37,7 +37,14 @@ struct aq_rxpage {
 struct __packed aq_ring_buff_s {
 	union {
 		/* RX/TX */
-		dma_addr_t pa;
+		struct {
+			dma_addr_t pa;
+			union {
+				/* selected by is_xdp */
+				struct xdp_frame *xdpf;
+				struct sk_buff *skb;
+			};
+		};
 		/* RX */
 		struct {
 			u32 rss_hash;
@@ -46,11 +53,6 @@ struct __packed aq_ring_buff_s {
 			u8 rsvd1;
 			struct aq_rxpage rxdata;
 			u16 vlan_rx_tag;
-		};
-		/* EOP */
-		struct {
-			dma_addr_t pa_eop;
-			struct sk_buff *skb;
 		};
 		/* TxC */
 		struct {
@@ -67,6 +69,7 @@ struct __packed aq_ring_buff_s {
 	union {
 		struct {
 			u32 len:16;
+
 			u32 is_ip_cso:1;
 			u32 is_udp_cso:1;
 			u32 is_tcp_cso:1;
@@ -82,7 +85,8 @@ struct __packed aq_ring_buff_s {
 			u32 is_lro:1;
 			u32 request_ts:1;
 			u32 clk_sel:1;
-			u32 rsvd3:1;
+			u32 is_xdp:1;
+
 			u16 eop_index;
 			u16 rsvd4;
 		};
@@ -139,10 +143,15 @@ struct aq_ring_s {
 	unsigned int size;	/* descriptors number */
 	unsigned int dx_size;	/* TX or RX descriptor size,  */
 				/* stored here for fater math */
+	unsigned int rx_frame_size; /* HW rx frame size per descriptor */
 	unsigned int page_order;
 	union aq_ring_stats_s stats;
 	dma_addr_t dx_ring_pa;
 	enum atl_ring_type ring_type;
+#ifdef HAS_XDP
+	struct bpf_prog *xdp_prog;
+	struct xdp_rxq_info xdp_rxq;
+#endif
 };
 
 struct aq_ring_param_s {
@@ -173,7 +182,12 @@ static inline unsigned int aq_ring_avail_dx(struct aq_ring_s *self)
 		(self->size - 1) - self->sw_tail + self->sw_head :
 		self->sw_head - self->sw_tail - 1);
 }
-
+#ifdef HAS_XDP
+static inline bool aq_ring_xdp_present(struct aq_ring_s *ring)
+{
+	return !!ring->xdp_prog;
+}
+#endif
 struct aq_ring_s *aq_ring_tx_alloc(struct aq_ring_s *self,
 				   struct aq_nic_s *aq_nic,
 				   unsigned int idx,

@@ -137,6 +137,7 @@ struct aq_nic_s {
 	u32 msg_enable;
 	struct aq_vec_s *aq_vec[AQ_CFG_VECS_MAX];
 	struct aq_ring_s *aq_ring_tx[AQ_HW_QUEUES_MAX];
+	struct aq_ring_s *aq_ring_rx[AQ_HW_QUEUES_MAX];
 	struct aq_hw_s *aq_hw;
 	struct net_device *ndev;
 	unsigned int aq_vecs;
@@ -178,11 +179,23 @@ struct aq_nic_s {
 	struct aq_hw_rx_fltrs_s aq_hw_rx_fltrs;
 	struct aq_rx_filter_l3l4 udp_filter;
 	u32 dump_flag;
+	/* XDP structures */
+	struct bpf_prog *xdp_prog;
 };
 
 static inline struct device *aq_nic_get_dev(struct aq_nic_s *self)
 {
 	return self->ndev->dev.parent;
+}
+
+static inline bool aq_xdp_present(struct aq_nic_s *nic)
+{
+	return !!nic->xdp_prog;
+}
+
+static inline struct net_device *aq_nic_get_ndev(struct aq_nic_s *self)
+{
+	return self->ndev;
 }
 
 extern unsigned int aq_rx_refill_thres;
@@ -198,7 +211,8 @@ void aq_nic_ndev_init(struct aq_nic_s *self);
 struct aq_nic_s *aq_nic_alloc_hot(struct net_device *ndev);
 void aq_nic_set_tx_ring(struct aq_nic_s *self, unsigned int idx,
 			struct aq_ring_s *ring);
-struct net_device *aq_nic_get_ndev(struct aq_nic_s *self);
+void aq_nic_set_rx_ring(struct aq_nic_s *self, unsigned int idx,
+			struct aq_ring_s *ring);
 int aq_nic_init(struct aq_nic_s *self);
 void aq_nic_cfg_start(struct aq_nic_s *self);
 int aq_nic_ndev_register(struct aq_nic_s *self);

@@ -13,6 +13,7 @@
 #define AQ_VEC_H
 
 #include "aq_common.h"
+#include "aq_ring.h"
 #include <linux/irqreturn.h>
 
 struct aq_hw_s;
@@ -21,6 +22,20 @@ struct aq_nic_s;
 struct aq_nic_cfg_s;
 struct aq_ring_stats_rx_s;
 struct aq_ring_stats_tx_s;
+
+#define AQ_VEC_TX_ID 0
+#define AQ_VEC_RX_ID 1
+
+struct aq_vec_s {
+	const struct aq_hw_ops *aq_hw_ops;
+	struct aq_hw_s *aq_hw;
+	struct aq_nic_s *aq_nic;
+	unsigned int tx_rings;
+	unsigned int rx_rings;
+	struct aq_ring_param_s aq_ring_param;
+	struct napi_struct napi;
+	struct aq_ring_s ring[AQ_CFG_TCS_MAX][2];
+};
 
 irqreturn_t aq_vec_isr(int irq, void *private);
 irqreturn_t aq_vec_isr_legacy(int irq, void *private);

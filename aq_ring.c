@@ -13,9 +13,11 @@
 #include "aq_hw_utils.h"
 #include "aq_ptp.h"
 #include "aq_trace.h"
+#include "aq_xdp.h"
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/filter.h>
 
 static inline void aq_free_rxpage(struct aq_rxpage *rxpage, struct device *dev)
 {
@@ -68,8 +70,8 @@ static int aq_get_rxpages(struct aq_ring_s *self, struct aq_ring_buff_s *rxbuf,
 		/* One means ring is the only user and can reuse */
 		if (page_ref_count(rxbuf->rxdata.page) > 1) {
 			/* Try reuse buffer */
-			rxbuf->rxdata.pg_off += AQ_CFG_RX_FRAME_MAX;
-			if (rxbuf->rxdata.pg_off + AQ_CFG_RX_FRAME_MAX <=
+			rxbuf->rxdata.pg_off += self->rx_frame_size;
+			if (rxbuf->rxdata.pg_off + self->rx_frame_size <=
 				(PAGE_SIZE << order)) {
 				u64_stats_update_begin(&self->stats.rx.syncp);
 				self->stats.rx.pg_flips++;
@@ -173,8 +175,9 @@ struct aq_ring_s *aq_ring_rx_alloc(struct aq_ring_s *self,
 	self->idx = idx;
 	self->size = aq_nic_cfg->rxds;
 	self->dx_size = aq_nic_cfg->aq_hw_caps->rxd_size;
-	self->page_order = fls(AQ_CFG_RX_FRAME_MAX / PAGE_SIZE +
-			       (AQ_CFG_RX_FRAME_MAX % PAGE_SIZE ? 1 : 0)) - 1;
+	self->rx_frame_size = AQ_CFG_RX_FRAME_MAX;
+	self->page_order = fls(self->rx_frame_size / PAGE_SIZE +
+			       (self->rx_frame_size % PAGE_SIZE ? 1 : 0)) - 1;
 
 	if (aq_nic_cfg->rxpageorder > self->page_order)
 		self->page_order = aq_nic_cfg->rxpageorder;
@@ -299,7 +302,7 @@ bool aq_ring_tx_clean(struct aq_ring_s *self)
 			}
 		}
 
-		if (unlikely(buff->is_eop)) {
+		if (likely(buff->is_eop)) {
 			if (unlikely(buff->request_ts) &&
 			    self->aq_nic->aq_hw_ops->hw_ring_tx_ptp_get_ts) {
 				u64 ts = self->aq_nic->aq_hw_ops->hw_ring_tx_ptp_get_ts(self);
@@ -313,12 +316,31 @@ bool aq_ring_tx_clean(struct aq_ring_s *self)
 #endif
 			}
 
+#ifdef HAS_XDP
+			WARN(buff->is_xdp && !buff->xdpf, "is_xdp but no frame!");
+#endif
+
 			u64_stats_update_begin(&self->stats.tx.syncp);
 			++self->stats.tx.packets;
-			self->stats.tx.bytes += buff->skb->len;
+#ifdef HAS_XDP
+			if (buff->is_xdp && buff->xdpf)
+				self->stats.tx.bytes += buff->xdpf->len;
+			else
+#endif
+				self->stats.tx.bytes += buff->skb->len;
 			u64_stats_update_end(&self->stats.tx.syncp);
 
-			dev_kfree_skb_any(buff->skb);
+#ifdef HAS_XDP
+			if (buff->is_xdp && buff->xdpf) {
+				xdp_return_frame(buff->xdpf);
+				buff->xdpf = NULL;
+			} else {
+#endif
+				dev_kfree_skb_any(buff->skb);
+				buff->skb = NULL;
+#ifdef HAS_XDP
+			}
+#endif
 		}
 		buff->pa = 0U;
 		buff->eop_index = 0xffffU;
@@ -364,14 +386,18 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 		     int budget)
 {
 	struct net_device *ndev = aq_nic_get_ndev(self->aq_nic);
+	bool is_ptp_ring = aq_ptp_ring(self);
 	bool is_rsc_completed = true;
+#ifdef HAS_XDP
+	bool xdp_redir = 0;
+#endif
+	int skb_headroom = -1, skb_len = -1;
 	int err = 0;
 
 	for (; (self->sw_head != self->hw_head) && budget;
 		self->sw_head = aq_ring_next_dx(self, self->sw_head),
 		--budget, ++(*work_done)) {
 		struct aq_ring_buff_s *buff = &self->buff_ring[self->sw_head];
-		bool is_ptp_ring = aq_ptp_ring(self);
 		struct aq_ring_buff_s *buff_ = NULL;
 		struct sk_buff *skb = NULL;
 		unsigned int next_ = 0U;
@@ -433,12 +459,57 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 					      buff->rxdata.daddr,
 					      buff->rxdata.pg_off,
 					      buff->len, DMA_FROM_DEVICE);
+#ifdef HAS_XDP
+		if (aq_ring_xdp_present(self)) {
+			struct xdp_buff xb;
+			int action;
 
+			if (!buff->is_eop) {
+				WARN_ONCE(true, "Incomplete rx packet with !is_eop");
+				continue;
+			}
+
+			xb.rxq = &self->xdp_rxq;
+			xb.data = aq_buf_vaddr(&buff->rxdata);
+			xb.data_meta = xb.data;
+			/* We can't easily reserve XDP_PACKET_HEADROOM here
+			 * since HW only operates on 1K aligned rx buffers
+			 */
+			xb.data_hard_start = xb.data;
+			xb.data_end = xb.data + buff->len;
+
+			prefetch(xb.data);
+
+			action = aq_xdp_execute(self, &xb);
+
+			++self->stats.rx.packets;
+			self->stats.rx.bytes += buff->len;
+
+			switch (action) {
+			case XDP_DROP:
+				continue;
+			case XDP_PASS:
+				skb_headroom = xb.data - xb.data_hard_start;
+				skb_len = xb.data_end - xb.data;
+				break;
+			case XDP_REDIRECT:
+				xdp_redir |= true;
+				break;
+			default:
+				/* all actions beside above consumes the page
+				 * for the xdp path. Increment ref counter for
+				 * that.
+				 */
+				page_ref_inc(buff->rxdata.page);
+				continue;
+			}
+		}
+#endif
 		/* for single fragment packets use build_skb() */
 		if (buff->is_eop &&
-		    buff->len <= AQ_CFG_RX_FRAME_MAX - AQ_SKB_ALIGN) {
+		    buff->len <= self->rx_frame_size - AQ_SKB_ALIGN) {
 			skb = build_skb(aq_buf_vaddr(&buff->rxdata),
-					AQ_CFG_RX_FRAME_MAX);
+					self->rx_frame_size);
 			if (unlikely(!skb)) {
 				u64_stats_update_begin(&self->stats.rx.syncp);
 				self->stats.rx.skb_alloc_fails++;
@@ -451,7 +522,11 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 					aq_ptp_extract_ts(self->aq_nic, skb,
 						aq_buf_vaddr(&buff->rxdata),
 						buff->len);
-			skb_put(skb, buff->len);
+			if (skb_headroom > 0)
+				skb_reserve(skb, skb_headroom); // TODO: how to test
+			if (skb_len < 0)
+				skb_len = buff->len; // TODO: do the same for !IS_EOP???
+			skb_put(skb, skb_len);
 			page_ref_inc(buff->rxdata.page);
 		} else {
 			skb = napi_alloc_skb(napi, AQ_CFG_RX_HDR_SIZE);
@@ -481,7 +556,7 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 				skb_add_rx_frag(skb, 0, buff->rxdata.page,
 						buff->rxdata.pg_off + hdr_len,
 						buff->len - hdr_len,
-						AQ_CFG_RX_FRAME_MAX);
+						self->rx_frame_size);
 				page_ref_inc(buff->rxdata.page);
 			}
 
@@ -502,7 +577,7 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 							buff_->rxdata.page,
 							buff_->rxdata.pg_off,
 							buff_->len,
-							AQ_CFG_RX_FRAME_MAX);
+							self->rx_frame_size);
 					page_ref_inc(buff_->rxdata.page);
 					buff_->is_cleaned = 1;
 
@@ -545,6 +620,11 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 		napi_gro_receive(napi, skb);
 	}
 
+#ifdef HAS_XDP
+	if (xdp_redir)
+		xdp_do_flush_map();
+#endif
+
 err_exit:
 	return err;
 }
@@ -582,7 +662,7 @@ int aq_ring_rx_fill(struct aq_ring_s *self)
 		buff = &self->buff_ring[self->sw_tail];
 
 		buff->flags = 0U;
-		buff->len = AQ_CFG_RX_FRAME_MAX;
+		buff->len = self->rx_frame_size;
 
 		err = aq_get_rxpages(self, buff, page_order);
 		if (err)

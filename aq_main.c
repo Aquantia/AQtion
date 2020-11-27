@@ -18,6 +18,7 @@
 #endif
 #include "aq_filters.h"
 #include "aq_hw_utils.h"
+#include "aq_xdp.h"
 
 #include <linux/pm_runtime.h>
 #include <linux/netdevice.h>
@@ -264,6 +265,25 @@ err_exit:
 	return err;
 }
 #endif
+
+static netdev_features_t aq_ndev_fix_features(struct net_device *ndev,
+					      netdev_features_t features)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	if (!(features & NETIF_F_RXCSUM))
+		features &= ~NETIF_F_LRO;
+
+#ifdef HAS_XDP
+	if (aq_nic->xdp_prog && (features & NETIF_F_LRO)) {
+		netdev_err(ndev, "LRO is not supported with XDP, disabling\n");
+		features &= ~NETIF_F_LRO;
+	}
+#endif
+
+	return features;
+}
+
 
 static int aq_ndev_set_mac_address(struct net_device *ndev, void *addr)
 {
@@ -549,6 +569,35 @@ static int aq_ndo_setup_tc(struct net_device *dev, u32 handle, __be16 protocol,
 }
 #endif
 
+#ifdef HAS_XDP
+/* This is the xdp/bpf callback, here the kernel gives the xdp
+ * program to the driver
+ */
+static int aq_ndo_bpf(struct net_device *netdev, struct netdev_bpf *bpf)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(netdev);
+
+	switch (bpf->command) {
+	case XDP_SETUP_PROG:
+		return aq_xdp_setup(aq_nic, bpf->prog);
+#ifdef HAS_XDP_QUERY_PROG
+	case XDP_QUERY_PROG:
+		bpf->prog_id = aq_nic->xdp_prog ?
+			       aq_nic->xdp_prog->aux->id : 0;
+		break;
+#endif
+#ifdef HAS_XDP_SETUP_XSK_UMEM
+	case XDP_SETUP_XSK_UMEM:
+		return -EINVAL; /*i40e_xsk_umem_setup(vsi, xdp->xsk.umem,
+					   xdp->xsk.queue_id);*/
+#endif
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif
+
 static const struct net_device_ops aq_ndev_ops = {
 	.ndo_open = aq_ndev_open,
 	.ndo_stop = aq_ndev_close,
@@ -567,6 +616,7 @@ static const struct net_device_ops aq_ndev_ops = {
 	.ndo_set_mac_address = aq_ndev_set_mac_address,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	.ndo_set_features = aq_ndev_set_features,
+	.ndo_fix_features = aq_ndev_fix_features,
 #endif
 	.ndo_do_ioctl = aq_ndev_ioctl,
 	.ndo_vlan_rx_add_vid = aq_ndo_vlan_rx_add_vid,
@@ -576,6 +626,11 @@ static const struct net_device_ops aq_ndev_ops = {
 	.extended.ndo_setup_tc_rh = aq_ndo_setup_tc,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
 	.ndo_setup_tc = aq_ndo_setup_tc,
+#endif
+#ifdef HAS_XDP
+	.ndo_bpf = aq_ndo_bpf,
+	.ndo_xdp_xmit = aq_xdp_xmit,
+/*	.ndo_xsk_wakeup = aq_xsk_wakeup,*/
 #endif
 };
 

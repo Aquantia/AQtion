@@ -11,26 +11,11 @@
 
 #include "aq_vec.h"
 #include "aq_nic.h"
-#include "aq_ring.h"
 #include "aq_hw.h"
 #include "aq_nic.h"
 #include "aq_main.h"
 
 #include <linux/netdevice.h>
-
-struct aq_vec_s {
-	const struct aq_hw_ops *aq_hw_ops;
-	struct aq_hw_s *aq_hw;
-	struct aq_nic_s *aq_nic;
-	unsigned int tx_rings;
-	unsigned int rx_rings;
-	struct aq_ring_param_s aq_ring_param;
-	struct napi_struct napi;
-	struct aq_ring_s ring[AQ_CFG_TCS_MAX][2];
-};
-
-#define AQ_VEC_TX_ID 0
-#define AQ_VEC_RX_ID 1
 
 static int aq_vec_poll(struct napi_struct *napi, int budget)
 {
@@ -160,6 +145,8 @@ int aq_vec_ring_alloc(struct aq_vec_s *self, struct aq_nic_s *aq_nic,
 		}
 
 		++self->rx_rings;
+	
+		aq_nic_set_rx_ring(aq_nic, idx_ring, ring);
 	}
 
 err_exit:

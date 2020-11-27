@@ -531,7 +531,7 @@ static int hw_atl_a0_hw_ring_rx_init(struct aq_hw_s *self,
 	hw_atl_rdm_rx_desc_len_set(self, aq_ring->size / 8U, aq_ring->idx);
 
 	hw_atl_rdm_rx_desc_data_buff_size_set(self,
-					      AQ_CFG_RX_FRAME_MAX / 1024U,
+					      aq_ring->rx_frame_size / 1024U,
 					      aq_ring->idx);
 
 	hw_atl_rdm_rx_desc_head_buff_size_set(self, 0U, aq_ring->idx);
@@ -706,9 +706,9 @@ static int hw_atl_a0_hw_ring_rx_receive(struct aq_hw_s *self,
 
 			if (HW_ATL_A0_RXD_WB_STAT2_EOP & rxd_wb->status) {
 				buff->len = rxd_wb->pkt_len %
-					AQ_CFG_RX_FRAME_MAX;
+					    ring->rx_frame_size;
 				buff->len = buff->len ?
-					buff->len : AQ_CFG_RX_FRAME_MAX;
+					    buff->len : ring->rx_frame_size;
 				buff->next = 0U;
 				buff->is_eop = 1U;
 			} else {
