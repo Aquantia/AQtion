@@ -913,7 +913,7 @@ int hw_atl_utils_update_stats(struct aq_hw_s *self)
 #define AQ_SDELTA(_N_)  \
 do { \
 	if (!corrupted_stats && \
-	    ((s64)(mbox.stats._N_ - self->last_stats._N_)) > 0) \
+	    ((s64)(mbox.stats._N_ - self->last_stats._N_)) >= 0) \
 		curr_stats._N_ += mbox.stats._N_ - self->last_stats._N_; \
 	else \
 		corrupted_stats = true; \

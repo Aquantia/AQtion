@@ -361,8 +361,8 @@ static void aq_ethtool_get_drvinfo(struct net_device *ndev,
 	firmware_version = aq_nic_get_fw_version(aq_nic);
 	regs_count = aq_nic_get_regs_count(aq_nic);
 
-	strlcat(drvinfo->driver, AQ_CFG_DRV_NAME, sizeof(drvinfo->driver));
-	strlcat(drvinfo->version, AQ_CFG_DRV_VERSION, sizeof(drvinfo->version));
+	strlcpy(drvinfo->driver, AQ_CFG_DRV_NAME, sizeof(drvinfo->driver));
+	strlcpy(drvinfo->version, AQ_CFG_DRV_VERSION, sizeof(drvinfo->version));
 
 	snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
 		 "%u.%u.%u", firmware_version >> 24,
@@ -1087,20 +1087,24 @@ static int aq_ethtool_set_priv_flags(struct net_device *ndev, u32 flags)
 		return -EOPNOTSUPP;
 
 	if (hweight32((flags | priv_flags) & AQ_HW_LOOPBACK_MASK) > 1) {
-		netdev_info(ndev, "Can't enable more than one loopback simultaneously\n");
+		netdev_info(ndev,
+			"Can't enable more than one loopback simultaneously\n");
 		return -EINVAL;
 	}
 
 	cfg->priv_flags = flags;
 
 	if ((priv_flags ^ flags) & AQ_HW_MEDIA_DETECT_MASK) {
-		aq_nic_set_media_detect(aq_nic);
+		aq_nic_set_media_detect(aq_nic,
+				aq_nic->aq_nic_cfg.is_media_detect ?
+				AQ_HW_MEDIA_DETECT_CNT : 0);
 		/* Restart aneg to make FW apply the new settings */
 		aq_nic->aq_fw_ops->renegotiate(aq_nic->aq_hw);
 	}
 
 	if ((priv_flags ^ flags) & AQ_HW_DOWNSHIFT_MASK)
-		aq_nic_set_downshift(aq_nic);
+		aq_nic_set_downshift(aq_nic,
+				aq_nic->aq_nic_cfg.downshift_counter);
 
 	if ((priv_flags ^ flags) & BIT(AQ_HW_LOOPBACK_DMA_NET)) {
 		if (netif_running(ndev)) {
@@ -1113,6 +1117,60 @@ static int aq_ethtool_set_priv_flags(struct net_device *ndev, u32 flags)
 
 	return 0;
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static int aq_ethtool_get_phy_tunable(struct net_device *ndev,
+			const struct ethtool_tunable *tuna, void *data)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	switch (tuna->id) {
+	case ETHTOOL_PHY_EDPD: {
+		u16 *val = data;
+
+		*val = aq_nic->aq_nic_cfg.is_media_detect ?
+					AQ_HW_MEDIA_DETECT_CNT : 0;
+		break;
+	}
+	case ETHTOOL_PHY_DOWNSHIFT: {
+		u8 *val = data;
+
+		*val = (u8)aq_nic->aq_nic_cfg.downshift_counter;
+		break;
+	}
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+static int aq_ethtool_set_phy_tunable(struct net_device *ndev,
+			const struct ethtool_tunable *tuna, const void *data)
+{
+	int err = -EOPNOTSUPP;
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	switch (tuna->id) {
+	case ETHTOOL_PHY_EDPD: {
+		const u16 *val = data;
+
+		err = aq_nic_set_media_detect(aq_nic, *val);
+		break;
+	}
+	case ETHTOOL_PHY_DOWNSHIFT: {
+		const u8 *val = data;
+
+		err = aq_nic_set_downshift(aq_nic, *val);
+		break;
+	}
+	default:
+		break;
+	}
+
+	return err;
+}
+#endif
 
 int aq_ethtool_get_dump_flag(struct net_device *ndev, struct ethtool_dump *dump)
 {
@@ -1421,4 +1479,8 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.self_test           = aq_ethtool_selftest,
 	.begin               = aq_ethtool_begin,
 	.complete            = aq_ethtool_complete,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	.get_phy_tunable     = aq_ethtool_get_phy_tunable,
+	.set_phy_tunable     = aq_ethtool_set_phy_tunable,
+#endif
 };

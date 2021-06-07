@@ -93,6 +93,12 @@ enum ptp_extts_action {
 	ptp_extts_freqsync
 };
 
+enum ptp_perout_action {
+	ptp_perout_disabled = 0,
+	ptp_perout_enabled,
+	ptp_perout_pps,
+};
+
 enum ptp_speed_offsets {
 	ptp_offset_idx_10 = 0,
 	ptp_offset_idx_100,
@@ -183,6 +189,7 @@ struct aq_ptp_s {
 
 static int aq_ptp_extts_pin_configure(struct ptp_clock_info *ptp,
 				      u32 n_pin, enum ptp_extts_action action);
+static int aq_pps_reconfigure(struct aq_ptp_s *aq_ptp);
 
 void aq_ptp_offset_get(struct aq_ptp_s *aq_ptp,
 		       unsigned int mbps, int *egress, int *ingress)
@@ -425,6 +432,8 @@ static int aq_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 	aq_nic->aq_hw_ops->hw_adj_sys_clock(aq_nic->aq_hw, delta);
 	spin_unlock_irqrestore(&aq_ptp->ptp_lock, flags);
 
+	aq_pps_reconfigure(aq_ptp);
+
 	return 0;
 }
 
@@ -471,6 +480,8 @@ static int aq_ptp_settime(struct ptp_clock_info *ptp,
 	aq_nic->aq_hw_ops->hw_get_ptp_ts(aq_nic->aq_hw, &now);
 	aq_nic->aq_hw_ops->hw_adj_sys_clock(aq_nic->aq_hw, (s64)ns - (s64)now);
 	spin_unlock_irqrestore(&aq_ptp->ptp_lock, flags);
+
+	aq_pps_reconfigure(aq_ptp);
 
 	netdev_dbg(aq_nic->ndev, "AQ PTP Set time: new %llu\n", ns);
 
@@ -751,6 +762,9 @@ static int aq_ptp_perout_pin_configure(struct ptp_clock_info *ptp,
 	/* TODO convert to AQ time */
 	start = on ? s->sec * NSEC_PER_SEC + s->nsec : 0;
 
+	aq_ptp->ptp_info.pin_config[n_pin].rsv[2] = on ? ptp_perout_enabled :
+	                                            ptp_perout_disabled;
+
 	aq_ptp_hw_pin_conf(aq_nic, aq_ptp->ptp_info.pin_config[n_pin].rsv[3],
 			   start, period);
 
@@ -779,6 +793,9 @@ static int aq_ptp_pps_pin_configure(struct ptp_clock_info *ptp, int on)
 	period = on ? NSEC_PER_SEC : 0; /* PPS - pulse per second */
 	start = on ? start - rest + NSEC_PER_SEC *
 		(rest > 990000000LL ? 2 : 1) : 0;
+
+	aq_ptp->ptp_info.pin_config[n_pin].rsv[2] = on ? ptp_perout_pps :
+	                                            ptp_perout_disabled;
 
 	aq_ptp_hw_pin_conf(aq_nic, aq_ptp->ptp_info.pin_config[n_pin].rsv[3],
 			   start, period);
@@ -869,7 +886,7 @@ static int aq_ptp_gpio_feature_enable(struct ptp_clock_info *ptp,
 		}
 		aq_ptp->extts_pin_enabled = !!on;
 		return aq_ptp_extts_pin_configure(ptp, pin,
-				on ? ptp_extts_user : 
+				on ? ptp_extts_user :
 				     aq_ptp->ptp_info.pin_config[pin].rsv[2]);
 	case PTP_CLK_REQ_PEROUT:
 		return aq_ptp_perout_pin_configure(ptp, rq, on);
@@ -1455,7 +1472,7 @@ static irqreturn_t aq_ext_ptp_isr(int irq, void *private)
 	aq_ptp_check_ext_gpio_event(aq_ptp);
 
 	hw_ops->hw_irq_enable(aq_ptp->aq_nic->aq_hw,
-			      1 << aq_ptp->idx_gpio_vector);
+			      BIT_ULL(aq_ptp->idx_gpio_vector));
 
 err_exit:
 	return err >= 0 ? IRQ_HANDLED : IRQ_NONE;
@@ -1998,6 +2015,28 @@ void aq_ptp_clock_init(struct aq_nic_s *aq_nic, enum aq_ptp_state state)
 	}
 }
 
+static int aq_pps_reconfigure(struct aq_ptp_s *aq_ptp)
+{
+	struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
+	u64 start, period;
+	u32 rest;
+	int i;
+
+	for (i = 0; i < aq_ptp->ptp_info.n_pins; i++)
+		if ((aq_ptp->ptp_info.pin_config[i].func == PTP_PF_PEROUT) &&
+		    (aq_ptp->ptp_info.pin_config[i].rsv[2] == ptp_perout_pps)) {
+				aq_nic->aq_hw_ops->hw_get_ptp_ts(aq_nic->aq_hw, &start);
+				div_u64_rem(start, NSEC_PER_SEC, &rest);
+				period = NSEC_PER_SEC;
+				start = start - rest + NSEC_PER_SEC * (rest > 990000000LL ? 2 : 1);
+
+				aq_ptp_hw_pin_conf(aq_nic, aq_ptp->ptp_info.pin_config[i].rsv[3],
+						start, period);
+			}
+
+	return 0;
+}
+
 int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_ptp_vec, unsigned int idx_ext_vec)
 {
 	bool a1_ptp = ATL_HW_IS_CHIP_FEATURE(aq_nic->aq_hw, ATLANTIC);
@@ -2025,8 +2064,7 @@ int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_ptp_vec, unsigned int 
 	} else {
 		memset(&mbox, 0, sizeof(mbox));
 
-		if (a2_ptp &&
-			ATL_HW_IS_CHIP_FEATURE(aq_nic->aq_hw, REVISION_A0)) {
+		if (a2_ptp) {
 			/* 7x7 has only GPIO0 */
 			mbox.info.gpio_pin[0] = GPIO_PIN_FUNCTION_NC;
 			mbox.info.gpio_pin[1] = GPIO_PIN_FUNCTION_NC;

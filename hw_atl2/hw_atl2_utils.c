@@ -59,9 +59,6 @@ int hw_atl2_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 
 	self->chip_features |= ATL_HW_CHIP_ANTIGUA;
 
-	if ((AQ_MIF_ID_ATL_XX_MASK & mif_rev) == AQ_MIF_ID_ANT_A0)
-		self->chip_features |= ATL_HW_CHIP_REVISION_A0;
-
 	if ((AQ_MIF_ID_ATL_FPGA_MASK & mif_rev) == AQ_MIF_ID_ATL_FPGA_VAL) {
 		self->chip_features |= ATL_HW_CHIP_FPGA;
 		if ((AQ_MIF_ID_ATL_XX_MASK & mif_rev) == AQ_MIF_ID_FPGA_ATL2)
@@ -74,7 +71,7 @@ int hw_atl2_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 
 	self->chip_features |= ATL_HW_CHIP_ANTIGUA;
 
-	self->mac_filter_max = priv->l2_filter_count;
+	self->mac_filter_max = priv->l2_filter_count - 1;
 	self->vlan_filter_max = priv->vlan_filter_count;
 	self->etype_filter_max = priv->etype_filter_count;
 	self->l3l4_filter_max = min_t(u32, priv->l3_v4_filter_count,

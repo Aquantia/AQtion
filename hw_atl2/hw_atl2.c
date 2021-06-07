@@ -80,9 +80,7 @@ const struct aq_hw_caps_s hw_atl2_caps_aqc113 = {
 			  AQ_NIC_RATE_1G  |
 			  AQ_NIC_RATE_1G_HALF   |
 			  AQ_NIC_RATE_100M      |
-			  AQ_NIC_RATE_100M_HALF |
-			  AQ_NIC_RATE_10M       |
-			  AQ_NIC_RATE_10M_HALF,
+			  AQ_NIC_RATE_10M,
 };
 
 const struct aq_hw_caps_s hw_atl2_caps_aqc115c = {
@@ -92,9 +90,7 @@ const struct aq_hw_caps_s hw_atl2_caps_aqc115c = {
 			  AQ_NIC_RATE_1G  |
 			  AQ_NIC_RATE_1G_HALF   |
 			  AQ_NIC_RATE_100M      |
-			  AQ_NIC_RATE_100M_HALF |
-			  AQ_NIC_RATE_10M       |
-			  AQ_NIC_RATE_10M_HALF,
+			  AQ_NIC_RATE_10M,
 };
 
 const struct aq_hw_caps_s hw_atl2_caps_aqc116c = {
@@ -103,9 +99,7 @@ const struct aq_hw_caps_s hw_atl2_caps_aqc116c = {
 	.link_speed_msk = AQ_NIC_RATE_1G  |
 			  AQ_NIC_RATE_1G_HALF   |
 			  AQ_NIC_RATE_100M      |
-			  AQ_NIC_RATE_100M_HALF |
-			  AQ_NIC_RATE_10M       |
-			  AQ_NIC_RATE_10M_HALF,
+			  AQ_NIC_RATE_10M,
 };
 
 static u32 hw_atl2_sem_act_rslvr_get(struct aq_hw_s *self)
@@ -793,7 +787,7 @@ static int hw_atl2_hw_packet_filter_set(struct aq_hw_s *self,
 					IS_FILTER_ENABLED(IFF_MULTICAST));
 
 	for (i = 0, location = priv->l2_filters_base_index + 1;
-	     location < priv->l2_filters_base_index + 1 + priv->l2_filter_count;
+	     location < priv->l2_filters_base_index + priv->l2_filter_count;
 	     location++, i++)
 		hw_atl_rpfl2_uc_flr_en_set(self,
 					   (cfg->is_mc_list_enabled &&
@@ -996,7 +990,8 @@ static void hw_atl2_enable_ptp(struct aq_hw_s *self,
 
 	hw_atl2_tpb_tps_highest_priority_tc_enable_set(self, enable);
 
-	if (ATL_HW_IS_CHIP_FEATURE(self, REVISION_B0))
+	if (ATL_HW_IS_CHIP_FEATURE(self, FPGA) &&
+			ATL_HW_IS_CHIP_FEATURE(self, REVISION_B0))
 		hw_atl2_prim_ts_clk_sel_set(self, self->clk_select);
 }
 
@@ -1063,7 +1058,8 @@ static int hw_atl2_adj_clock_freq(struct aq_hw_s *self, s32 ppb)
 
 	hw_atl2_tsg_clock_increment_set(self, self->clk_select, nsi, nsi_frac);
 
-	if (ATL_HW_IS_CHIP_FEATURE(self, REVISION_B0)) {
+	if (ATL_HW_IS_CHIP_FEATURE(self, FPGA) &&
+			ATL_HW_IS_CHIP_FEATURE(self, REVISION_B0)) {
 		freq = hw_atl2_312p5_clk_freq(self);
 		base_ns = ((adj + NSEC_PER_SEC) * NSEC_PER_SEC) / freq;
 		nsi = base_ns / NSEC_PER_SEC;

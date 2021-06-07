@@ -112,7 +112,7 @@ static inline int page_ref_count(struct page *page)
 
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)) && !(RHEL_RELEASE_CODE)
 #define napi_complete_done(n, done) napi_complete(n)
 
 #define ETH_RSS_HASH_TOP BIT(0)
@@ -278,6 +278,10 @@ u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
 #if !RHEL_RELEASE_CODE || (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 3))
 #define NETIF_F_HW_TC 0
 #endif
+#endif
+
+#ifndef BIT_ULL
+#define BIT_ULL(nr)		(1ULL << (nr))
 #endif
 
 #endif /* AQ_COMPAT_H */

@@ -788,8 +788,7 @@ int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self, struct aq_ring_s *ring,
 				is_vlan = false;
 
 				if (ATL_HW_IS_CHIP_FEATURE(self, ANTIGUA) &&
-				   ATL_HW_IS_CHIP_FEATURE(self, REVISION_A0) &&
-				   unlikely(buff->request_ts)) {
+				    unlikely(buff->request_ts)) {
 					txd->ctl |= HW_ATL2_TXD_CTL_TS_EN;
 					txd->ctl |= buff->clk_sel ==
 							ATL_TSG_CLOCK_SEL_1 ?

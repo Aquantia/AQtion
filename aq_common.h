@@ -15,6 +15,7 @@
 #include <linux/pci.h>
 #include <linux/if_vlan.h>
 #include <linux/version.h>
+#include <linux/ethtool.h>
 #include "ver.h"
 #include "aq_cfg.h"
 #include "aq_utils.h"

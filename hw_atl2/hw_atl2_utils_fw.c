@@ -1140,9 +1140,9 @@ u32 hw_atl2_utils_get_fw_version(struct aq_hw_s *self)
 	hw_atl2_shared_buffer_read_safe(self, version, &version);
 
 	/* A2 FW version is stored in reverse order */
-	return version.mac.major << 24 |
-	       version.mac.minor << 16 |
-	       version.mac.build;
+	return version.bundle.major << 24 |
+	       version.bundle.minor << 16 |
+	       version.bundle.build;
 }
 
 int hw_atl2_utils_get_filter_caps(struct aq_hw_s *self)
@@ -1201,6 +1201,18 @@ int hw_atl2_utils_set_filter_policy(struct aq_hw_s *self, bool promisc,
 	return hw_atl2_shared_buffer_finish_ack(self);
 }
 
+static int aq_a2_fw_set_downshift(struct aq_hw_s *self, u32 counter)
+{
+	struct link_options_s link_options;
+
+	hw_atl2_shared_buffer_get(self, link_options, link_options);
+	link_options.downshift = !!counter;
+	link_options.downshift_retry = counter;
+	hw_atl2_shared_buffer_write(self, link_options, link_options);
+
+	return hw_atl2_shared_buffer_finish_ack(self);
+}
+
 const struct aq_fw_ops aq_a2_fw_ops = {
 	.init               = aq_a2_fw_init,
 	.deinit             = aq_a2_fw_deinit,
@@ -1228,4 +1240,5 @@ const struct aq_fw_ops aq_a2_fw_ops = {
 	.led_control        = NULL,
 	.set_phyloopback    = aq_a2_fw_set_phyloopback,
 	.get_link_capabilities = aq_a2_fw_get_link_capabilities,
+	.set_downshift      = aq_a2_fw_set_downshift,
 };
