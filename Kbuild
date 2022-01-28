@@ -18,7 +18,6 @@ include $(src)/Kbuild.cflags
 # Force the driver module compilation here so that we don't need to update .config
 # for all CI targets
 CONFIG_AQTION := m
-CONFIG_MACSEC := y
 # Out-of-tree only END
 
 $(TARGET)-objs:=aq_main.o aq_nic.o aq_pci_func.o aq_nic.o aq_vec.o aq_ring.o aq_ptp.o aq_filters.o \
@@ -39,7 +38,9 @@ $(TARGET)-objs:=aq_main.o aq_nic.o aq_pci_func.o aq_nic.o aq_vec.o aq_ring.o aq_
 	hw_atl2/hw_atl2.o \
 	hw_atl2/hw_atl2_utils.o \
 	hw_atl2/hw_atl2_utils_fw.o \
+	hw_atl2/hw_atl2_fw_hostboot.o \
 	macsec/macsec_api.o \
+	aq_dash.o \
 
 $(TARGET)-$(CONFIG_MACSEC) += aq_macsec.o
 

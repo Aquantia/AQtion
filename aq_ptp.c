@@ -226,6 +226,8 @@ void aq_ptp_tm_offset_set(struct aq_nic_s *aq_nic, unsigned int mbps)
 
 	atomic_set(&aq_ptp->offset_egress, egress);
 	atomic_set(&aq_ptp->offset_ingress, ingress);
+
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "Offsets: egress = %d ingress = %d\n", egress, ingress);
 }
 
 static int __aq_ptp_skb_put(struct ptp_skb_ring *ring, struct sk_buff *skb)
@@ -407,7 +409,7 @@ static int aq_ptp_adjfreq(struct ptp_clock_info *ptp, s32 ppb)
 	struct aq_ptp_s *aq_ptp = container_of(ptp, struct aq_ptp_s, ptp_info);
 	struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
 
-	netdev_dbg(aq_nic->ndev, "AQ PTP Adj Freq 0x%x\n", ppb);
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "AQ PTP Adj Freq 0x%x\n", ppb);
 	mutex_lock(&aq_nic->fwreq_mutex);
 	aq_nic->aq_hw_ops->hw_adj_clock_freq(aq_nic->aq_hw, ppb);
 	mutex_unlock(&aq_nic->fwreq_mutex);
@@ -427,7 +429,7 @@ static int aq_ptp_adjtime(struct ptp_clock_info *ptp, s64 delta)
 	struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
 	unsigned long flags;
 
-	netdev_dbg(aq_nic->ndev, "AQ PTP Adj Time 0x%llx\n", delta);
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "AQ PTP Adj Time 0x%llx\n", delta);
 	spin_lock_irqsave(&aq_ptp->ptp_lock, flags);
 	aq_nic->aq_hw_ops->hw_adj_sys_clock(aq_nic->aq_hw, delta);
 	spin_unlock_irqrestore(&aq_ptp->ptp_lock, flags);
@@ -483,7 +485,7 @@ static int aq_ptp_settime(struct ptp_clock_info *ptp,
 
 	aq_pps_reconfigure(aq_ptp);
 
-	netdev_dbg(aq_nic->ndev, "AQ PTP Set time: new %llu\n", ns);
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "AQ PTP Set time: new %llu\n", ns);
 
 	return 0;
 }
@@ -576,7 +578,7 @@ static int aq_ptp_pid(struct aq_ptp_s *aq_ptp, u64 ts_diff)
 		(aq_pid->delta[0] - 2 * aq_pid->delta[1] +
 		aq_pid->delta[2]);
 
-	netdev_dbg(aq_ptp->aq_nic->ndev,
+	aq_pr_verbose(aq_ptp->aq_nic, AQ_MSG_PTP,
 		   "p = %lld, integral = %lld, diff = %lld",
 		   div_s64(p, mul_u32_u32(PTP_DIV_COEF, aq_pid->divider)),
 		   div_s64(integral, mul_u32_u32(PTP_DIV_COEF,
@@ -591,7 +593,7 @@ static int aq_ptp_pid(struct aq_ptp_s *aq_ptp, u64 ts_diff)
 	aq_pid->adjust[1] = aq_pid->adjust[0];
 	aq_pid->delta[2] = aq_pid->delta[1];
 	aq_pid->delta[1] = aq_pid->delta[0];
-	netdev_dbg(aq_ptp->aq_nic->ndev, "delta = %lld, adjust = %lld",
+	aq_pr_verbose(aq_ptp->aq_nic, AQ_MSG_PTP, "delta = %lld, adjust = %lld",
 		   aq_pid->delta[0], aq_pid->adjust[0]);
 
 	/* Apply adjust in case if current delta more than 20 or
@@ -631,7 +633,7 @@ static int aq_ptp_check_ext_gpio_event(struct aq_ptp_s *aq_ptp)
 						    prev_ts, &ts, &cnt)) {
 				u64 ts_diff = ts - prev_ts;
 
-				netdev_dbg(aq_nic->ndev,
+				aq_pr_verbose(aq_nic, AQ_MSG_PTP,
 					   "%s: pin %d with act %x triggered TS: %llu, prev TS %llu, diff %llu",
 					   __func__, n_pin, action,
 					   ts, prev_ts, ts_diff);
@@ -711,7 +713,7 @@ static int aq_ptp_hw_pin_conf(struct aq_nic_s *aq_nic, u32 pin_index,
 {
 	struct aq_ptp_s *aq_ptp = aq_nic->aq_ptp;
 
-	netdev_dbg(aq_nic->ndev,
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP,
 		   "%sable GPIO %d pulsing, start time %llu, period %u\n",
 		   period ? "En" : "Dis", pin_index, start, (u32)period);
 
@@ -737,6 +739,9 @@ static int aq_ptp_perout_pin_configure(struct ptp_clock_info *ptp,
 	u32 n_pin = rq->perout.index;
 	u64 start, period;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP,
+		      "n_pin =  %d t->sec = %lld t->nsec = %d enable = %d",
+		      n_pin, t->sec, t->nsec, on);
 	/* verify the request channel is there */
 	if (n_pin >= ptp->n_per_out)
 		return -EINVAL;
@@ -777,9 +782,9 @@ static int aq_ptp_pps_pin_configure(struct ptp_clock_info *ptp, int on)
 	struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
 	u64 start, period;
 	u32 rest = 0;
-
 	u32 n_pin;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "PPS pin enable = %d\n", on);
 	for (n_pin = 0; n_pin < ptp->n_per_out; n_pin++) {
 		if (aq_ptp->ptp_info.pin_config[n_pin].func == PTP_PF_PEROUT)
 			break;
@@ -810,6 +815,7 @@ static int aq_ptp_extts_pin_configure(struct ptp_clock_info *ptp,
 	struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
 	u32 on = (action != ptp_extts_disabled) || aq_ptp->extts_pin_enabled;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "n_pin = %d action = %d\n", n_pin, action);
 	if (!aq_ptp->ptp_info.n_ext_ts ||
 		n_pin >= (aq_ptp->ptp_info.n_ext_ts +
 			aq_ptp->ptp_info.n_per_out))
@@ -1009,6 +1015,9 @@ static int aq_ptp_verify(struct ptp_clock_info *ptp, unsigned int n_pin,
 			 enum ptp_pin_function func, unsigned int chan)
 {
 	struct aq_ptp_s *aq_ptp = container_of(ptp, struct aq_ptp_s, ptp_info);
+
+	aq_pr_verbose(aq_ptp->aq_nic, AQ_MSG_PTP, "n_pin = %d func = %d chan = %d\n",
+			n_pin, func, chan);
 	/* verify the requested pin is there */
 	if (n_pin >= ptp->n_pins)
 		return -EINVAL;
@@ -1330,6 +1339,7 @@ int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *aq_ptp,
 	int err = 0;
 	int ptp_en_flags = aq_ptp_parse_rx_filters(config->rx_filter);
 
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "ptp_en_flags = %d\n", ptp_en_flags);
 	if (ptp_en_flags == -ERANGE) {
 		config->rx_filter = HWTSTAMP_FILTER_NONE;
 		return -ERANGE;

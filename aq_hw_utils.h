@@ -23,6 +23,21 @@
 
 #define aq_pr_err(...) pr_err(AQ_CFG_DRV_NAME ": " __VA_ARGS__)
 #define aq_pr_trace(...) pr_info(AQ_CFG_DRV_NAME ": " __VA_ARGS__)
+#define aq_pr_verbose(__aq_nic, __mask, fmt, ...)		\
+do {								\
+	if (unlikely(__aq_nic->msg_enable & (__mask)))		\
+		pr_notice("[%s:%d(%s)]" fmt,			\
+			  __func__, __LINE__,			\
+			  __aq_nic->ndev ? (__aq_nic->ndev->name) : "?", ## __VA_ARGS__); \
+} while (0)
+
+enum DP_LEVEL {
+	AQ_MSG_DRV = NETIF_MSG_DRV,
+	AQ_MSG_LINK = NETIF_MSG_LINK,
+	AQ_MSG_DEBUG = 0x10000,
+	AQ_MSG_PTP = 0x20000,
+	/* to be added...up to 0x8000000 */
+};
 
 struct aq_hw_s;
 

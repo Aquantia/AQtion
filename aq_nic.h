@@ -250,4 +250,7 @@ int aq_nic_setup_tc_max_rate(struct aq_nic_s *self, const unsigned int tc,
 			     const u32 max_rate);
 int aq_nic_setup_tc_min_rate(struct aq_nic_s *self, const unsigned int tc,
 			     const u32 min_rate);
+
+
+int aq_dash_process_events(struct aq_nic_s *self);
 #endif /* AQ_NIC_H */

@@ -352,8 +352,8 @@ static int aq_pci_probe(struct pci_dev *pdev,
 	numvecs = min((u8)AQ_CFG_VECS_DEF,
 		      aq_nic_get_cfg(self)->aq_hw_caps->msix_irqs);
 	numvecs = min(numvecs, num_online_cpus());
-	/* Request IRQ vector for PTP */
-	numvecs += AQ_HW_PTP_IRQS; // Request IRQ vector for PTP and PTP GPIO
+	/* Request IRQ lines for PTP and GPIO */
+	numvecs += AQ_HW_PTP_IRQS;
 
 	numvecs += AQ_HW_SERVICE_IRQS;
 	/*enable interrupts */
@@ -401,6 +401,8 @@ static int aq_pci_probe(struct pci_dev *pdev,
 		pm_runtime_put_noidle(&pdev->dev);
 
 	nic_count++;
+
+	aq_dash_nl_init();
 	return 0;
 
 err_register:
@@ -427,6 +429,8 @@ err_pci_func:
 static void aq_pci_remove(struct pci_dev *pdev)
 {
 	struct aq_nic_s *self = pci_get_drvdata(pdev);
+
+	aq_dash_nl_exit();
 
 	if (self->aq_hw->aq_fw_ops->get_link_capabilities &&
 	    (self->aq_hw->aq_fw_ops->get_link_capabilities(self->aq_hw) &

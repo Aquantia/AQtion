@@ -284,4 +284,15 @@ u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
 #define BIT_ULL(nr)		(1ULL << (nr))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#define platform_get_ethdev_address(dev, netdev) (-1)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+static inline void eth_hw_addr_set(struct net_device *dev, const u8 *addr)
+{
+	memcpy(dev->dev_addr, addr, ETH_ALEN);
+}
+#endif
+
 #endif /* AQ_COMPAT_H */

@@ -66,6 +66,8 @@
 #define AQ_FW_AQC100X		"mrvl/80B1.fw"
 #define AQ_FW_AQC10XX		"mrvl/87B1.fw"
 #define AQ_FW_AQC11XX		"mrvl/91B1.fw"
+/* TODO: Same FW file name for all AQC113 devices. Need to revisit it. */
+#define AQ_FW_AQC113X		"mrvl/04C0.clx"
 
 #define HW_ATL_NIC_NAME "Marvell (aQuantia) AQtion 10Gbit Network Adapter"
 

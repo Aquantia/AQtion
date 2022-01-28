@@ -32,6 +32,7 @@
 #include "aq_phy.h"
 #include "aq_filters.h"
 #include "aq_trace.h"
+#include "aq_hw_utils.h"
 
 static unsigned int aq_itr = AQ_CFG_INTERRUPT_MODERATION_AUTO;
 module_param_named(aq_itr, aq_itr, uint, 0644);
@@ -52,6 +53,10 @@ MODULE_PARM_DESC(aq_rxpageorder, "RX page order override");
 unsigned int aq_rx_refill_thres = 32;
 module_param_named(aq_rx_refill_thres, aq_rx_refill_thres, uint, 0644);
 MODULE_PARM_DESC(aq_rx_refill_thres, "RX refill threshold");
+
+unsigned int debug = AQ_MSG_DRV | AQ_MSG_LINK;
+module_param_named(debug, debug, uint, 0644);
+MODULE_PARM_DESC(debug, "Default debug msglevel");
 
 #define AQ_MODULE_PARAM_ARR(X, type, desc) \
 	static type X[AQ_NIC_MAX] = { 0 }; \
@@ -120,6 +125,7 @@ static void aq_nic_cfg_update_num_vecs(struct aq_nic_s *self)
 			cfg->vecs = min(cfg->vecs, 4U);
 	}
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "cfg->vecs = %d\n", cfg->vecs);
 	if (cfg->vecs <= 4)
 		cfg->tc_mode = AQ_TC_MODE_8TCS;
 	else
@@ -209,9 +215,9 @@ static int aq_nic_update_link_status(struct aq_nic_s *self)
 	self->aq_nic_cfg.fc.cur = fc;
 
 	if (self->link_status.mbps != new_link_status->mbps) {
-		netdev_info(self->ndev, "%s: link change old %d new %d\n",
-			    AQ_CFG_DRV_NAME, self->link_status.mbps,
-			    new_link_status->mbps);
+		aq_pr_verbose(self, NETIF_MSG_LINK, "%s: link change old %d new %d\n",
+			      AQ_CFG_DRV_NAME, self->link_status.mbps,
+			      new_link_status->mbps);
 		aq_nic_update_interrupt_moderation_settings(self);
 
 		if (self->aq_ptp) {
@@ -298,6 +304,9 @@ static void aq_nic_service_task(struct work_struct *work)
 	mutex_unlock(&self->fwreq_mutex);
 
 	aq_nic_update_ndev_stats(self);
+
+	/* DASH event support on FW 4.x */
+	aq_dash_process_events(self);
 }
 
 static void aq_nic_service_timer_cb(struct timer_list *t)
@@ -359,6 +368,7 @@ static bool aq_nic_is_valid_ether_addr(const u8 *addr)
 
 int aq_nic_ndev_register(struct aq_nic_s *self)
 {
+	u8 addr[ETH_ALEN];
 	int err = 0;
 
 	if (!self->ndev) {
@@ -370,24 +380,31 @@ int aq_nic_ndev_register(struct aq_nic_s *self)
 	self->aq_hw->fast_start_enabled = true;
 #endif
 	err = aq_nic_hw_prepare(self);
-	if (err)
+	if (err) {
+		aq_pr_err("HW prepare failed, err = %d\n", err);
 		goto err_exit;
+	}
 
 #if IS_ENABLED(CONFIG_MACSEC)
 	aq_macsec_init(self);
 #endif
 
-	mutex_lock(&self->fwreq_mutex);
-	err = self->aq_fw_ops->get_mac_permanent(self->aq_hw,
-			    self->ndev->dev_addr);
-	mutex_unlock(&self->fwreq_mutex);
-	if (err)
-		goto err_exit;
+	if (platform_get_ethdev_address(&self->pdev->dev, self->ndev) != 0) {
+		// If DT has none or an invalid one, ask device for MAC address
+		mutex_lock(&self->fwreq_mutex);
+		err = self->aq_fw_ops->get_mac_permanent(self->aq_hw, addr);
+		mutex_unlock(&self->fwreq_mutex);
 
-	if (!is_valid_ether_addr(self->ndev->dev_addr) ||
-	    !aq_nic_is_valid_ether_addr(self->ndev->dev_addr)) {
-		netdev_warn(self->ndev, "MAC is invalid, will use random.");
-		eth_hw_addr_random(self->ndev);
+		if (err)
+			goto err_exit;
+
+		if (is_valid_ether_addr(addr) &&
+		    aq_nic_is_valid_ether_addr(addr)) {
+			eth_hw_addr_set(self->ndev, addr);
+		} else {
+			netdev_warn(self->ndev, "MAC is invalid, will use random.");
+			eth_hw_addr_random(self->ndev);
+		}
 	}
 
 #if defined(AQ_CFG_MAC_ADDR_PERMANENT)
@@ -413,8 +430,10 @@ int aq_nic_ndev_register(struct aq_nic_s *self)
 	netif_tx_disable(self->ndev);
 
 	err = register_netdev(self->ndev);
-	if (err)
+	if (err) {
+		aq_pr_err("Netedev register failed, err = %d\n", err);
 		goto err_exit;
+	}
 
 err_exit:
 #if IS_ENABLED(CONFIG_MACSEC)
@@ -443,7 +462,7 @@ void aq_nic_ndev_init(struct aq_nic_s *self)
 	self->ndev->priv_flags |= aq_hw_caps->hw_priv_flags;
 	self->ndev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 
-	self->msg_enable = NETIF_MSG_DRV | NETIF_MSG_LINK;
+	self->msg_enable = debug;
 	self->ndev->mtu = aq_nic_cfg->mtu - ETH_HLEN;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	self->ndev->max_mtu = aq_hw_caps->mtu - ETH_FCS_LEN - ETH_HLEN;
@@ -475,8 +494,10 @@ int aq_nic_init(struct aq_nic_s *self)
 	mutex_lock(&self->fwreq_mutex);
 	err = self->aq_hw_ops->hw_reset(self->aq_hw);
 	mutex_unlock(&self->fwreq_mutex);
-	if (err < 0)
+	if (err < 0) {
+		aq_pr_err("HW reset failed, err = %d\n", err);
 		goto err_exit;
+	}
 
 	/* Restore default settings */
 	aq_nic_set_downshift(self, self->aq_nic_cfg.downshift_counter);
@@ -485,8 +506,10 @@ int aq_nic_init(struct aq_nic_s *self)
 
 	err = self->aq_hw_ops->hw_init(self->aq_hw,
 				       aq_nic_get_ndev(self)->dev_addr);
-	if (err < 0)
+	if (err < 0) {
+		aq_pr_err("HW init failed, err = %d\n", err);
 		goto err_exit;
+	}
 
 	if (ATL_HW_IS_CHIP_FEATURE(self->aq_hw, ATLANTIC) &&
 	    self->aq_nic_cfg.aq_hw_caps->media_type == AQ_HW_MEDIA_TYPE_TP) {
@@ -508,8 +531,10 @@ int aq_nic_init(struct aq_nic_s *self)
 		aq_vec = self->aq_vec[i];
 		err = aq_vec_ring_alloc(aq_vec, self, i,
 					aq_nic_get_cfg(self));
-		if (err)
+		if (err) {
+			aq_pr_err("Vector ring allocation failed, err = %d\n", err);
 			goto err_exit;
+		}
 
 		aq_vec_init(aq_vec, self->aq_hw_ops, self->aq_hw);
 	}
@@ -1028,7 +1053,7 @@ u64 *aq_nic_get_stats(struct aq_nic_s *self, u64 *data)
 	data[++i] = stats->uprc;
 	data[++i] = stats->mprc;
 	data[++i] = stats->bprc;
-	data[++i] = stats->erpt;
+	data[++i] = stats->erpr;
 	data[++i] = stats->uptc + stats->mptc + stats->bptc;
 	data[++i] = stats->uptc;
 	data[++i] = stats->mptc;
@@ -1271,6 +1296,8 @@ int aq_nic_set_link_ksettings(struct aq_nic_s *self,
 	u32 rate = 0U;
 	int err = 0;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "fduplex = %d autoneg = %d speed = %d\n",
+			fduplex, speed, cmd->base.autoneg);
 	if (!fduplex && speed > SPEED_1000) {
 		err = -EINVAL;
 		goto err_exit;
@@ -1408,6 +1435,8 @@ int aq_nic_set_link_settings(struct aq_nic_s *self, struct ethtool_cmd *cmd)
 	u32 rate = 0U;
 	int err = 0;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "autoneg = %d speed = %d\n",
+			cmd->autoneg, ethtool_cmd_speed(cmd));
 	if (cmd->autoneg == AUTONEG_ENABLE) {
 		rate = self->aq_nic_cfg.aq_hw_caps->link_speed_msk;
 		self->aq_nic_cfg.is_autoneg = true;
@@ -1707,6 +1736,16 @@ void aq_nic_request_firmware(struct aq_nic_s *self)
 		case AQ_DEVICE_ID_AQC111S:
 			fw_image_name = AQ_FW_AQC11XX;
 			break;
+		case AQ_DEVICE_ID_AQC113:
+		case AQ_DEVICE_ID_AQC113DEV:
+		case AQ_DEVICE_ID_AQC113C:
+		case AQ_DEVICE_ID_AQC113CA:
+		case AQ_DEVICE_ID_AQC115C:
+		case AQ_DEVICE_ID_AQC116C:
+		case AQ_DEVICE_ID_AQC113CS:
+		case AQ_DEVICE_ID_AQC114CS:
+			fw_image_name = AQ_FW_AQC113X;
+			break;
 		default:
 			fw_image_name = NULL;
 		}
@@ -1765,6 +1804,7 @@ int aq_nic_set_downshift(struct aq_nic_s *self, int val)
 	int err = 0;
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "Downshift val = %d\n", val);
 	if (!self->aq_fw_ops->set_downshift)
 		return -EOPNOTSUPP;
 
@@ -1775,8 +1815,7 @@ int aq_nic_set_downshift(struct aq_nic_s *self, int val)
 	cfg->downshift_counter = val;
 
 	mutex_lock(&self->fwreq_mutex);
-	err = self->aq_fw_ops->set_downshift(self->aq_hw,
-					     cfg->downshift_counter);
+	err = self->aq_fw_ops->set_downshift(self->aq_hw, cfg->downshift_counter);
 	mutex_unlock(&self->fwreq_mutex);
 
 	return err;
@@ -1787,12 +1826,12 @@ int aq_nic_set_media_detect(struct aq_nic_s *self, int val)
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 	int err = 0;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "Media detect val = %d\n", val);
 	if (!self->aq_fw_ops->set_media_detect)
 		return -EOPNOTSUPP;
 
 	if (val > 0 && val != AQ_HW_MEDIA_DETECT_CNT) {
-		netdev_err(self->ndev,
-			   "EDPD on this device could have only fixed value of %d\n",
+		netdev_err(self->ndev, "EDPD on this device could have only fixed value of %d\n",
 			   AQ_HW_MEDIA_DETECT_CNT);
 		return -EINVAL;
 	}
@@ -1816,6 +1855,7 @@ int aq_nic_setup_tc_mqprio(struct aq_nic_s *self, u32 tcs, u8 *prio_tc_map)
 	int err = 0;
 	int i;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "tcs = %d\n", tcs);
 	/* if already the same configuration or
 	 * disable request (tcs is 0) and we already is disabled
 	 */
@@ -1837,7 +1877,7 @@ int aq_nic_setup_tc_mqprio(struct aq_nic_s *self, u32 tcs, u8 *prio_tc_map)
 		for (i = 0; i < sizeof(cfg->prio_tc_map); i++)
 			cfg->prio_tc_map[i] = cfg->tcs * i / 8;
 
-	cfg->is_qos = (tcs != 0 ? true : false);
+	cfg->is_qos = !!tcs;
 	cfg->is_ptp = aq_enable_ptp && (cfg->tcs > AQ_HW_PTP_TC);
 
 	netdev_set_num_tc(self->ndev, cfg->tcs);
@@ -1864,6 +1904,7 @@ int aq_nic_setup_tc_max_rate(struct aq_nic_s *self, const unsigned int tc,
 {
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "tc = %d max_rate = %d\n", tc, max_rate);
 	if (tc >= AQ_CFG_TCS_MAX)
 		return -EINVAL;
 
@@ -1884,6 +1925,7 @@ int aq_nic_setup_tc_min_rate(struct aq_nic_s *self, const unsigned int tc,
 {
 	struct aq_nic_cfg_s *cfg = &self->aq_nic_cfg;
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "tc = %d min_rate = %d\n", tc, min_rate);
 	if (tc >= AQ_CFG_TCS_MAX)
 		return -EINVAL;
 

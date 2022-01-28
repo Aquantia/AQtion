@@ -381,7 +381,7 @@ static int aq_fw2x_get_cable_len(struct aq_hw_s *self, int *cable_len)
 	return 0;
 }
 
-static int aq_fw2x_set_wol(struct aq_hw_s *self, u8 *mac, u32 wol)
+static int aq_fw2x_set_wol(struct aq_hw_s *self, const u8 *mac, u32 wol)
 {
 	struct hw_atl_utils_fw_rpc *rpc = NULL;
 	struct offload_info *info = NULL;
@@ -446,7 +446,7 @@ err_exit:
 }
 
 static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state,
-			     u8 *mac, u32 wol)
+			     const u8 *mac, u32 wol)
 {
 	int err = 0;
 

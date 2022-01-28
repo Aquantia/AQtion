@@ -78,6 +78,8 @@ updateramfs:
 			[Yy]) export updateramfs=1; break;; \
 			*) export updateramfs=0; break;; \
 		esac ; \
+	else \
+		export updateramfs=1 ; \
 	fi ; \
 	if [ $$updateramfs -eq 1 -a "${DEBIAN}" = "1" ]; then \
 		update-initramfs -u ; \

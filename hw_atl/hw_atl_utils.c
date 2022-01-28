@@ -94,6 +94,8 @@ int hw_atl_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 	self->aq_fw_ops = *fw_ops;
 	err = self->aq_fw_ops->init(self);
 
+	aq_pr_trace("Chip features = 0x%x fw_ver_actual = 0x%x\n",
+			self->chip_features, self->fw_ver_actual);
 	return err;
 }
 
@@ -296,6 +298,7 @@ int hw_atl_utils_soft_reset(struct aq_hw_s *self)
 
 	self->rbl_enabled = (boot_exit_code != 0);
 
+	aq_pr_trace("rbl_enabled = %d fw_ver = 0x%x\n", self->rbl_enabled, ver);
 	/* Having FW version 0 is an indicator that cold start
 	 * is in progress. This means two things:
 	 * 1) Driver have to wait for FW/HW to finish boot (500ms giveup)
@@ -687,6 +690,7 @@ static int hw_atl_utils_mpi_set_speed(struct aq_hw_s *self, u32 speed)
 {
 	u32 val = aq_hw_read_reg(self, HW_ATL_MPI_CONTROL_ADR);
 
+	aq_pr_trace("MPI speed = %d val = %d\n", speed, val);
 	val = val & ~HW_ATL_MPI_SPEED_MSK;
 	val |= speed << HW_ATL_MPI_SPEED_SHIFT;
 	aq_hw_write_reg(self, HW_ATL_MPI_CONTROL_ADR, val);
@@ -702,6 +706,7 @@ static int hw_atl_utils_mpi_set_state(struct aq_hw_s *self,
 	u32 transaction_id = 0;
 	int err = 0;
 
+	aq_pr_trace("MPI state = %d val = %d\n", state, val);
 	if (state == MPI_RESET) {
 		hw_atl_utils_mpi_read_mbox(self, &mbox);
 
@@ -1002,7 +1007,7 @@ u32 hw_atl_utils_get_fw_version(struct aq_hw_s *self)
 }
 
 static int aq_fw1x_set_wake_magic(struct aq_hw_s *self, bool wol_enabled,
-				  u8 *mac)
+				  const u8 *mac)
 {
 	struct hw_atl_utils_fw_rpc *prpc = NULL;
 	unsigned int rpc_size = 0U;
@@ -1044,7 +1049,7 @@ err_exit:
 }
 
 static int aq_fw1x_set_power(struct aq_hw_s *self, unsigned int power_state,
-			     u8 *mac, u32 wol)
+			     const u8 *mac, u32 wol)
 {
 	struct hw_atl_utils_fw_rpc *prpc = NULL;
 	unsigned int rpc_size = 0U;

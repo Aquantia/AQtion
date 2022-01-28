@@ -843,7 +843,7 @@ do { \
 		AQ_SDELTA(uprc, rx_unicast_frames);
 		AQ_SDELTA(mprc, rx_multicast_frames);
 		AQ_SDELTA(bprc, rx_broadcast_frames);
-		AQ_SDELTA(erpr, rx_rrrors);
+		AQ_SDELTA(erpr, rx_errors);
 		AQ_SDELTA(brc, rx_good_octets);
 
 		AQ_SDELTA(uptc, tx_unicast_frames);
@@ -993,7 +993,7 @@ static int aq_a2_fw_get_diag_data(struct aq_hw_s *self, struct aq_diag_s *diag)
 	return err;
 }
 
-static int aq_a2_fw_set_wol_params(struct aq_hw_s *self, u8 *mac, u32 wol)
+static int aq_a2_fw_set_wol_params(struct aq_hw_s *self, const u8 *mac, u32 wol)
 {
 	struct link_control_s link_control;
 	struct mac_address_aligned_s mac_address;
@@ -1020,7 +1020,7 @@ static int aq_a2_fw_set_wol_params(struct aq_hw_s *self, u8 *mac, u32 wol)
 }
 
 static int aq_a2_fw_set_power(struct aq_hw_s *self, unsigned int power_state,
-			      u8 *mac, u32 wol)
+			      const u8 *mac, u32 wol)
 {
 	int err = 0;
 
@@ -1145,6 +1145,13 @@ u32 hw_atl2_utils_get_fw_version(struct aq_hw_s *self)
 	       version.bundle.build;
 }
 
+int hw_atl2_utils_get_version(struct aq_hw_s *self, struct version_s *v)
+{
+	hw_atl2_shared_buffer_read_safe(self, version, v);
+
+	return 0;
+}
+
 int hw_atl2_utils_get_filter_caps(struct aq_hw_s *self)
 {
 	struct hw_atl2_priv *priv = (struct hw_atl2_priv *)self->priv;
@@ -1211,6 +1218,18 @@ static int aq_a2_fw_set_downshift(struct aq_hw_s *self, u32 counter)
 	hw_atl2_shared_buffer_write(self, link_options, link_options);
 
 	return hw_atl2_shared_buffer_finish_ack(self);
+}
+
+/* The API is designed for hostboot implementation - doesn't wait for FW ACK */
+int hw_atl2_utils_set_db_status(struct aq_hw_s *self, u32 offset, u32 length)
+{
+	struct data_buffer_status_s data_buffer_status;
+
+	data_buffer_status.data_offset = offset;
+	data_buffer_status.data_length = length;
+	hw_atl2_shared_buffer_write(self, data_buffer_status, data_buffer_status);
+
+	return 0;
 }
 
 const struct aq_fw_ops aq_a2_fw_ops = {
