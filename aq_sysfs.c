@@ -52,17 +52,41 @@ static void bar_release(struct kobject *kobj)
 	kfree(bar);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 static struct attribute *bar_attrs[] = {
 	&bar_addr_attr.attr,
 	&bar_len_attr.attr,
 	&bar_index_attr.attr,
 	NULL,
 };
+#else
+
+#define BAR_ATTRIBUTE_GROUPS(_name)  \
+struct attribute *bar##_name##_attr = &bar_##_name##_attr.attr; \
+static const struct attribute_group bar_##_name##_group = { \
+	.attrs = &bar##_name##_attr, \
+};
+
+BAR_ATTRIBUTE_GROUPS(addr);
+BAR_ATTRIBUTE_GROUPS(len);
+BAR_ATTRIBUTE_GROUPS(index);
+
+const struct attribute_group *bar_attrs_grp[] = {
+	&bar_addr_group,
+	&bar_len_group,
+	&bar_index_group,
+	NULL,
+};
+#endif
 
 static struct kobj_type bar_type = {
 	.sysfs_ops = &bar_ops,
 	.release = bar_release,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 	.default_attrs = bar_attrs,
+#else
+	.default_groups = bar_attrs_grp,
+#endif
 };
 
 static void aq_release_bars(struct aq_tsn_s *self)
@@ -196,6 +220,7 @@ static void memreg_release(struct kobject *kobj)
 	kfree(memreg);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 static struct attribute *memreg_attrs[] = {
 	&memreg_vaddr_attr.attr,
 	&memreg_paddr_attr.attr,
@@ -204,11 +229,38 @@ static struct attribute *memreg_attrs[] = {
 	&memreg_index_attr.attr,
 	NULL,
 };
+#else
+
+#define MEMREG_ATTRIBUTE_GROUPS(_name)  \
+struct attribute *memreg##_name##_attr = &memreg_##_name##_attr.attr; \
+static const struct attribute_group memreg_##_name##_group = { \
+	.attrs = &memreg##_name##_attr,  \
+};
+
+MEMREG_ATTRIBUTE_GROUPS(vaddr);
+MEMREG_ATTRIBUTE_GROUPS(paddr);
+MEMREG_ATTRIBUTE_GROUPS(size);
+MEMREG_ATTRIBUTE_GROUPS(real_size);
+MEMREG_ATTRIBUTE_GROUPS(index);
+
+static const struct attribute_group *memreg_attrs_grp[] = {
+	&memreg_vaddr_group,
+	&memreg_paddr_group,
+	&memreg_size_group,
+	&memreg_real_size_group,
+	&memreg_index_group,
+	NULL,
+};
+#endif
 
 struct kobj_type memreg_type = {
 	.sysfs_ops = &memreg_ops,
 	.release = memreg_release,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 	.default_attrs = memreg_attrs,
+#else
+	.default_groups = memreg_attrs_grp,
+#endif
 };
 
 static int memreg_mmap(struct file *file, struct kobject *kobj, struct bin_attribute *attr,

@@ -593,7 +593,7 @@ static u32 aq_ethtool_get_rss_indir_size(struct net_device *ndev)
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,5))
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 5))
 static u32 aq_ethtool_get_rss_key_size(struct net_device *ndev)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
@@ -737,7 +737,8 @@ static int aq_ethtool_set_rxnfc(struct net_device *ndev,
 }
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) || \
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 6))
 static int aq_ethtool_get_coalesce(struct net_device *ndev,
 				   struct ethtool_coalesce *coal,
 				   struct kernel_ethtool_coalesce *kcoal,
@@ -769,7 +770,8 @@ static int aq_ethtool_get_coalesce(struct net_device *ndev,
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) || \
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 6))
 static int aq_ethtool_set_coalesce(struct net_device *ndev,
 				   struct ethtool_coalesce *coal,
 				   struct kernel_ethtool_coalesce *kcoal,
@@ -1500,7 +1502,7 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.set_pauseparam      = aq_ethtool_set_pauseparam,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,5))
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 5))
 	.get_rxfh_key_size   = aq_ethtool_get_rss_key_size,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	.get_rxfh            = aq_ethtool_get_rss,
