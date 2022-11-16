@@ -16,4 +16,6 @@
 void aq_ndev_schedule_work(struct work_struct *work);
 struct net_device *aq_ndev_alloc(void);
 
+int aq_dash_nl_init(void);
+void aq_dash_nl_exit(void);
 #endif /* AQ_MAIN_H */

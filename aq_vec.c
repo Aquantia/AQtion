@@ -99,7 +99,7 @@ err_exit:
 		if (work_done < budget) {
 			napi_complete_done(napi, work_done);
 			self->aq_hw_ops->hw_irq_enable(self->aq_hw,
-					1U << self->aq_ring_param.vec_idx);
+					BIT_ULL(self->aq_ring_param.vec_idx));
 		}
 	}
 
@@ -338,7 +338,7 @@ irqreturn_t aq_vec_isr_legacy(int irq, void *private)
 
 	if (irq_mask) {
 		self->aq_hw_ops->hw_irq_disable(self->aq_hw,
-			      1U << self->aq_ring_param.vec_idx);
+			      BIT_ULL(self->aq_ring_param.vec_idx));
 		napi_schedule(&self->napi);
 	} else {
 		self->aq_hw_ops->hw_irq_enable(self->aq_hw, 1U);
@@ -362,9 +362,6 @@ unsigned int aq_vec_get_sw_stats(struct aq_vec_s *self, const unsigned int tc, u
 {
 	unsigned int count;
 
-	WARN_ONCE(!aq_vec_is_valid_tc(self, tc),
-		  "Invalid tc %u (#rx=%u, #tx=%u)\n",
-		  tc, self->rx_rings, self->tx_rings);
 	if (!aq_vec_is_valid_tc(self, tc))
 		return 0;
 

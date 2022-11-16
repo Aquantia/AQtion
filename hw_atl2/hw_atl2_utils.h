@@ -10,6 +10,26 @@
 #ifndef HW_ATL2_UTILS_H
 #define HW_ATL2_UTILS_H
 
+#define HW_ATL2_FW_VER_1X          0x01000000U
+
+#define AQ_A2_HOST_DATA_LOADED     BIT(0x10)
+#define AQ_A2_BOOT_STARTED         BIT(0x18)
+#define AQ_A2_CRASH_INIT           BIT(0x1B)
+#define AQ_A2_BOOT_CODE_FAILED     BIT(0x1C)
+#define AQ_A2_FW_INIT_FAILED       BIT(0x1D)
+#define AQ_A2_FW_INIT_COMP_SUCCESS BIT(0x1F)
+
+#define AQ_A2_FW_BOOT_FAILED_MASK (AQ_A2_CRASH_INIT | \
+				   AQ_A2_BOOT_CODE_FAILED | \
+				   AQ_A2_FW_INIT_FAILED)
+#define AQ_A2_FW_BOOT_COMPLETE_MASK (AQ_A2_FW_BOOT_FAILED_MASK | \
+				     AQ_A2_FW_INIT_COMP_SUCCESS)
+
+#define AQ_A2_FW_BOOT_REQ_REBOOT        BIT(0x0)
+#define AQ_A2_FW_BOOT_REQ_HOST_BOOT     BIT(0x8)
+#define AQ_A2_FW_BOOT_REQ_MAC_FAST_BOOT BIT(0xA)
+#define AQ_A2_FW_BOOT_REQ_PHY_FAST_BOOT BIT(0xB)
+
 /* Hardware tx launch time descriptor */
 struct hw_atl2_txts_s {
 	u64 ts;
@@ -530,7 +550,7 @@ struct __packed statistics_b0_s {
 	uint64_t rx_good_octets;
 	uint64_t rx_pause_frames;
 	uint64_t rx_good_frames;
-	uint64_t rx_rrrors;
+	uint64_t rx_errors;
 	uint64_t rx_unicast_frames;
 	uint64_t rx_multicast_frames;
 	uint64_t rx_broadcast_frames;
@@ -700,10 +720,14 @@ int hw_atl2_utils_hw_get_regs(struct aq_hw_s *self,
 
 u32 hw_atl2_utils_get_fw_version(struct aq_hw_s *self);
 
+int hw_atl2_utils_get_version(struct aq_hw_s *self, struct version_s *v);
+
 int hw_atl2_utils_get_filter_caps(struct aq_hw_s *self);
 
 int hw_atl2_utils_set_filter_policy(struct aq_hw_s *self, bool promisc,
 				    bool allmulti);
+
+int hw_atl2_utils_set_db_status(struct aq_hw_s *self, u32 offset, u32 length);
 
 extern const struct aq_fw_ops aq_a2_fw_ops;
 

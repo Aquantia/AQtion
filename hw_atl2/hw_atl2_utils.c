@@ -15,27 +15,9 @@
 #include "../hw_atl/hw_atl_llh.h"
 #include "hw_atl2_llh.h"
 #include "hw_atl2_llh_internal.h"
+#include "hw_atl2_fw_hostboot.h"
 
 #include <linux/random.h>
-
-#define HW_ATL2_FW_VER_1X          0x01000000U
-
-#define AQ_A2_BOOT_STARTED         BIT(0x18)
-#define AQ_A2_CRASH_INIT           BIT(0x1B)
-#define AQ_A2_BOOT_CODE_FAILED     BIT(0x1C)
-#define AQ_A2_FW_INIT_FAILED       BIT(0x1D)
-#define AQ_A2_FW_INIT_COMP_SUCCESS BIT(0x1F)
-
-#define AQ_A2_FW_BOOT_FAILED_MASK (AQ_A2_CRASH_INIT | \
-				   AQ_A2_BOOT_CODE_FAILED | \
-				   AQ_A2_FW_INIT_FAILED)
-#define AQ_A2_FW_BOOT_COMPLETE_MASK (AQ_A2_FW_BOOT_FAILED_MASK | \
-				     AQ_A2_FW_INIT_COMP_SUCCESS)
-
-#define AQ_A2_FW_BOOT_REQ_REBOOT        BIT(0x0)
-#define AQ_A2_FW_BOOT_REQ_HOST_BOOT     BIT(0x8)
-#define AQ_A2_FW_BOOT_REQ_MAC_FAST_BOOT BIT(0xA)
-#define AQ_A2_FW_BOOT_REQ_PHY_FAST_BOOT BIT(0xB)
 
 int hw_atl2_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 {
@@ -59,9 +41,6 @@ int hw_atl2_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 
 	self->chip_features |= ATL_HW_CHIP_ANTIGUA;
 
-	if ((AQ_MIF_ID_ATL_XX_MASK & mif_rev) == AQ_MIF_ID_ANT_A0)
-		self->chip_features |= ATL_HW_CHIP_REVISION_A0;
-
 	if ((AQ_MIF_ID_ATL_FPGA_MASK & mif_rev) == AQ_MIF_ID_ATL_FPGA_VAL) {
 		self->chip_features |= ATL_HW_CHIP_FPGA;
 		if ((AQ_MIF_ID_ATL_XX_MASK & mif_rev) == AQ_MIF_ID_FPGA_ATL2)
@@ -74,7 +53,7 @@ int hw_atl2_utils_initfw(struct aq_hw_s *self, const struct aq_fw_ops **fw_ops)
 
 	self->chip_features |= ATL_HW_CHIP_ANTIGUA;
 
-	self->mac_filter_max = priv->l2_filter_count;
+	self->mac_filter_max = priv->l2_filter_count - 1;
 	self->vlan_filter_max = priv->vlan_filter_count;
 	self->etype_filter_max = priv->etype_filter_count;
 	self->l3l4_filter_max = min_t(u32, priv->l3_v4_filter_count,
@@ -112,6 +91,9 @@ int hw_atl2_utils_soft_reset(struct aq_hw_s *self)
 
 	hw_atl2_mif_host_req_int_clr(self, 1u);
 	rbl_request = AQ_A2_FW_BOOT_REQ_REBOOT;
+	if (self->aq_nic_cfg->force_host_boot)
+		rbl_request |= AQ_A2_FW_BOOT_REQ_HOST_BOOT;
+
 #ifdef AQ_CFG_FAST_START
 	rbl_request |= AQ_A2_FW_BOOT_REQ_MAC_FAST_BOOT;
 #endif
@@ -148,9 +130,14 @@ int hw_atl2_utils_soft_reset(struct aq_hw_s *self)
 
 	if (hw_atl2_mif_host_req_int_get(self) &
 	    HW_ATL2_MCP_HOST_REQ_INT_READY) {
-		err = -EIO;
-		aq_pr_err("No FW detected. Dynamic FW load not implemented");
-		goto err_exit;
+		if (self->aq_nic_cfg->fw_image) {
+			err = hw_atl2_hostboot(self);
+			if (err)
+				goto err_exit;
+		} else {
+			self->image_required = 1;
+			return -EINVAL;
+		}
 	}
 
 	if (self->aq_fw_ops) {

@@ -140,6 +140,12 @@ struct aq_diag_s {
 #define AQ_HW_IRQ_MSI     2U
 #define AQ_HW_IRQ_MSIX    3U
 
+/* Interrupt vectors allocation logic as follows:
+ * rx/tx lines - up to the number of cpus or hw limit
+ * link interrupt line - service irq - could be skipped if not enough lines
+ * PTP line
+ * GPIO line
+ */
 #define AQ_HW_SERVICE_IRQS   1U
 #define AQ_HW_PTP_IRQS       2U
 
@@ -182,6 +188,8 @@ struct aq_diag_s {
 
 #define AQ_HW_LED_BLINK    0x2U
 #define AQ_HW_LED_DEFAULT  0x0U
+
+#define AQ_HW_MEDIA_DETECT_CNT 6000
 
 enum aq_priv_flags {
 	AQ_HW_LOOPBACK_DMA_SYS,
@@ -291,7 +299,7 @@ struct aq_hw_ops {
 	int (*hw_ring_tx_head_update)(struct aq_hw_s *self,
 				      struct aq_ring_s *aq_ring);
 
-	int (*hw_set_mac_address)(struct aq_hw_s *self, u8 *mac_addr);
+	int (*hw_set_mac_address)(struct aq_hw_s *self, const u8 *mac_addr);
 
 	int (*hw_soft_reset)(struct aq_hw_s *self);
 
@@ -300,7 +308,7 @@ struct aq_hw_ops {
 
 	int (*hw_reset)(struct aq_hw_s *self);
 
-	int (*hw_init)(struct aq_hw_s *self, u8 *mac_addr);
+	int (*hw_init)(struct aq_hw_s *self, const u8 *mac_addr);
 
 	int (*hw_start)(struct aq_hw_s *self);
 
@@ -466,7 +474,7 @@ struct aq_fw_ops {
 	int (*set_phyloopback)(struct aq_hw_s *self, u32 mode, bool enable);
 
 	int (*set_power)(struct aq_hw_s *self, unsigned int power_state,
-			 u8 *mac, u32 wol);
+			 const u8 *mac, u32 wol);
 
 	int (*send_fw_request)(struct aq_hw_s *self,
 			       const struct hw_fw_request_iface *fw_req,
@@ -481,7 +489,7 @@ struct aq_fw_ops {
 	int (*get_eee_rate)(struct aq_hw_s *self, u32 *rate,
 			    u32 *supported_rates);
 
-	void (*set_downshift)(struct aq_hw_s *self, bool enable);
+	int (*set_downshift)(struct aq_hw_s *self, u32 counter);
 
 	int (*set_media_detect)(struct aq_hw_s *self, bool enable);
 

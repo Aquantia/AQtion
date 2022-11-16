@@ -11,6 +11,7 @@ Contents
 - Building and Installation
 - Command Line Parameters
 - Additional Configurations
+- Antigua Flashless boot support
 - Uninstall
 - Support
 
@@ -323,7 +324,7 @@ Output example:
      InUCast: 13293852
      InMCast: 52
      InBCast: 3
-     InErrors: 0
+     InErrorsMAC: 0
      OutPackets: 23703019
      OutUCast: 23704941
      OutMCast: 67
@@ -361,6 +362,9 @@ Output example:
      Queue[3] InJumboPackets: 0
      Queue[3] InLroPackets: 0
      Queue[3] InErrors: 0
+
+Note: InErrorsMAC counts MAC level FCS checksum errors. Per Queue InErrors are
+   checksum errors from driver point of view i.e., Rx erors at L2/L3/L4 levels. 
 
 Disable GRO when routing/bridging
 ---------------------------------
@@ -737,6 +741,29 @@ Valid values
 Default value: 0
 
 After the aq_cfg.h file changed the driver must be rebuilt to take effect.
+
+Antigua Flashless boot support
+==============================
+Driver supports the loading of firmware from Host (instead of the flash).
+The feature is useful in the case of flashless adapter or, when user wants to
+load specific firmware than the one flashed on adapter.
+
+Steps:
+------
+1. Copy the firmware binary in clx format to /lib/firmware/mrvl/04C0.clx path.
+2. Supply values for below module parameters during the driver load,
+	parm: aq_fw_did:Use FW image for this DID (array of uint)
+	parm: aq_force_host_boot:Force host boot (array of uint)
+   Example:
+	insmod atlantic.ko aq_force_host_boot=1 aq_fw_did=0x04c0
+
+Notes:
+------
+1. This is a driver load time feature. If user doesn't provide module parameters
+   (mentioned above), driver tries to load the Firmware from flash.
+2. When these module parameters are supplied, driver ignores firmware present on
+   the flash i.e., if for some reason flashless boot fails then driver doesn't
+   try the firmware load from flash.
 
 Uninstall
 =========================

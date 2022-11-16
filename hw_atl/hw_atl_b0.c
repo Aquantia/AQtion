@@ -577,7 +577,7 @@ static int hw_atl_b0_hw_init_rx_path(struct aq_hw_s *self)
 	return aq_hw_err_from_flags(self);
 }
 
-int hw_atl_b0_hw_mac_addr_set(struct aq_hw_s *self, u8 *mac_addr)
+int hw_atl_b0_hw_mac_addr_set(struct aq_hw_s *self, const u8 *mac_addr)
 {
 	unsigned int h = 0U;
 	unsigned int l = 0U;
@@ -602,7 +602,7 @@ err_exit:
 	return err;
 }
 
-static int hw_atl_b0_hw_init(struct aq_hw_s *self, u8 *mac_addr)
+static int hw_atl_b0_hw_init(struct aq_hw_s *self, const u8 *mac_addr)
 {
 	static u32 aq_hw_atl_igcr_table_[4][2] = {
 		[AQ_HW_IRQ_INVALID] = { 0x20000000U, 0x20000000U },
@@ -788,8 +788,7 @@ int hw_atl_b0_hw_ring_tx_xmit(struct aq_hw_s *self, struct aq_ring_s *ring,
 				is_vlan = false;
 
 				if (ATL_HW_IS_CHIP_FEATURE(self, ANTIGUA) &&
-				   ATL_HW_IS_CHIP_FEATURE(self, REVISION_A0) &&
-				   unlikely(buff->request_ts)) {
+				    unlikely(buff->request_ts)) {
 					txd->ctl |= HW_ATL2_TXD_CTL_TS_EN;
 					txd->ctl |= buff->clk_sel ==
 							ATL_TSG_CLOCK_SEL_1 ?

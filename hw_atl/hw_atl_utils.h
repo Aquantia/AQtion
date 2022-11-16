@@ -229,6 +229,10 @@ struct __packed offload_info {
 	u8 buf[0];
 };
 
+struct __packed fw_dash_req {
+	u8 buffer[4096];
+};
+
 struct __packed hw_atl_utils_fw_rpc {
 	u32 msg_id;
 
@@ -239,6 +243,8 @@ struct __packed hw_atl_utils_fw_rpc {
 		struct drv_msg_enable_wakeup msg_enable_wakeup;
 		/* fw2x structures */
 		struct offload_info fw2x_offloads;
+		/* DASH FW Request */
+		struct fw_dash_req dash_req;
 	};
 };
 

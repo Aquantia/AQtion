@@ -520,6 +520,7 @@ int aq_set_data_fl3l4(struct ethtool_rx_flow_spec *fsp,
 	switch (fsp->flow_type) {
 	case TCP_V4_FLOW:
 	case TCP_V6_FLOW:
+		data->cmd |= HW_ATL_RX_TCP;
 		data->cmd |= HW_ATL_RX_ENABLE_CMP_PROT_L4;
 		break;
 	case UDP_V4_FLOW:

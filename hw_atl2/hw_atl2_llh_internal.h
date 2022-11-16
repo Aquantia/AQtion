@@ -1425,4 +1425,15 @@
 /* Width of bitfield  */
 #define  HW_ATL2_FIFO_312P_FRAC_NS_CORR_VAL_WIDTH 16
 
+/* Host Interrupt Request CLR */
+#define HW_ATL2_CLEAR_HOST_IRQ_REG 0xF08
+/* Clear Host Interrupt Request Mask */
+#define HW_ATL2_HOST_IRQ_MASK 0x1
+/* Shared Buffer MMIO address */
+#define HW_ATL2_SHMEM_BUF_MMIO_ADDR 0x10000
+/* MCP/Host Shared Buffer Control 1 */
+#define HW_ATL2_CONFIRM_SHARED_BUF_REG 0x0E00
+/* Host Finished Shared Buffer Write */
+#define HW_ATL2_CONFIRM_SHARED_BUF_MASK 0x1
+
 #endif /* HW_ATL2_LLH_INTERNAL_H */

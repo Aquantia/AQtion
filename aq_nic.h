@@ -69,6 +69,8 @@ struct aq_nic_cfg_s {
 	bool is_lro;
 	bool is_qos;
 	bool is_ptp;
+	bool is_media_detect;
+	int downshift_counter;
 	enum aq_tc_mode tc_mode;
 	u32 priv_flags;
 	u8  tcs;
@@ -234,8 +236,8 @@ int aq_nic_set_link_settings(struct aq_nic_s *self, struct ethtool_cmd *cmd);
 struct aq_nic_cfg_s *aq_nic_get_cfg(struct aq_nic_s *self);
 u32 aq_nic_get_fw_version(struct aq_nic_s *self);
 int aq_nic_set_loopback(struct aq_nic_s *self);
-int aq_nic_set_downshift(struct aq_nic_s *self);
-int aq_nic_set_media_detect(struct aq_nic_s *self);
+int aq_nic_set_downshift(struct aq_nic_s *self, int val);
+int aq_nic_set_media_detect(struct aq_nic_s *self, int val);
 int aq_nic_update_interrupt_moderation_settings(struct aq_nic_s *self);
 void aq_nic_shutdown(struct aq_nic_s *self);
 void aq_nic_parse_parameters(struct aq_nic_s *self, unsigned int nic_id);
@@ -248,4 +250,7 @@ int aq_nic_setup_tc_max_rate(struct aq_nic_s *self, const unsigned int tc,
 			     const u32 max_rate);
 int aq_nic_setup_tc_min_rate(struct aq_nic_s *self, const unsigned int tc,
 			     const u32 min_rate);
+
+
+int aq_dash_process_events(struct aq_nic_s *self);
 #endif /* AQ_NIC_H */

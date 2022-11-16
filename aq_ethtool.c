@@ -16,6 +16,7 @@
 #include "aq_ptp.h"
 #include "aq_filters.h"
 #include "aq_macsec.h"
+#include "aq_hw_utils.h"
 
 #include <linux/ptp_clock_kernel.h>
 
@@ -55,6 +56,7 @@ static int aq_ethtool_get_link_ksettings(struct net_device *ndev,
 	aq_nic_get_link_ksettings(aq_nic, cmd);
 	cmd->base.speed = netif_carrier_ok(ndev) ?
 				aq_nic_get_link_speed(aq_nic) : 0U;
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "speed = %d\n", cmd->base.speed);
 
 	return 0;
 }
@@ -98,7 +100,7 @@ static const char aq_ethtool_stat_names[][ETH_GSTRING_LEN] = {
 	"InUCast",
 	"InMCast",
 	"InBCast",
-	"InErrors",
+	"InErrorsMAC",
 	"OutPackets",
 	"OutUCast",
 	"OutMCast",
@@ -220,6 +222,8 @@ static bool atl_is_snr_margin_supported(struct aq_nic_s *self)
 	if (fw_ops->get_snr_margin_capable)
 		err = fw_ops->get_snr_margin_capable(self->aq_hw, &snr_capable);
 
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "snr_margin_capable = %d\n", err);
+
 	return !err && snr_capable;
 }
 
@@ -232,6 +236,8 @@ static bool atl_is_cable_diag_supported(struct aq_nic_s *self)
 	if (fw_ops->get_cable_diag_capable)
 		err = fw_ops->get_cable_diag_capable(self->aq_hw,
 						     &diag_capable);
+
+	aq_pr_verbose(self, AQ_MSG_DEBUG, "cable_diag_capable = %d\n", err);
 
 	return !err && diag_capable;
 }
@@ -303,6 +309,8 @@ static u32 atl_ethtool_n_selftests(struct net_device *ndev)
 			n_tests++;
 	}
 
+	aq_pr_verbose(nic, AQ_MSG_DEBUG, "n_tests = %d\n", n_tests);
+
 	return n_tests;
 }
 
@@ -331,6 +339,8 @@ static u32 aq_ethtool_n_stats(struct net_device *ndev)
 				   aq_macsec_rx_sa_cnt(nic);
 	}
 #endif
+
+	aq_pr_verbose(nic, AQ_MSG_DEBUG, "n_stats = %d\n", n_stats);
 
 	return n_stats;
 }
@@ -361,8 +371,8 @@ static void aq_ethtool_get_drvinfo(struct net_device *ndev,
 	firmware_version = aq_nic_get_fw_version(aq_nic);
 	regs_count = aq_nic_get_regs_count(aq_nic);
 
-	strlcat(drvinfo->driver, AQ_CFG_DRV_NAME, sizeof(drvinfo->driver));
-	strlcat(drvinfo->version, AQ_CFG_DRV_VERSION, sizeof(drvinfo->version));
+	strlcpy(drvinfo->driver, AQ_CFG_DRV_NAME, sizeof(drvinfo->driver));
+	strlcpy(drvinfo->version, AQ_CFG_DRV_VERSION, sizeof(drvinfo->version));
 
 	snprintf(drvinfo->fw_version, sizeof(drvinfo->fw_version),
 		 "%u.%u.%u", firmware_version >> 24,
@@ -531,6 +541,7 @@ static int aq_ethtool_set_phys_id(struct net_device *ndev,
 	struct aq_hw_s *hw = aq_nic->aq_hw;
 	int ret = 0;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "state = %d\n", state);
 	if (!aq_nic->aq_fw_ops->led_control)
 		return -EOPNOTSUPP;
 
@@ -582,7 +593,7 @@ static u32 aq_ethtool_get_rss_indir_size(struct net_device *ndev)
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,5))
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 5))
 static u32 aq_ethtool_get_rss_key_size(struct net_device *ndev)
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
@@ -678,6 +689,7 @@ static int aq_ethtool_get_rxnfc(struct net_device *ndev,
 	struct aq_nic_cfg_s *cfg;
 	int err = 0;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Get rxnfc cmd = %d\n", cmd->cmd);
 	cfg = aq_nic_get_cfg(aq_nic);
 
 	switch (cmd->cmd) {
@@ -708,6 +720,7 @@ static int aq_ethtool_set_rxnfc(struct net_device *ndev,
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	int err = 0;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Set rxnfc cmd = %d\n", cmd->cmd);
 	switch (cmd->cmd) {
 	case ETHTOOL_SRXCLSRLINS:
 		err = aq_add_rxnfc_rule(aq_nic, cmd);
@@ -724,14 +737,23 @@ static int aq_ethtool_set_rxnfc(struct net_device *ndev,
 }
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) || \
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 6))
+static int aq_ethtool_get_coalesce(struct net_device *ndev,
+				   struct ethtool_coalesce *coal,
+				   struct kernel_ethtool_coalesce *kcoal,
+				   struct netlink_ext_ack *extack)
+#else
 static int aq_ethtool_get_coalesce(struct net_device *ndev,
 				   struct ethtool_coalesce *coal)
+#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg;
 
 	cfg = aq_nic_get_cfg(aq_nic);
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "cfg->itr = %d\n", cfg->itr);
 	if (cfg->itr == AQ_CFG_INTERRUPT_MODERATION_ON ||
 	    cfg->itr == AQ_CFG_INTERRUPT_MODERATION_AUTO) {
 		coal->rx_coalesce_usecs = cfg->rx_itr;
@@ -748,14 +770,29 @@ static int aq_ethtool_get_coalesce(struct net_device *ndev,
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) || \
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 6))
+static int aq_ethtool_set_coalesce(struct net_device *ndev,
+				   struct ethtool_coalesce *coal,
+				   struct kernel_ethtool_coalesce *kcoal,
+				   struct netlink_ext_ack *extack)
+#else
 static int aq_ethtool_set_coalesce(struct net_device *ndev,
 				   struct ethtool_coalesce *coal)
+#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg;
 
 	cfg = aq_nic_get_cfg(aq_nic);
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG,
+		      "Ad_rx = %d ad_tx = %d rx_max_frames = %d tx_max_frames = %d rx_usec_irq = %d tx_usec_irq = %d "
+		      "rx_max_frames_irq = %d tx_max_frames_irq = %d\n",
+		      coal->use_adaptive_rx_coalesce, coal->use_adaptive_tx_coalesce,
+		      coal->rx_max_coalesced_frames, coal->tx_max_coalesced_frames,
+		      coal->rx_coalesce_usecs_irq, coal->tx_coalesce_usecs_irq,
+		      coal->rx_max_coalesced_frames_irq, coal->tx_max_coalesced_frames_irq);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
 	/* This is not yet supported
 	 */
@@ -804,6 +841,9 @@ static void aq_ethtool_get_wol(struct net_device *ndev,
 
 	wol->supported = AQ_NIC_WOL_MODES;
 	wol->wolopts = cfg->wol;
+
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "supported = %d wolopts = %d\n",
+		      wol->supported, wol->wolopts);
 }
 
 static int aq_ethtool_set_wol(struct net_device *ndev,
@@ -813,6 +853,7 @@ static int aq_ethtool_set_wol(struct net_device *ndev,
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "wolopts = %d\n", wol->wolopts);
 	cfg = aq_nic_get_cfg(aq_nic);
 
 	if (wol->wolopts & ~AQ_NIC_WOL_MODES)
@@ -913,6 +954,7 @@ static int aq_ethtool_set_eee(struct net_device *ndev, struct ethtool_eee *eee)
 
 	cfg = aq_nic_get_cfg(aq_nic);
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "eee_enabled = %d\n", eee->eee_enabled);
 	if (unlikely(!aq_nic->aq_fw_ops->get_eee_rate ||
 		     !aq_nic->aq_fw_ops->set_eee_rate))
 		return -EOPNOTSUPP;
@@ -962,6 +1004,7 @@ static void aq_ethtool_get_pauseparam(struct net_device *ndev,
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	int fc = aq_nic->aq_nic_cfg.fc.req;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "fc = %d\n", fc);
 	pause->autoneg = 0;
 
 	pause->rx_pause = !!(fc & AQ_NIC_FC_RX);
@@ -974,6 +1017,8 @@ static int aq_ethtool_set_pauseparam(struct net_device *ndev,
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	int err = 0;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "autoneg = %d rx_pause = %d tx_pause = %d\n",
+		       pause->autoneg,	pause->rx_pause, pause->tx_pause);
 	if (!aq_nic->aq_fw_ops->set_flow_control)
 		return -EOPNOTSUPP;
 
@@ -998,7 +1043,13 @@ static int aq_ethtool_set_pauseparam(struct net_device *ndev,
 }
 
 static void aq_get_ringparam(struct net_device *ndev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
+			     struct ethtool_ringparam *ring,
+			     struct kernel_ethtool_ringparam *kernel_ring,
+			     struct netlink_ext_ack *extack)
+#else
 			     struct ethtool_ringparam *ring)
+#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	struct aq_nic_cfg_s *cfg;
@@ -1013,7 +1064,13 @@ static void aq_get_ringparam(struct net_device *ndev,
 }
 
 static int aq_set_ringparam(struct net_device *ndev,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
+			    struct ethtool_ringparam *ring,
+			    struct kernel_ethtool_ringparam *kernel_ring,
+			    struct netlink_ext_ack *extack)
+#else
 			    struct ethtool_ringparam *ring)
+#endif
 {
 	struct aq_nic_s *aq_nic = netdev_priv(ndev);
 	const struct aq_hw_caps_s *hw_caps;
@@ -1087,20 +1144,24 @@ static int aq_ethtool_set_priv_flags(struct net_device *ndev, u32 flags)
 		return -EOPNOTSUPP;
 
 	if (hweight32((flags | priv_flags) & AQ_HW_LOOPBACK_MASK) > 1) {
-		netdev_info(ndev, "Can't enable more than one loopback simultaneously\n");
+		netdev_info(ndev,
+			"Can't enable more than one loopback simultaneously\n");
 		return -EINVAL;
 	}
 
 	cfg->priv_flags = flags;
 
 	if ((priv_flags ^ flags) & AQ_HW_MEDIA_DETECT_MASK) {
-		aq_nic_set_media_detect(aq_nic);
+		aq_nic_set_media_detect(aq_nic,
+				aq_nic->aq_nic_cfg.is_media_detect ?
+				AQ_HW_MEDIA_DETECT_CNT : 0);
 		/* Restart aneg to make FW apply the new settings */
 		aq_nic->aq_fw_ops->renegotiate(aq_nic->aq_hw);
 	}
 
 	if ((priv_flags ^ flags) & AQ_HW_DOWNSHIFT_MASK)
-		aq_nic_set_downshift(aq_nic);
+		aq_nic_set_downshift(aq_nic,
+				aq_nic->aq_nic_cfg.downshift_counter);
 
 	if ((priv_flags ^ flags) & BIT(AQ_HW_LOOPBACK_DMA_NET)) {
 		if (netif_running(ndev)) {
@@ -1113,6 +1174,62 @@ static int aq_ethtool_set_priv_flags(struct net_device *ndev, u32 flags)
 
 	return 0;
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+static int aq_ethtool_get_phy_tunable(struct net_device *ndev,
+			const struct ethtool_tunable *tuna, void *data)
+{
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Tunable id = %d\n", tuna->id);
+	switch (tuna->id) {
+	case ETHTOOL_PHY_EDPD: {
+		u16 *val = data;
+
+		*val = aq_nic->aq_nic_cfg.is_media_detect ?
+					AQ_HW_MEDIA_DETECT_CNT : 0;
+		break;
+	}
+	case ETHTOOL_PHY_DOWNSHIFT: {
+		u8 *val = data;
+
+		*val = (u8)aq_nic->aq_nic_cfg.downshift_counter;
+		break;
+	}
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
+static int aq_ethtool_set_phy_tunable(struct net_device *ndev,
+			const struct ethtool_tunable *tuna, const void *data)
+{
+	int err = -EOPNOTSUPP;
+	struct aq_nic_s *aq_nic = netdev_priv(ndev);
+
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Tunable id = %d\n", tuna->id);
+	switch (tuna->id) {
+	case ETHTOOL_PHY_EDPD: {
+		const u16 *val = data;
+
+		err = aq_nic_set_media_detect(aq_nic, *val);
+		break;
+	}
+	case ETHTOOL_PHY_DOWNSHIFT: {
+		const u8 *val = data;
+
+		err = aq_nic_set_downshift(aq_nic, *val);
+		break;
+	}
+	default:
+		break;
+	}
+
+	return err;
+}
+#endif
 
 int aq_ethtool_get_dump_flag(struct net_device *ndev, struct ethtool_dump *dump)
 {
@@ -1385,7 +1502,7 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.set_pauseparam      = aq_ethtool_set_pauseparam,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)) ||\
-    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,5))
+    (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 5))
 	.get_rxfh_key_size   = aq_ethtool_get_rss_key_size,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	.get_rxfh            = aq_ethtool_get_rss,
@@ -1421,4 +1538,8 @@ const struct ethtool_ops aq_ethtool_ops = {
 	.self_test           = aq_ethtool_selftest,
 	.begin               = aq_ethtool_begin,
 	.complete            = aq_ethtool_complete,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	.get_phy_tunable     = aq_ethtool_get_phy_tunable,
+	.set_phy_tunable     = aq_ethtool_set_phy_tunable,
+#endif
 };

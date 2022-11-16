@@ -381,7 +381,7 @@ static int aq_fw2x_get_cable_len(struct aq_hw_s *self, int *cable_len)
 	return 0;
 }
 
-static int aq_fw2x_set_wol(struct aq_hw_s *self, u8 *mac, u32 wol)
+static int aq_fw2x_set_wol(struct aq_hw_s *self, const u8 *mac, u32 wol)
 {
 	struct hw_atl_utils_fw_rpc *rpc = NULL;
 	struct offload_info *info = NULL;
@@ -446,7 +446,7 @@ err_exit:
 }
 
 static int aq_fw2x_set_power(struct aq_hw_s *self, unsigned int power_state,
-			     u8 *mac, u32 wol)
+			     const u8 *mac, u32 wol)
 {
 	int err = 0;
 
@@ -654,21 +654,30 @@ static u32 aq_fw2x_state2_get(struct aq_hw_s *self)
 	return aq_hw_read_reg(self, HW_ATL_FW2X_MPI_STATE2_ADDR);
 }
 
-static void aq_fw2x_set_downshift(struct aq_hw_s *self, bool enable)
+static int aq_fw2x_set_downshift(struct aq_hw_s *self, u32 counter)
 {
+	int err = 0;
 	u32 mpi_opts;
+	u32 offset;
+
+	offset = offsetof(struct hw_atl_utils_settings, downshift_retry_count);
+	err = hw_atl_write_fwsettings_dwords(self, offset, &counter, 1);
+	if (err)
+		return err;
 
 	mpi_opts = aq_hw_read_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR);
-	if (enable)
+	if (counter)
 		mpi_opts |= HW_ATL_FW2X_CTRL_DOWNSHIFT;
 	else
 		mpi_opts &= ~HW_ATL_FW2X_CTRL_DOWNSHIFT;
+
 	aq_hw_write_reg(self, HW_ATL_FW2X_MPI_CONTROL2_ADDR, mpi_opts);
+
+	return err;
 }
 
 static int aq_fw2x_set_media_detect(struct aq_hw_s *self, bool on)
 {
-	int err = 0;
 	u32 enable;
 	u32 offset;
 
@@ -678,12 +687,7 @@ static int aq_fw2x_set_media_detect(struct aq_hw_s *self, bool on)
 	offset = offsetof(struct hw_atl_utils_settings, media_detect);
 	enable = on;
 
-	err = hw_atl_write_fwsettings_dwords(self, offset, &enable, 1);
-
-	if (err)
-		return err;
-
-	return 0;
+	return hw_atl_write_fwsettings_dwords(self, offset, &enable, 1);
 }
 
 static int aq_fw2x_get_cable_diag_capable(struct aq_hw_s *self, bool *capable)

@@ -76,12 +76,17 @@ static int aq_ndev_open(struct net_device *ndev)
 	pm_runtime_get_sync(&aq_nic->pdev->dev);
 
 	err = aq_nic_init(aq_nic);
-	if (err < 0)
+	if (err < 0) {
+		aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Nic init failed, err = %d\n", err);
 		goto err_exit;
+	}
 	err = aq_nic_start(aq_nic);
-	if (err < 0)
+	if (err < 0) {
+		aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Nic start failed, err = %d\n", err);
 		goto err_exit;
+	}
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Netdev open successful\n");
 err_exit:
 	if (err < 0)
 		aq_nic_deinit(aq_nic, true);
@@ -100,10 +105,14 @@ static int aq_ndev_close(struct net_device *ndev)
 	pm_runtime_get_sync(&aq_nic->pdev->dev);
 
 	err = aq_nic_stop(aq_nic);
-	if (err < 0)
+	if (err < 0) {
+		aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Nic stop failed, err = %d\n", err);
 		goto err_exit;
+	}
+
 	aq_nic_deinit(aq_nic, true);
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Netdev close successful\n");
 err_exit:
 	aq_utils_obj_clear(&aq_nic->aq_hw->flags, AQ_HW_FLAG_STARTED);
 	pm_runtime_put_sync(&aq_nic->pdev->dev);
@@ -152,6 +161,7 @@ static int aq_ndev_change_mtu(struct net_device *ndev, int new_mtu)
 		goto err_exit;
 	ndev->mtu = new_mtu;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "MTU updated\n");
 err_exit:
 	return err;
 }
@@ -203,6 +213,8 @@ static int aq_ndev_set_features(struct net_device *ndev,
 	bool is_lro = false;
 	int err = 0;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_DEBUG, "Netdev features: old = 0x%llx new = 0x%llx\n",
+		      ndev->features, features);
 	aq_cfg = aq_nic_get_cfg(aq_nic);
 	aq_cfg->features = features;
 
@@ -292,6 +304,8 @@ static void aq_ndev_set_multicast_settings(struct net_device *ndev)
 static int aq_ndev_config_hwtstamp(struct aq_nic_s *aq_nic,
 				   struct hwtstamp_config *config)
 {
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "config->flags = %d config->tx_type =0x%x\n",
+			config->flags, config->tx_type);
 	if (config->flags)
 		return -EINVAL;
 
@@ -348,6 +362,7 @@ static int aq_ndev_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 	struct aq_nic_s *aq_nic = netdev_priv(netdev);
 	int res = -EOPNOTSUPP;
 
+	aq_pr_verbose(aq_nic, AQ_MSG_PTP, "Ndev ioctl cmd = 0x%x\n", cmd);
 	pm_runtime_get_sync(&aq_nic->pdev->dev);
 
 	switch (cmd) {
@@ -594,7 +609,6 @@ static int __init aq_ndev_init_module(void)
 		destroy_workqueue(aq_ndev_wq);
 		return ret;
 	}
-
 	return 0;
 }
 
