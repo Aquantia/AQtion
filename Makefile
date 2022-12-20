@@ -19,9 +19,9 @@ else
 
 TARGET := atlantic
 
-export DEBIAN=`/usr/bin/dpkg --search /usr/bin/dpkg >/dev/null 2>&1 && echo 1 || echo 0`
+export DEBIAN="/usr/bin/dpkg --search /usr/bin/dpkg >/dev/null 2>&1 && echo 1 || echo 0"
 
-export KO_EXISTS=`cat /etc/modules 2>/dev/null | grep atlantic && echo 1 || echo 0`
+export KO_EXISTS="cat /etc/modules 2>/dev/null | grep atlantic && echo 1 || echo 0"
 
 ifndef KDIR
 	BUILD_DIR:=/lib/modules/$(shell uname -r)/build
@@ -64,12 +64,12 @@ updateramfs:
 		lsinitrd|grep ${TARGET}.ko >/dev/null 2>&1 ; \
 		export grep_result=$$? ;\
 	fi ; \
-	if [ $$grep_result -eq 0 ]; then \
+	if [ "$$grep_result" -eq 0 ]; then \
 		export inramfs=1 ; \
 	else \
 		export inramfs=0 ; \
 	fi ; \
-	if [ $$inramfs -eq 1 ]; then \
+	if [ "$$inramfs" -eq 1 ]; then \
 		echo "${TARGET}.ko is in initramfs." ; \
 		echo "CAUTION! Updating initramfs is potentially dangerous." ; \
 		echo -n "Attempt initramfs update? [yN] " ; \
@@ -81,16 +81,16 @@ updateramfs:
 	else \
 		export updateramfs=1 ; \
 	fi ; \
-	if [ $$updateramfs -eq 1 -a "${DEBIAN}" = "1" ]; then \
+	if [ "$$updateramfs" -eq 1 -a "${DEBIAN}" = "1" ]; then \
 		update-initramfs -u ; \
 		if [ "${KO_EXISTS}" = "0" ]; then echo atlantic >> /etc/modules ; fi; \
-	elif [ $$updateramfs -eq 1 ]; then \
+	elif [ "$$updateramfs -eq" 1 ]; then \
 		dracut --force ; \
 	fi
 
 uninstall:
 	@modprobe -r -n --first-time ${TARGET} >/dev/null 2>&1 ; \
-	if [ $$? -eq 0 ]; then \
+	if [ "$$?" -eq 0 ]; then \
 		echo -n "The driver is in use. Uninstall will stop the traffic! Continue? [yN] " ; \
 		read yn ; \
 		case $$yn in \
