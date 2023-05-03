@@ -293,8 +293,10 @@ static int aq_mdo_dev_open(struct macsec_context *ctx)
 	struct aq_nic_s *nic = netdev_priv(ctx->netdev);
 	int ret = 0;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	if (netif_carrier_ok(nic->ndev))
 		ret = aq_apply_secy_cfg(nic, ctx->secy);
@@ -307,8 +309,10 @@ static int aq_mdo_dev_stop(struct macsec_context *ctx)
 	struct aq_nic_s *nic = netdev_priv(ctx->netdev);
 	int i;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	for (i = 0; i < AQ_MACSEC_MAX_SC; i++) {
 		if (nic->macsec_cfg->txsc_idx_busy & BIT(i))
@@ -469,8 +473,10 @@ static int aq_mdo_add_secy(struct macsec_context *ctx)
 	if (txsc_idx == AQ_MACSEC_MAX_SC)
 		return -ENOSPC;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	cfg->sc_sa = sc_sa;
 	cfg->aq_txsc[txsc_idx].hw_sc_idx = aq_to_hw_sc_idx(txsc_idx, sc_sa);
@@ -495,8 +501,7 @@ static int aq_mdo_upd_secy(struct macsec_context *ctx)
 	if (txsc_idx < 0)
 		return -ENOENT;
 
-	if (ctx->prepare)
-		return 0;
+
 
 	if (netif_carrier_ok(nic->ndev) && netif_running(secy->netdev))
 		ret = aq_set_txsc(nic, txsc_idx);
@@ -546,8 +551,10 @@ static int aq_mdo_del_secy(struct macsec_context *ctx)
 	struct aq_nic_s *nic = netdev_priv(ctx->netdev);
 	int ret = 0;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	if (!nic->macsec_cfg)
 		return 0;
@@ -608,8 +615,10 @@ static int aq_mdo_add_txsa(struct macsec_context *ctx)
 	if (txsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	aq_txsc = &cfg->aq_txsc[txsc_idx];
 	set_bit(ctx->sa.assoc_num, &aq_txsc->tx_sa_idx_busy);
@@ -638,8 +647,10 @@ static int aq_mdo_upd_txsa(struct macsec_context *ctx)
 	if (txsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	aq_txsc = &cfg->aq_txsc[txsc_idx];
 	if (netif_carrier_ok(nic->ndev) && netif_running(secy->netdev))
@@ -688,8 +699,10 @@ static int aq_mdo_del_txsa(struct macsec_context *ctx)
 	if (txsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	ret = aq_clear_txsa(nic, &cfg->aq_txsc[txsc_idx], ctx->sa.assoc_num,
 			    AQ_CLEAR_ALL);
@@ -787,8 +800,10 @@ static int aq_mdo_add_rxsc(struct macsec_context *ctx)
 	if (rxsc_idx >= rxsc_idx_max)
 		return -ENOSPC;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	cfg->aq_rxsc[rxsc_idx].hw_sc_idx = aq_to_hw_sc_idx(rxsc_idx,
 							   cfg->sc_sa);
@@ -816,8 +831,10 @@ static int aq_mdo_upd_rxsc(struct macsec_context *ctx)
 	if (rxsc_idx < 0)
 		return -ENOENT;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	if (netif_carrier_ok(nic->ndev) && netif_running(ctx->secy->netdev))
 		ret = aq_set_rxsc(nic, rxsc_idx);
@@ -883,8 +900,10 @@ static int aq_mdo_del_rxsc(struct macsec_context *ctx)
 	if (rxsc_idx < 0)
 		return -ENOENT;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	if (netif_carrier_ok(nic->ndev))
 		clear_type = AQ_CLEAR_ALL;
@@ -959,8 +978,10 @@ static int aq_mdo_add_rxsa(struct macsec_context *ctx)
 	if (rxsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	aq_rxsc = &nic->macsec_cfg->aq_rxsc[rxsc_idx];
 	set_bit(ctx->sa.assoc_num, &aq_rxsc->rx_sa_idx_busy);
@@ -989,8 +1010,10 @@ static int aq_mdo_upd_rxsa(struct macsec_context *ctx)
 	if (rxsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	if (netif_carrier_ok(nic->ndev) && netif_running(secy->netdev))
 		ret = aq_update_rxsa(nic, cfg->aq_rxsc[rxsc_idx].hw_sc_idx,
@@ -1040,8 +1063,10 @@ static int aq_mdo_del_rxsa(struct macsec_context *ctx)
 	if (rxsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	ret = aq_clear_rxsa(nic, &cfg->aq_rxsc[rxsc_idx], ctx->sa.assoc_num,
 			    AQ_CLEAR_ALL);
@@ -1055,8 +1080,7 @@ static int aq_mdo_get_dev_stats(struct macsec_context *ctx)
 	struct aq_macsec_common_stats *stats = &nic->macsec_cfg->stats;
 	struct aq_hw_s *hw = nic->aq_hw;
 
-	if (ctx->prepare)
-		return 0;
+
 
 	aq_get_macsec_common_stats(hw, stats);
 
@@ -1084,9 +1108,10 @@ static int aq_mdo_get_tx_sc_stats(struct macsec_context *ctx)
 	if (txsc_idx < 0)
 		return -ENOENT;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
-
+#endif
 	aq_txsc = &nic->macsec_cfg->aq_txsc[txsc_idx];
 	stats = &aq_txsc->stats;
 	aq_get_txsc_stats(hw, aq_txsc->hw_sc_idx, stats);
@@ -1117,9 +1142,10 @@ static int aq_mdo_get_tx_sa_stats(struct macsec_context *ctx)
 	if (txsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
-
+#endif
 	aq_txsc = &cfg->aq_txsc[txsc_idx];
 	sa_idx = aq_txsc->hw_sc_idx | ctx->sa.assoc_num;
 	stats = &aq_txsc->tx_sa_stats[ctx->sa.assoc_num];
@@ -1157,10 +1183,10 @@ static int aq_mdo_get_rx_sc_stats(struct macsec_context *ctx)
 	rxsc_idx = aq_get_rxsc_idx_from_rxsc(cfg, ctx->rx_sc);
 	if (rxsc_idx < 0)
 		return -ENOENT;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
-
+#endif
 	aq_rxsc = &cfg->aq_rxsc[rxsc_idx];
 	for (i = 0; i < MACSEC_NUM_AN; i++) {
 		if (!test_bit(i, &aq_rxsc->rx_sa_idx_busy))
@@ -1207,8 +1233,10 @@ static int aq_mdo_get_rx_sa_stats(struct macsec_context *ctx)
 	if (rxsc_idx < 0)
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	if (ctx->prepare)
 		return 0;
+#endif
 
 	aq_rxsc = &cfg->aq_rxsc[rxsc_idx];
 	stats = &aq_rxsc->rx_sa_stats[ctx->sa.assoc_num];
@@ -1452,7 +1480,9 @@ static void aq_check_txsa_expiration(struct aq_nic_s *nic)
 			}
 
 			tx_sa = rcu_dereference_bh(secy->tx_sc.sa[an]);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 			macsec_pn_wrapped((struct macsec_secy *)secy, tx_sa);
+#endif
 		}
 	}
 
