@@ -54,6 +54,7 @@ const struct aq_hw_caps_s hw_atl_a0_caps_aqc100 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 };
 
 const struct aq_hw_caps_s hw_atl_a0_caps_aqc107 = {
@@ -64,6 +65,7 @@ const struct aq_hw_caps_s hw_atl_a0_caps_aqc107 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 };
 
 const struct aq_hw_caps_s hw_atl_a0_caps_aqc108 = {
@@ -73,6 +75,7 @@ const struct aq_hw_caps_s hw_atl_a0_caps_aqc108 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 };
 
 const struct aq_hw_caps_s hw_atl_a0_caps_aqc109 = {
@@ -81,6 +84,7 @@ const struct aq_hw_caps_s hw_atl_a0_caps_aqc109 = {
 	.link_speed_msk = AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 };
 
 static int hw_atl_a0_hw_reset(struct aq_hw_s *self)

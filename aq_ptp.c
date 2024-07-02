@@ -1075,13 +1075,30 @@ void aq_ptp_tx_hwtstamp(struct aq_nic_s *aq_nic, u64 timestamp)
 		netdev_err(aq_nic->ndev, "have timestamp but tx_queues empty\n");
 		return;
 	}
-
-	timestamp += atomic_read(&aq_ptp->offset_egress);
-	aq_ptp_convert_to_hwtstamp(aq_ptp, &hwtstamp, timestamp);
-	skb_tstamp_tx(skb, &hwtstamp);
+    // Only report the HW timestamp if it was requested. Otherwise,
+    // SW timestamping would be broken.
+	if (skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) {
+		timestamp += atomic_read(&aq_ptp->offset_egress);
+		aq_ptp_convert_to_hwtstamp(aq_ptp, &hwtstamp, timestamp);
+		skb_tstamp_tx(skb, &hwtstamp);
+	}
 	dev_kfree_skb_any(skb);
 
 	aq_ptp_tx_timeout_update(aq_ptp);
+}
+
+static void aq_ptp_enable_ptp(struct aq_ptp_s *aq_ptp, int enable)
+{
+    struct aq_nic_s *aq_nic = aq_ptp->aq_nic;
+	if (aq_ptp->a1_ptp) {
+		mutex_lock(&aq_nic->fwreq_mutex);
+		aq_nic->aq_fw_ops->enable_ptp(aq_nic->aq_hw, enable);
+		mutex_unlock(&aq_nic->fwreq_mutex);
+	}
+
+	if (aq_ptp->a2_ptp)
+		aq_nic->aq_hw_ops->enable_ptp(aq_nic->aq_hw,
+			aq_ptp->ptp_clock_sel, enable);
 }
 
 static int aq_ptp_dpath_enable(struct aq_ptp_s *aq_ptp,
@@ -1098,6 +1115,10 @@ static int aq_ptp_dpath_enable(struct aq_ptp_s *aq_ptp,
 	netdev_dbg(aq_nic->ndev,
 		   "%sable ptp filters: %x.\n",
 		   enable_flags ? "En" : "Dis", enable_flags);
+
+	// Some NICs need to flip the bit twice to actually start/stop PTP
+	if (aq_nic->aq_nic_cfg.aq_hw_caps->quirks & AQ_NIC_QUIRK_NEED_PTP_FLIP)
+		aq_ptp_enable_ptp(aq_ptp, enable_flags ? 0 : 1);
 
 	if (enable_flags) {
 		if (enable_flags & (AQ_HW_PTP_L4_ENABLE)) {
@@ -1260,6 +1281,11 @@ static int aq_ptp_dpath_enable(struct aq_ptp_s *aq_ptp,
 					    "Set L2 filter complete. Location: %d\n",
 					    aq_ptp->eth_type_filter.location);
 		}
+
+        if (!err) {
+            aq_ptp_enable_ptp(aq_ptp, 1);
+            netdev_info(aq_nic->ndev, "PTP filters enabled.\n");
+        }
 	} else {
 		/* PTP disabled, clear all UDP/L2 filters */
 		for (i = 0; i < PTP_UDP_FILTERS_CNT; i++) {
@@ -1273,6 +1299,9 @@ static int aq_ptp_dpath_enable(struct aq_ptp_s *aq_ptp,
 		if (!err && hw_ops->hw_filter_l2_clear)
 			err = hw_ops->hw_filter_l2_clear(aq_nic->aq_hw,
 						&aq_ptp->eth_type_filter);
+
+        aq_ptp_enable_ptp(aq_ptp, 0);
+        netdev_info(aq_nic->ndev, "PTP filters disabled.\n");
 	}
 
 	return err;
@@ -1344,6 +1373,13 @@ int aq_ptp_hwtstamp_config_set(struct aq_ptp_s *aq_ptp,
 		config->rx_filter = HWTSTAMP_FILTER_NONE;
 		return -ERANGE;
 	}
+
+    if (ptp_en_flags != AQ_HW_PTP_DISABLE &&
+            !aq_utils_obj_test(&aq_nic->aq_hw->flags, AQ_HW_PTP_AVAILABLE)) {
+        config->rx_filter = HWTSTAMP_FILTER_NONE;
+        netdev_err(aq_nic->ndev, "PTP timestamping requested but not supported.\n");
+        return -EOPNOTSUPP;
+    }
 
 	if (aq_ptp->hwtstamp_config.rx_filter != config->rx_filter)
 		err = aq_ptp_dpath_enable(aq_ptp,
@@ -1537,7 +1573,10 @@ int aq_ptp_xmit(struct aq_nic_s *aq_nic, struct sk_buff *skb)
 			   ring->size);
 		return NETDEV_TX_BUSY;
 	}
-	skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
+	// SKBTX_IN_PROGRESS would report SW timestamp reporting in case only
+    // SW timestamps are requested.
+	if (skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)
+		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 	aq_ptp_tx_timeout_start(aq_ptp);
 
 	skb_tx_timestamp(skb);
@@ -2013,7 +2052,7 @@ void aq_ptp_clock_init(struct aq_nic_s *aq_nic, enum aq_ptp_state state)
 		}
 	}
 
-	if (!aq_ptp->a1_ptp && state != AQ_PTP_FIRST_INIT) {
+	if (state != AQ_PTP_FIRST_INIT) {
 		int ptp_en_flags =
 			aq_ptp_parse_rx_filters(state == AQ_PTP_LINK_UP ?
 				aq_ptp->hwtstamp_config.rx_filter :
@@ -2138,13 +2177,7 @@ int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_ptp_vec, unsigned int 
 	/* enable ptp counter */
 	aq_ptp->ptp_clock_sel = ATL_TSG_CLOCK_SEL_0; //mbox.info.caps_ex.;
 	aq_utils_obj_set(&aq_nic->aq_hw->flags, AQ_HW_PTP_AVAILABLE);
-	if (a1_ptp) {
-		mutex_lock(&aq_nic->fwreq_mutex);
-		aq_nic->aq_fw_ops->enable_ptp(aq_nic->aq_hw, 1);
-		mutex_unlock(&aq_nic->fwreq_mutex);
-	}
-	if (a2_ptp)
-		aq_nic->aq_hw_ops->enable_ptp(aq_nic->aq_hw, aq_ptp->ptp_clock_sel, 1);
+    aq_ptp_enable_ptp(aq_ptp, 1);
 
 	INIT_DELAYED_WORK(&aq_ptp->poll_sync, &aq_ptp_poll_sync_work_cb);
 

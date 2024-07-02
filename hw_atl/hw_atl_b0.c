@@ -69,6 +69,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc100 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 	.fw_image_name = AQ_FW_AQC100X,
 };
 
@@ -80,6 +81,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc107 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 	.fw_image_name = AQ_FW_AQC10XX,
 };
 
@@ -90,6 +92,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc108 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 	.fw_image_name = AQ_FW_AQC10XX,
 };
 
@@ -99,6 +102,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc109 = {
 	.link_speed_msk = AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
+	.quirks = AQ_NIC_QUIRK_NEED_PTP_FLIP,
 	.fw_image_name = AQ_FW_AQC10XX,
 };
 
@@ -109,7 +113,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc111 = {
 			  AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G |
 			  AQ_NIC_RATE_100M,
-	.quirks = AQ_NIC_QUIRK_BAD_PTP,
+	.quirks = AQ_NIC_QUIRK_BAD_PTP | AQ_NIC_QUIRK_NEED_PTP_FLIP,
 	.fw_image_name = AQ_FW_AQC11XX,
 };
 
@@ -119,7 +123,7 @@ const struct aq_hw_caps_s hw_atl_b0_caps_aqc112 = {
 	.link_speed_msk = AQ_NIC_RATE_2G5 |
 			  AQ_NIC_RATE_1G  |
 			  AQ_NIC_RATE_100M,
-	.quirks = AQ_NIC_QUIRK_BAD_PTP,
+	.quirks = AQ_NIC_QUIRK_BAD_PTP | AQ_NIC_QUIRK_NEED_PTP_FLIP,
 	.fw_image_name = AQ_FW_AQC11XX,
 };
 
