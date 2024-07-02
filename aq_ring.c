@@ -609,7 +609,11 @@ unsigned int aq_ring_fill_stats_data(struct aq_ring_s *self, u64 *data)
 		/* This data should mimic aq_ethtool_queue_rx_stat_names structure */
 		do {
 			count = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+			start = u64_stats_fetch_begin(&self->stats.rx.syncp);
+#else
 			start = u64_stats_fetch_begin_irq(&self->stats.rx.syncp);
+#endif
 			data[count] = self->stats.rx.packets;
 			data[++count] = self->stats.rx.jumbo_packets;
 			data[++count] = self->stats.rx.lro_packets;
@@ -620,17 +624,29 @@ unsigned int aq_ring_fill_stats_data(struct aq_ring_s *self, u64 *data)
 			data[++count] = self->stats.rx.irqs;
 			data[++count] = self->sw_head;
 			data[++count] = self->sw_tail;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+		} while (u64_stats_fetch_retry(&self->stats.rx.syncp, start));
+#else
 		} while (u64_stats_fetch_retry_irq(&self->stats.rx.syncp, start));
+#endif
 	} else {
 		/* This data should mimic aq_ethtool_queue_tx_stat_names structure */
 		do {
 			count = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+			start = u64_stats_fetch_begin(&self->stats.tx.syncp);
+#else
 			start = u64_stats_fetch_begin_irq(&self->stats.tx.syncp);
+#endif
 			data[count] = self->stats.tx.packets;
 			data[++count] = self->stats.tx.queue_restarts;
 			data[++count] = self->sw_head;
 			data[++count] = self->sw_tail;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+		} while (u64_stats_fetch_retry(&self->stats.tx.syncp, start));
+#else
 		} while (u64_stats_fetch_retry_irq(&self->stats.tx.syncp, start));
+#endif
 	}
 
 	return ++count;
