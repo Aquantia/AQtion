@@ -1481,9 +1481,19 @@ static u16 hw_atl_b0_rx_extract_ts(struct aq_hw_s *self, u8 *p,
 	*timestamp = (be64_to_cpu(sec) & 0xffffffffffffllu) * NSEC_PER_SEC +
 		     be32_to_cpu(ns) + self->ptp_clk_offset;
 
-	eth = (struct ethhdr *)p;
-
-	return (eth->h_proto == htons(ETH_P_1588)) ? 12 : 14;
+    return 12;
+    // This is super weird. It seems that the timestamps occupy the last 14
+    // bytes, but for some reason, the packet is only extended by 12 bytes.
+    // No idea what happens to the last 2 bytes of the payload, but it is
+    // probably wrong (fortunately, there's hopefully not too much interesting
+    // data there in the timestamped PTP packets, and the first 2 bytes of sec
+    // will always be 00 00, so basically the last 2 bytes will get zeroed out).
+    // Following is an even weirder construct that used to be in the driver,
+    // giving some proof that removing just 12 of the 14 bytes is not a complete
+    // nonsense. However, in my experience, both L2 and UDP packets suffer from
+    // this weirdness.
+	//eth = (struct ethhdr *)p;
+	//return (eth->h_proto == htons(ETH_P_1588)) ? 12 : 14;
 }
 
 static int hw_atl_b0_extract_hwts(struct aq_hw_s *self, u8 *p, unsigned int len,
