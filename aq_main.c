@@ -583,7 +583,11 @@ static const struct net_device_ops aq_ndev_ops = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	.ndo_set_features = aq_ndev_set_features,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+	.ndo_eth_ioctl = aq_ndev_ioctl,
+#else
 	.ndo_do_ioctl = aq_ndev_ioctl,
+#endif
 	.ndo_vlan_rx_add_vid = aq_ndo_vlan_rx_add_vid,
 	.ndo_vlan_rx_kill_vid = aq_ndo_vlan_rx_kill_vid,
 #if (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 5) && \
