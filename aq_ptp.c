@@ -2127,8 +2127,13 @@ int aq_ptp_init(struct aq_nic_s *aq_nic, unsigned int idx_ptp_vec, unsigned int 
 	atomic_set(&aq_ptp->offset_egress, 0);
 	atomic_set(&aq_ptp->offset_ingress, 0);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	netif_napi_add(aq_nic_get_ndev(aq_nic), &aq_ptp->napi,
 		       aq_ptp_poll, AQ_CFG_NAPI_WEIGHT);
+#else
+	netif_napi_add(aq_nic_get_ndev(aq_nic), &aq_ptp->napi,
+		       aq_ptp_poll);
+#endif
 
 	aq_ptp->idx_ptp_vector = idx_ptp_vec;
 	aq_ptp->idx_gpio_vector = idx_ext_vec;

@@ -122,10 +122,13 @@ struct aq_vec_s *aq_vec_alloc(struct aq_nic_s *aq_nic, unsigned int idx,
 
 	cpumask_set_cpu(self->aq_ring_param.cpu,
 			&self->aq_ring_param.affinity_mask);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	netif_napi_add(aq_nic_get_ndev(aq_nic), &self->napi,
 		       aq_vec_poll, AQ_CFG_NAPI_WEIGHT);
-
+#else
+	netif_napi_add(aq_nic_get_ndev(aq_nic), &self->napi,
+		       aq_vec_poll);
+#endif
 err_exit:
 	return self;
 }
