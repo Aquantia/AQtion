@@ -1396,6 +1396,10 @@ static int hw_atl_b0_adj_clock_freq(struct aq_hw_s *self, s32 ppb)
 				     AQ_HW_PHY_COUNTER_HZ,
 				     AQ_HW_MAC_COUNTER_HZ);
 
+	// Workaround for sudden jumps in clock time. See https://www.spinics.net/lists/netdev/msg1013570.html .
+	if (((s32)fwreq.ptp_adj_freq.mac_ns_adj) < 0)
+		fwreq.ptp_adj_freq.mac_ns_adj = fwreq.ptp_adj_freq.mac_fns_adj = 0;
+
 	size = sizeof(fwreq.msg_id) + sizeof(fwreq.ptp_adj_freq);
 	return self->aq_fw_ops->send_fw_request(self, &fwreq, size);
 }
