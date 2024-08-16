@@ -289,7 +289,8 @@ u16 crc_itu_t(u16 crc, const u8 *buffer, size_t len);
 #define platform_get_ethdev_address(dev, netdev) (-1)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) && \
+// eth_hw_addr_set was added in 5.15, but later it was backported into LTS kernel 5.10.188
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 188) || (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))) && \
 	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(8, 6)
 static inline void eth_hw_addr_set(struct net_device *dev, const u8 *addr)
 {
