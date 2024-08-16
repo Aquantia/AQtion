@@ -83,6 +83,8 @@ get_distro_os ()
 	if [ "${OS}" = "Linux" ] ; then
 		if [ -f /etc/redhat-release ] ; then
 			DISTRO_NAME='redhat'
+		elif [ -f /etc/nv_tegra_release ] ; then
+			DISTRO_NAME='l4t'  # NVidia Jetson
 		elif [ -f /etc/debian_version ] ; then
 			DISTRO_NAME='debian'
 		elif [ -f /etc/SuSE-release ] ; then
@@ -105,7 +107,12 @@ main ()
 	GAWK="gawk"
 	CMD=""
 	DISTRO=$(get_distro_os)
-	if [ "${DISTRO}" = "debian" ] ; then
+	if [ "${DISTRO}" = "l4t" ] ; then
+		PACKET_MNG="${APT_GET}"
+		LINUX_HEADERS="nvidia-l4t-kernel-headers"
+		TOOLS="build-essential"
+		CMD="dpkg-query -l"
+	elif [ "${DISTRO}" = "debian" ] ; then
 		PACKET_MNG="${APT_GET}"
 		LINUX_HEADERS="linux-headers-`uname -r`"
 		TOOLS="build-essential"
