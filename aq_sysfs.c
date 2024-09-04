@@ -276,7 +276,7 @@ static int memreg_mmap(struct file *file, struct kobject *kobj, struct bin_attri
 #if defined(__arm__) || defined(__aarch64__)
 	// had issues with writes to descriptors/packets not being seen by HW for arm systems. this function seemed to fix this
 #ifdef pgprot_dmacoherent
-	vma->vm_page_pgprot = prot_dmacoherent(vma->vm_page_prot);
+	vma->vm_page_prot = pgprot_dmacoherent(vma->vm_page_prot);
 #else //!defined(pgprot_dmacoherent)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	//vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
